@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { useAuthUser, canAccessPayroll } from '@/store/auth.store'
 import { useContracts, useSalaryStructures, useWorkingSchedules } from '@/hooks/use-contracts'
+import { CreateContractModal } from './CreateContractModal'
 
 export const ContractsView: React.FC = () => {
   const user = useAuthUser()
@@ -20,6 +21,7 @@ export const ContractsView: React.FC = () => {
   const activeTab = searchParams.get('tab') || 'contracts'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
   const isPayrollUser = canAccessPayroll(user?.role)
 
@@ -67,8 +69,8 @@ export const ContractsView: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => alert('New contract creation feature')}
-          className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+          onClick={() => setIsCreateModalOpen(true)}
+          className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
         >
           <Plus className="w-4 h-4" />
           <span>New Contract</span>
@@ -327,6 +329,11 @@ export const ContractsView: React.FC = () => {
           )}
         </div>
       )}
+      {/* Create Contract Modal */}
+      <CreateContractModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   )
 }

@@ -1,6 +1,29 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import apiClient from '@/lib/axios'
 import { useCompanyId } from '@/store/auth.store'
+
+export interface CreateContractPayload {
+  employeeId: string
+  contractReference: string
+  startDate: string
+  endDate?: string | null
+  departmentId?: string | null
+  jobPositionId?: string | null
+  scheduleId?: string | null
+  wage: number
+  currency?: string
+  payFrequency?: 'monthly' | 'bi_weekly' | 'weekly'
+  salaryStructureId?: string | null
+  status?: 'draft' | 'active' | 'expired' | 'terminated'
+  notes?: string | null
+}
+
+export interface MasterDataResponse {
+  departments: Array<{ id: string; name: string; code?: string }>
+  jobPositions: Array<{ id: string; title: string; code?: string; departmentId?: string }>
+  schedules: Array<{ id: string; name: string; scheduleType?: string; totalWeeklyHours?: number }>
+  managers: Array<{ id: string; firstName: string; lastName: string; employeeCode?: string }>
+}
 
 export interface ApiContractItem {
   id: string
@@ -82,15 +105,56 @@ export function useContracts(params?: { status?: string; search?: string }) {
   return useQuery({
     queryKey: ['contracts', companyId, params],
     queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: ApiContractItem[] | { items: ApiContractItem[] } }>(
-        '/contracts',
-        { params }
-      )
-      const data = response.data?.data
-      if (Array.isArray(data)) return data
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items
-      return []
+      const response = await apiClient.get<any>('/contracts', { params })
+      const data = response.data?.data || response.data
+      if (Array.isArray(data)) return data as ApiContractItem[]
+      if (data && 'items' in data && Array.isArray(data.items)) return data.items as ApiContractItem[]
+      if (data && 'contracts' in data && Array.isArray(data.contracts)) return data.contracts as ApiContractItem[]
+      return [] as ApiContractItem[]
     },
+    enabled: !!companyId,
+  })
+}
+
+/**
+ * Mutation for creating a new employment contract
+ */
+export function useCreateContract() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: CreateContractPayload) => {
+      const response = await apiClient.post<any>('/contracts', payload)
+      const res = response.data?.data || response.data
+      return (res?.item || res?.contract || res) as ApiContractItem
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contracts'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+    },
+  })
+}
+
+/**
+ * Fetch company employee master data (departments, positions, schedules, managers)
+ */
+export function useEmployeeMasters() {
+  const companyId = useCompanyId()
+
+  return useQuery<MasterDataResponse>({
+    queryKey: ['employee-masters', companyId],
+    queryFn: async () => {
+      const response = await apiClient.get<any>('/employees/meta/masters')
+      const data = response.data?.data || response.data
+      return {
+        departments: data?.departments || [],
+        jobPositions: data?.jobPositions || [],
+        schedules: data?.schedules || [],
+        managers: data?.managers || [],
+      }
+    },
+    staleTime: 5 * 60 * 1000,
     enabled: !!companyId,
   })
 }
