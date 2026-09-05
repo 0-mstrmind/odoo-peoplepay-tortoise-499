@@ -22,6 +22,8 @@ import {
   useContracts,
   useWorkingSchedules,
   useUpdateContract,
+  useWorkingScheduleDetail,
+  useDeleteWorkingSchedule,
 } from '@/hooks/use-contracts'
 import {
   useSalaryStructures,
@@ -66,12 +68,28 @@ export const ContractsView: React.FC = () => {
   const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false)
   const [structSubView, setStructSubView] = useState<'structures' | 'rules'>('structures')
   const [expandedStructureId, setExpandedStructureId] = useState<string | null>(null)
+  const [expandedScheduleId, setExpandedScheduleId] = useState<string | null>(null)
   const [activatingId, setActivatingId] = useState<string | null>(null)
 
   const isPayrollUser = canAccessPayroll(user?.role)
 
   const updateContractMutation = useUpdateContract()
   const deleteSalaryRuleMutation = useDeleteSalaryRule()
+  const deleteWorkingScheduleMutation = useDeleteWorkingSchedule()
+
+  const { data: scheduleDetail, isLoading: isLoadingScheduleDetail } = useWorkingScheduleDetail(expandedScheduleId)
+
+  const handleDeleteSchedule = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to delete working schedule "${name}"?`)) return
+    try {
+      await deleteWorkingScheduleMutation.mutateAsync(id)
+      toast.success(`Working schedule "${name}" deleted successfully!`)
+      if (expandedScheduleId === id) setExpandedScheduleId(null)
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Failed to delete schedule'
+      toast.error(msg)
+    }
+  }
 
   const { data: salaryRules = [], isLoading: isLoadingRules } = useSalaryRules()
 
@@ -785,24 +803,34 @@ export const ContractsView: React.FC = () => {
 
       {/* Tab 3: Working Schedules */}
       {activeTab === 'schedules' && (
-        <div className="pp-card p-6 space-y-4">
-          <div className="border-b border-[var(--color-border)] pb-3">
-            <h3 className="text-base font-bold text-[var(--color-text-heading)] flex items-center gap-2 mb-1">
-              <Briefcase className="w-4 h-4 text-[var(--color-primary)]" />
-              <span>Working Schedules</span>
-            </h3>
-            <p className="text-xs text-[var(--color-text-muted)] mb-0">
-              Define standard working calendars used for attendance tracking and wage proration.
-            </p>
+        <div className="space-y-4">
+          <div className="pp-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--color-border)]">
+            <div>
+              <h3 className="text-base font-extrabold text-[var(--color-text-heading)] flex items-center gap-2 mb-1">
+                <Briefcase className="w-5 h-5 text-[var(--color-primary)]" />
+                <span>Working Schedules Master</span>
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-0">
+                Define and manage standard working calendars, shift hours, and weekly day-off configurations.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)]">
+              <span className="bg-[var(--color-bg-muted)] px-3 py-1.5 rounded-[6px] font-bold">
+                Total Schedules: <strong className="text-[var(--color-text-heading)]">{workingSchedules.length}</strong>
+              </span>
+              <span className="bg-[#00C853]/10 text-[#00C853] px-3 py-1.5 rounded-[6px] font-bold">
+                Active: <strong>{workingSchedules.filter((s) => s.isActive).length}</strong>
+              </span>
+            </div>
           </div>
 
           {isLoadingSchedules ? (
-            <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+            <div className="pp-card py-12 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
               <span>Loading working schedules...</span>
             </div>
           ) : workingSchedules.length === 0 ? (
-            <div className="py-12 text-center text-xs text-[var(--color-text-muted)] space-y-2">
+            <div className="pp-card py-12 text-center text-xs text-[var(--color-text-muted)] space-y-2">
               <Briefcase className="w-8 h-8 text-[var(--color-text-muted)]/30 mx-auto" />
               <p className="font-medium mb-0">No working schedules configured yet.</p>
               <p className="text-[11px] text-[var(--color-text-muted)]/70">
@@ -810,20 +838,160 @@ export const ContractsView: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {workingSchedules.map((sched) => (
-                <div key={sched.id} className="p-3.5 border border-[var(--color-border)] rounded-[6px] flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-[var(--color-text-heading)]">{sched.name}</p>
-                    <p className="text-[11px] text-[var(--color-text-muted)]">
-                      {sched.totalWeeklyHours}h/week | Code: {sched.code} | Timezone: {sched.timezone || 'Asia/Kolkata'}
-                    </p>
+            <div className="grid grid-cols-1 gap-4">
+              {workingSchedules.map((sched) => {
+                const isExpanded = expandedScheduleId === sched.id
+                const lines = isExpanded && scheduleDetail?.id === sched.id ? scheduleDetail.scheduleLines || [] : []
+
+                return (
+                  <div
+                    key={sched.id}
+                    className="pp-card p-4 border border-[var(--color-border)] rounded-[8px] space-y-3 transition-all hover:border-[var(--color-primary)]/30"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-sm text-[var(--color-text-heading)]">
+                            {sched.name}
+                          </span>
+                          {sched.code && (
+                            <span className="font-mono text-xs font-bold text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)] px-2 py-0.5 rounded">
+                              {sched.code}
+                            </span>
+                          )}
+                          <span className="pp-badge text-[10px] uppercase font-bold pp-badge-neutral">
+                            {sched.scheduleType || 'Fixed'} Shift
+                          </span>
+                          <span
+                            className={`pp-badge text-[10px] uppercase font-bold ${
+                              sched.isActive ? 'pp-badge-success' : 'pp-badge-warning'
+                            }`}
+                          >
+                            {sched.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-[var(--color-text-muted)] flex-wrap">
+                          <span className="font-semibold text-[var(--color-text-heading)]">
+                            {sched.totalWeeklyHours} hrs/week
+                          </span>
+                          <span>&bull;</span>
+                          <span>TZ: {sched.timezone || 'Asia/Kolkata'}</span>
+                          <span>&bull;</span>
+                          <span>{sched.contractsCount ?? 0} Contracts Assigned</span>
+                          <span>&bull;</span>
+                          <span>{sched.employeesCount ?? 0} Employees</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedScheduleId(isExpanded ? null : sched.id)}
+                          className="pp-btn-secondary text-xs py-1.5 px-3 rounded-[4px] font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                          <span>{isExpanded ? 'Hide Shift Breakdown' : 'View Shift Hours'}</span>
+                          <ChevronDown
+                            className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                              isExpanded ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSchedule(sched.id, sched.name)}
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                          title={`Delete schedule ${sched.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Expandable Shift Lines Table */}
+                    {isExpanded && (
+                      <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider mb-0 flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            <span>Weekly Shift Schedule Lines (Monday &ndash; Sunday)</span>
+                          </h5>
+                          {scheduleDetail && (
+                            <span className="text-[11px] text-[var(--color-text-muted)] font-medium">
+                              Total Work: {scheduleDetail.totalWeeklyHours} hrs/week
+                            </span>
+                          )}
+                        </div>
+
+                        {isLoadingScheduleDetail ? (
+                          <div className="py-6 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                            <span>Fetching schedule shift details...</span>
+                          </div>
+                        ) : lines.length === 0 ? (
+                          <p className="text-xs text-[var(--color-text-muted)] italic py-2">
+                            No day-by-day shift lines configured.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto border border-[var(--color-border)] rounded-[6px]">
+                            <table className="w-full text-left text-xs border-collapse">
+                              <thead>
+                                <tr className="bg-[var(--color-bg-muted)] border-b border-[var(--color-border)] text-[10px] font-bold text-[var(--color-text-muted)] uppercase">
+                                  <th className="py-2 px-3">Day of Week</th>
+                                  <th className="py-2 px-3">Working Hours</th>
+                                  <th className="py-2 px-3">Break Duration</th>
+                                  <th className="py-2 px-3">Net Daily Work</th>
+                                  <th className="py-2 px-3 text-right">Day Status</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-[var(--color-border)] text-xs">
+                                {lines.map((line) => (
+                                  <tr
+                                    key={line.id || line.dayOfWeek}
+                                    className={`hover:bg-[var(--color-bg-muted)]/40 ${
+                                      line.isDayOff ? 'bg-gray-500/5' : ''
+                                    }`}
+                                  >
+                                    <td className="py-2 px-3 font-bold text-[var(--color-text-heading)] capitalize">
+                                      {line.dayOfWeek}
+                                    </td>
+                                    <td className="py-2 px-3 font-mono font-semibold">
+                                      {line.isDayOff || !line.startTime || !line.endTime ? (
+                                        <span className="text-[var(--color-text-muted)] italic">&mdash;</span>
+                                      ) : (
+                                        <span className="text-[var(--color-text-heading)]">
+                                          {line.startTime} &ndash; {line.endTime}
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3 font-mono text-[var(--color-text-muted)]">
+                                      {line.isDayOff ? '0 mins' : `${line.breakDurationMinutes || 0} mins`}
+                                    </td>
+                                    <td className="py-2 px-3 font-mono font-bold text-[var(--color-primary)]">
+                                      {line.isDayOff ? '0.0 hrs' : `${((line.workDurationMinutes || 0) / 60).toFixed(1)} hrs`}
+                                    </td>
+                                    <td className="py-2 px-3 text-right">
+                                      <span
+                                        className={`pp-badge text-[9px] uppercase font-bold ${
+                                          line.isDayOff ? 'pp-badge-neutral' : 'pp-badge-success'
+                                        }`}
+                                      >
+                                        {line.isDayOff ? 'Day Off' : 'Working Day'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <span className={`pp-badge text-xs ${sched.isActive ? 'pp-badge-neutral' : 'pp-badge-warning'}`}>
-                    {sched.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

@@ -200,6 +200,20 @@ export function useSalaryStructures() {
   })
 }
 
+export interface ApiWorkingScheduleDetail extends ApiWorkingScheduleItem {
+  scheduleLines?: Array<{
+    id: string
+    dayOfWeek: string
+    startTime: string | null
+    endTime: string | null
+    breakDurationMinutes: number
+    workDurationMinutes: number
+    isDayOff: boolean
+  }>
+  assignedEmployees?: Array<any>
+  assignedContracts?: Array<any>
+}
+
 /**
  * Fetch list of working schedules from backend API
  */
@@ -218,6 +232,24 @@ export function useWorkingSchedules() {
       return []
     },
     enabled: !!companyId,
+  })
+}
+
+/**
+ * Fetch detailed working schedule including 7 day lines and assignments
+ */
+export function useWorkingScheduleDetail(id: string | null) {
+  const companyId = useCompanyId()
+
+  return useQuery({
+    queryKey: ['working-schedule-detail', id, companyId],
+    queryFn: async () => {
+      if (!id) return null
+      const response = await apiClient.get<any>(`/working-schedules/${id}`)
+      const data = response.data?.data || response.data
+      return (data?.schedule || data) as ApiWorkingScheduleDetail
+    },
+    enabled: !!id && !!companyId,
   })
 }
 
@@ -253,3 +285,22 @@ export function useCreateWorkingSchedule() {
     },
   })
 }
+
+/**
+ * Mutation for soft deleting / deactivating a working schedule
+ */
+export function useDeleteWorkingSchedule() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.delete<any>(`/working-schedules/${id}`)
+      return response.data?.data || response.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['working-schedules'] })
+      qc.invalidateQueries({ queryKey: ['employee-masters'] })
+    },
+  })
+}
+
