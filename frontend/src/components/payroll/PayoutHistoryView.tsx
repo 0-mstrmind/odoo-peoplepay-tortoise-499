@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useAuthUser } from '@/store/auth.store'
 import { useMyEmployeeProfile } from '@/hooks/use-api'
-import { usePayslips, usePayslipDetail, type PayslipItem } from '@/hooks/use-payroll'
+import { usePayslips, usePayslipDetail, type PayslipItem, type PayslipLine } from '@/hooks/use-payroll'
 
 export const PayoutHistoryView: React.FC = () => {
   const user = useAuthUser()
@@ -337,7 +337,7 @@ export const PayoutHistoryView: React.FC = () => {
                       Emp Code: <strong className="text-[var(--color-text-heading)]">{payslipDetail.employee?.employeeCode || 'EMP-0001'}</strong>
                     </p>
                     <p className="text-[var(--color-text-muted)]">
-                      Dept: <strong className="text-[var(--color-text-heading)]">{payslipDetail.employee?.department?.name || 'Engineering'}</strong>
+                      Dept: <strong className="text-[var(--color-text-heading)]">{typeof payslipDetail.employee?.department === 'object' ? payslipDetail.employee?.department?.name : (payslipDetail.employee?.department || 'Engineering')}</strong>
                     </p>
                   </div>
 
@@ -388,8 +388,8 @@ export const PayoutHistoryView: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)] text-xs">
                       {payslipDetail.payslipLines && payslipDetail.payslipLines.length > 0 ? (
-                        payslipDetail.payslipLines.map((line) => (
-                          <tr key={line.id} className={line.category === 'net' ? 'bg-[#00C853]/10 font-extrabold' : ''}>
+                        payslipDetail.payslipLines.map((line: PayslipLine, idx: number) => (
+                          <tr key={line.id || idx} className={line.category === 'net' ? 'bg-[#00C853]/10 font-extrabold' : ''}>
                             <td className="py-2 px-3 font-mono text-[11px]">{line.ruleCode}</td>
                             <td className="py-2 px-3 font-semibold">{line.ruleName}</td>
                             <td className="py-2 px-3 uppercase text-[10px]">{line.category}</td>

@@ -35,6 +35,7 @@ export interface AuthUser {
   name:      string
   role:      UserRole
   avatarUrl?: string
+  employeeId?: string | null
 }
 
 interface AuthState {

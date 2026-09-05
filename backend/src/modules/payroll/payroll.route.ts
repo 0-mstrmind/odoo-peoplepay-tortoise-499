@@ -14,66 +14,90 @@ import {
   getPayslipById,
 } from "./payroll.controller.js";
 
-// Router for /payruns
+/**
+ * PAYRUN access roles:
+ * - PAYROLL_CRU_ROLES: Create / Read / Update payruns (hr_payroll_user + above)
+ * - PAYROLL_MANAGER_ROLES: Destructive/final state transitions only (mark-paid, cancel)
+ *   Restricted to hr_payroll_manager+ per business rules — hr_payroll_user is CRU only.
+ */
+const PAYROLL_CRU_ROLES = ["admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager"] as const;
+const PAYROLL_MANAGER_ROLES = ["admin", "hr_payroll_manager"] as const;
+
+/**
+ * PAYSLIP read roles:
+ * - HR roles can read all payslips.
+ * - "employee" is included here; the controller applies an ownership filter
+ *   (req.user.employeeId) so employees only ever see their own payslip records.
+ */
+const PAYSLIP_READ_ROLES = ["admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager", "employee"] as const;
+
+// ── Router for /payruns ────────────────────────────────────────────────────
 export const payrunRouter = Router();
 
 payrunRouter.use(clerkAuthMiddleware);
 
 payrunRouter.get(
   "/",
-  requireRole("admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   getPayruns,
 );
 payrunRouter.get(
   "/:id",
-  requireRole("admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   getPayrunById,
 );
 payrunRouter.post(
   "/",
-  requireRole("admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   createPayrun,
 );
 payrunRouter.post(
   "/:id/select-employees",
-  requireRole("admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   selectEmployees,
 );
 payrunRouter.post(
   "/:id/compute",
-  requireRole("admin", "hr_manager", "hr_payroll_user", "hr_payroll_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   computePayrun,
 );
+
+// Validate is a CRU-level action — hr_payroll_user is included.
 payrunRouter.patch(
   "/:id/validate",
-  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   validatePayrun,
 );
 payrunRouter.post(
   "/:id/validate",
-  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
+  requireRole(...PAYROLL_CRU_ROLES),
   validatePayrun,
 );
+
+// Mark-paid and Cancel are DESTRUCTIVE financial state transitions.
+// Restricted to hr_payroll_manager and admin only (BUG-PAYROLL-1 fix).
 payrunRouter.patch(
   "/:id/mark-paid",
-  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
+  requireRole(...PAYROLL_MANAGER_ROLES),
   markPaidPayrun,
 );
 payrunRouter.post(
   "/:id/mark-paid",
-  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
+  requireRole(...PAYROLL_MANAGER_ROLES),
   markPaidPayrun,
 );
 payrunRouter.post(
   "/:id/cancel",
-  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
+  requireRole(...PAYROLL_MANAGER_ROLES),
   cancelPayrun,
 );
 
-// Router for /payslips
+// ── Router for /payslips ───────────────────────────────────────────────────
 export const payslipRouter = Router();
 
 payslipRouter.use(clerkAuthMiddleware);
 
-payslipRouter.get("/", getPayslips);
-payslipRouter.get("/:id", getPayslipById);
+// BUG-PAYSLIP-1 fix: hard route-level guard instead of auth-only.
+// "employee" is included — the controller scopes results to their own employeeId.
+payslipRouter.get("/", requireRole(...PAYSLIP_READ_ROLES), getPayslips);
+payslipRouter.get("/:id", requireRole(...PAYSLIP_READ_ROLES), getPayslipById);

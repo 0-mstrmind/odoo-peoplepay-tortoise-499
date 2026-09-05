@@ -186,17 +186,6 @@ export const PayrollView: React.FC = () => {
     }
   }
 
-  const handleCompute = async (id: string) => {
-    try {
-      await computePayrunMutation.mutateAsync(id)
-      toast.success('Payrun computed successfully with latest attendance and leave days')
-      refetchPayruns()
-      refetchPayslips()
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to compute payrun')
-    }
-  }
-
   const handleValidate = async (id: string) => {
     try {
       await validatePayrunMutation.mutateAsync(id)
