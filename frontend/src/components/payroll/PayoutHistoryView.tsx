@@ -13,8 +13,6 @@ import {
   Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import html2canvas from 'html2canvas'
-import { jsPDF } from 'jspdf'
 import { useAuthUser } from '@/store/auth.store'
 import { useMyEmployeeProfile } from '@/hooks/use-api'
 import { usePayslips, usePayslipDetail, type PayslipItem, type PayslipLine } from '@/hooks/use-payroll'
@@ -78,63 +76,69 @@ export const PayoutHistoryView: React.FC = () => {
     const fileName = `Payslip_${empName}_${periodLabel.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
 
     try {
-      // Method 1: Render live element canvas directly
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      })
+      // Dynamic import to keep initial bundle light and avoid pre-bundling resolution issues
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf'),
+      ])
 
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4',
-      })
-
-      const imgWidth = 190
-      const pageHeight = 297
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-      // Top branding banner in PDF
-      pdf.setFont('helvetica', 'bold')
-      pdf.setFontSize(16)
-      pdf.setTextColor(113, 72, 103)
-      pdf.text('PeoplePay360', 10, 14)
-
-      pdf.setFont('helvetica', 'normal')
-      pdf.setFontSize(9)
-      pdf.setTextColor(107, 114, 128)
-      pdf.text(`Official Salary Statement — ${periodLabel}`, 10, 19)
-
-      pdf.setDrawColor(113, 72, 103)
-      pdf.setLineWidth(0.5)
-      pdf.line(10, 22, 200, 22)
-
-      pdf.addImage(imgData, 'PNG', 10, 25, imgWidth, Math.min(imgHeight, pageHeight - 30))
-
-      // Generate Blob & trigger system download via virtual anchor
-      const pdfBlob = pdf.output('blob')
-      const blobUrl = URL.createObjectURL(pdfBlob)
-
-      const downloadAnchor = document.createElement('a')
-      downloadAnchor.href = blobUrl
-      downloadAnchor.download = fileName
-      document.body.appendChild(downloadAnchor)
-      downloadAnchor.click()
-
-      document.body.removeChild(downloadAnchor)
-      setTimeout(() => {
-        URL.revokeObjectURL(blobUrl)
-      }, 1000)
-
-      toast.success(`Downloaded ${fileName}`)
-    } catch (err: any) {
-      console.warn('Canvas rendering error, using jsPDF text fallback:', err)
-      // Method 2: High-reliability jsPDF text & table Blob fallback
       try {
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+        // Method 1: Render live element canvas directly
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        })
+
+        const imgData = canvas.toDataURL('image/png')
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+        })
+
+        const imgWidth = 190
+        const pageHeight = 297
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+        // Top branding banner in PDF
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(16)
+        pdf.setTextColor(113, 72, 103)
+        pdf.text('PeoplePay360', 10, 14)
+
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(9)
+        pdf.setTextColor(107, 114, 128)
+        pdf.text(`Official Salary Statement — ${periodLabel}`, 10, 19)
+
+        pdf.setDrawColor(113, 72, 103)
+        pdf.setLineWidth(0.5)
+        pdf.line(10, 22, 200, 22)
+
+        pdf.addImage(imgData, 'PNG', 10, 25, imgWidth, Math.min(imgHeight, pageHeight - 30))
+
+        // Generate Blob & trigger system download via virtual anchor
+        const pdfBlob = pdf.output('blob')
+        const blobUrl = URL.createObjectURL(pdfBlob)
+
+        const downloadAnchor = document.createElement('a')
+        downloadAnchor.href = blobUrl
+        downloadAnchor.download = fileName
+        document.body.appendChild(downloadAnchor)
+        downloadAnchor.click()
+
+        document.body.removeChild(downloadAnchor)
+        setTimeout(() => {
+          URL.revokeObjectURL(blobUrl)
+        }, 1000)
+
+      } catch (err: any) {
+        console.warn('Canvas rendering error, using jsPDF text fallback:', err)
+        // Method 2: High-reliability jsPDF text & table Blob fallback
+        try {
+          const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
 
         pdf.setFont('helvetica', 'bold')
         pdf.setFontSize(18)
@@ -231,9 +235,13 @@ export const PayoutHistoryView: React.FC = () => {
         console.error('Fallback PDF generation error:', fallbackErr)
         toast.error('Failed to generate PDF download.')
       }
-    } finally {
-      setIsDownloadingPdf(false)
     }
+  } catch (importErr) {
+    console.error('Failed to load PDF generation module:', importErr)
+    toast.error('Failed to load PDF generation module.')
+  } finally {
+    setIsDownloadingPdf(false)
+  }
   }
 
   return (

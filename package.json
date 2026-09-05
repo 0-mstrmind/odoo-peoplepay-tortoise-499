@@ -8,5 +8,9 @@
     "start:backend": "pnpm --filter ./backend dev",
     "start:frontend": "pnpm --filter ./frontend dev",
     "build": "pnpm --recursive build"
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1"
   }
 }
