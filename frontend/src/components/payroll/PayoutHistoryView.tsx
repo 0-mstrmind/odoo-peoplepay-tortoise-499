@@ -337,7 +337,7 @@ export const PayoutHistoryView: React.FC = () => {
                       Emp Code: <strong className="text-[var(--color-text-heading)]">{payslipDetail.employee?.employeeCode || 'EMP-0001'}</strong>
                     </p>
                     <p className="text-[var(--color-text-muted)]">
-                      Dept: <strong className="text-[var(--color-text-heading)]">{typeof payslipDetail.employee?.department === 'object' ? (payslipDetail.employee?.department as any)?.name : (payslipDetail.employee?.department || 'Engineering')}</strong>
+                      Dept: <strong className="text-[var(--color-text-heading)]">{typeof payslipDetail.employee?.department === 'object' && payslipDetail.employee?.department !== null ? (payslipDetail.employee.department as any)?.name : (payslipDetail.employee?.department || 'Engineering')}</strong>
                     </p>
                   </div>
 

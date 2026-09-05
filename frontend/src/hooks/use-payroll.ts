@@ -100,6 +100,8 @@ export interface PayslipLine {
   rate?: number | string | null
 }
 
+export type PayslipItem = Payslip
+
 export interface Payslip {
   id: string
   companyId?: string
@@ -121,8 +123,13 @@ export interface Payslip {
   net: number | string
   pdfUrl?: string | null
   computedAt?: string | null
+  paidAt?: string | null
   createdAt?: string
   updatedAt?: string
+  contract?: {
+    id: string
+    wage?: number | string
+  } | null
   employee?: {
     id: string
     firstName: string
@@ -273,9 +280,9 @@ export function usePayslips(params?: { payrunId?: string; employeeId?: string; p
   })
 }
 
-export function usePayslip(id: string) {
+export function usePayslip(id?: string | null) {
   return useQuery({
-    queryKey: queryKeys.payroll.payslip(id),
+    queryKey: queryKeys.payroll.payslip(id || ''),
     queryFn: async () => {
       const { data } = await apiClient.get<{ success: boolean; payslip: Payslip }>(`/payslips/${id}`)
       return data?.payslip
@@ -283,6 +290,8 @@ export function usePayslip(id: string) {
     enabled: !!id,
   })
 }
+
+export const usePayslipDetail = usePayslip
 
 // ────────────────────────────────────────────────────────────────────────────
 // Salary Structures Hooks

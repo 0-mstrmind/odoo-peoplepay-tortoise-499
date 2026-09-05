@@ -186,7 +186,6 @@ export const PayrollView: React.FC = () => {
     }
   }
 
-
   const handleValidate = async (id: string) => {
     try {
       await validatePayrunMutation.mutateAsync(id)
