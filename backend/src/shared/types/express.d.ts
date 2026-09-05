@@ -1,4 +1,5 @@
 import "express";
+import "express-serve-static-core";
 
 export interface AuthenticatedUser {
   id: string;
@@ -21,5 +22,27 @@ declare global {
       };
       refreshToken?: string;
     }
+  }
+}
+
+declare module "express-serve-static-core" {
+  interface Request {
+    user?: AuthenticatedUser;
+    auth?: {
+      userId: string | null;
+      sessionId: string | null;
+    };
+    refreshToken?: string;
+  }
+}
+
+declare module "express" {
+  interface Request {
+    user?: AuthenticatedUser;
+    auth?: {
+      userId: string | null;
+      sessionId: string | null;
+    };
+    refreshToken?: string;
   }
 }
