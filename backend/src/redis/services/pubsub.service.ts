@@ -2,7 +2,7 @@ import EventEmitter from "node:events";
 import { Redis } from "ioredis";
 import { env } from "../../core/config/env.js";
 import { logger } from "../../core/config/logger.js";
-import { getRedisClient, isRedisReady } from "../redis.client.js";
+import { getRedisClient, isRedisReady, buildRedisOptions } from "../redis.client.js";
 import type { PubSubHandler } from "../redis.types.js";
 
 const localEmitter = new EventEmitter();
@@ -22,20 +22,11 @@ const getOrCreateSubscriber = async (): Promise<Redis | null> => {
   }
 
   try {
-    const opts = {
-      lazyConnect: true,
-      enableOfflineQueue: false,
-      maxRetriesPerRequest: 2,
-    };
+    const opts = buildRedisOptions({ keyPrefix: "" });
 
     subClient = env.REDIS_URL
       ? new Redis(env.REDIS_URL, opts)
-      : new Redis({
-          host: env.REDIS_HOST || "127.0.0.1",
-          port: env.REDIS_PORT || 6379,
-          password: env.REDIS_PASSWORD || undefined,
-          ...opts,
-        });
+      : new Redis(opts);
 
     subClient.on("message", (channel, message) => {
       try {

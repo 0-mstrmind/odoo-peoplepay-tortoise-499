@@ -12,12 +12,19 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 /**
  * Builds ioredis configuration options from environment
  */
-const buildRedisOptions = (): RedisOptions => {
+export const buildRedisOptions = (overrideOpts: Partial<RedisOptions> = {}): RedisOptions => {
+  const isTlsRequired =
+    env.REDIS_TLS ||
+    (env.REDIS_URL && env.REDIS_URL.startsWith("rediss://")) ||
+    env.REDIS_PORT === 6380;
+
   const baseOptions: RedisOptions = {
     lazyConnect: true,
     enableOfflineQueue: false,
-    maxRetriesPerRequest: 2,
-    connectTimeout: 5000,
+    maxRetriesPerRequest: 3,
+    connectTimeout: 10000,
+    keepAlive: 10000, // 10s TCP keep-alive to keep cloud connection sockets active
+    family: 4, // IPv4 preference for stable cloud DNS resolution
     keyPrefix: env.REDIS_KEY_PREFIX || "peoplepay:",
     retryStrategy: (times: number) => {
       reconnectAttempts = times;
@@ -28,16 +35,22 @@ const buildRedisOptions = (): RedisOptions => {
         isFallbackMode = true;
         return null; // Stop reconnecting
       }
-      const delay = Math.min(times * 300, 2000);
+      const delay = Math.min(times * 300, 3000);
       logger.debug(`[Redis] Reconnecting attempt #${times} in ${delay}ms...`);
       return delay;
     },
+    ...(isTlsRequired
+      ? {
+          tls: {
+            rejectUnauthorized: false, // Supports cloud providers with managed certs (Upstash, AWS, Redis Cloud, Aiven)
+          },
+        }
+      : {}),
+    ...overrideOpts,
   };
 
-  if (env.REDIS_URL && env.REDIS_URL.startsWith("redis")) {
-    return {
-      ...baseOptions,
-    };
+  if (env.REDIS_URL) {
+    return baseOptions;
   }
 
   return {

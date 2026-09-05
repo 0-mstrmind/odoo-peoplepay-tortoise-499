@@ -24,6 +24,7 @@ const envSchema = z.object({
   REDIS_PORT: z.coerce.number().optional().default(6379),
   REDIS_PASSWORD: z.string().optional().default(""),
   REDIS_KEY_PREFIX: z.string().optional().default("peoplepay:"),
+  REDIS_TLS: z.string().optional().transform((val) => val === "true" || val === "1").default(false),
   REDIS_ENABLED: z.string().optional().transform((val) => val === "true" || val === "1" || val === undefined).default(true),
 });
 
