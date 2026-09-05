@@ -1,7 +1,9 @@
 import { StatusCodes } from "http-status-codes";
 import { prisma } from "../../core/config/prisma.js";
+import { logger } from "../../core/config/logger.js";
 import ApiError from "../../shared/utils/ApiError.js";
 import { resolveCompanyId } from "../employee/employee.service.js";
+import { cacheService } from "../../redis/services/cache.service.js";
 import type { DashboardFilterInput, ResolveWarningInput } from "./dashboard.validation.js";
 
 // Helper to build date range filter
@@ -27,6 +29,22 @@ const resolveDateRange = (startDateStr?: string, endDateStr?: string) => {
   return { start, end };
 };
 
+/**
+ * Invalidate cached dashboard data for a tenant company or globally
+ */
+export const invalidateDashboardCache = async (companyId?: string): Promise<void> => {
+  try {
+    if (companyId) {
+      await cacheService.delByPattern(`dashboard:*${companyId}*`);
+    } else {
+      await cacheService.delByPattern("dashboard:*");
+    }
+    logger.debug(`[Dashboard] Cache invalidated for company: ${companyId || "all"}`);
+  } catch (err) {
+    logger.warn(`[Dashboard] Failed to invalidate cache: ${(err as Error).message}`);
+  }
+};
+
 // 1. Full Dashboard Overview (PDF Sections A7 & B9)
 export const getDashboardOverviewService = async (
   filter: DashboardFilterInput,
@@ -35,11 +53,20 @@ export const getDashboardOverviewService = async (
   const companyId = await resolveCompanyId(callerCompanyId);
   const { start, end } = resolveDateRange(filter.startDate, filter.endDate);
 
-  // Build employee scoping condition
-  const employeeWhere: any = {
-    companyId,
-    deletedAt: null,
-  };
+  const startIso = start.toISOString().substring(0, 10);
+  const endIso = end.toISOString().substring(0, 10);
+  const deptKey = filter.departmentId || "all";
+  const empTypeKey = filter.employeeType || "all";
+  const cacheKey = `dashboard:overview:${companyId}:${startIso}:${endIso}:${deptKey}:${empTypeKey}`;
+
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      // Build employee scoping condition
+      const employeeWhere: any = {
+        companyId,
+        deletedAt: null,
+      };
 
   if (filter.departmentId) {
     employeeWhere.departmentId = filter.departmentId;
@@ -190,46 +217,49 @@ export const getDashboardOverviewService = async (
     }),
   ]);
 
-  return {
-    kpis: {
-      totalNetSalaryPaid,
-      totalGrossSalary,
-      totalDeductions,
-      payslipsGenerated,
-      averageSalary,
-      approvedTimeOffDays,
-      pendingTimeOffCount,
-      attendanceHealthPercentage,
-      activeHeadcount,
-    },
-    attendanceOverview: {
-      totalEntries: totalAttendanceEntries,
-      present: presentCount,
-      late: lateCount,
-      absent: absentCount,
-      halfDay: halfDayCount,
-      onLeave: onLeaveCount,
-      manualEdits: correctedCount,
-      totalWorkedHours,
-      totalOvertimeHours,
-      attendanceCoverageRate: attendanceHealthPercentage,
-    },
-    operationalAlerts: {
-      unresolvedWarningsCount: unresolvedWarnings.length,
-      unresolvedWarnings,
-      attentionItems: {
-        employeesWithoutBank,
-        employeesWithoutActiveContract,
-        activePayrunsAwaitingFinalization: activePayrunsCount,
+    return {
+      kpis: {
+        totalNetSalaryPaid,
+        totalGrossSalary,
+        totalDeductions,
+        payslipsGenerated,
+        averageSalary,
+        approvedTimeOffDays,
+        pendingTimeOffCount,
+        attendanceHealthPercentage,
+        activeHeadcount,
       },
-    },
-    filtersApplied: {
-      startDate: start.toISOString().substring(0, 10),
-      endDate: end.toISOString().substring(0, 10),
-      departmentId: filter.departmentId || null,
-      employeeType: filter.employeeType || null,
-    },
-  };
+      attendanceOverview: {
+        totalEntries: totalAttendanceEntries,
+        present: presentCount,
+        late: lateCount,
+        absent: absentCount,
+        halfDay: halfDayCount,
+        onLeave: onLeaveCount,
+        manualEdits: correctedCount,
+        totalWorkedHours,
+        totalOvertimeHours,
+        attendanceCoverageRate: attendanceHealthPercentage,
+      },
+      operationalAlerts: {
+        unresolvedWarningsCount: unresolvedWarnings.length,
+        unresolvedWarnings,
+        attentionItems: {
+          employeesWithoutBank,
+          employeesWithoutActiveContract,
+          activePayrunsAwaitingFinalization: activePayrunsCount,
+        },
+      },
+      filtersApplied: {
+        startDate: start.toISOString().substring(0, 10),
+        endDate: end.toISOString().substring(0, 10),
+        departmentId: filter.departmentId || null,
+        employeeType: filter.employeeType || null,
+      },
+    };
+  },
+  120, // 2 minutes cache TTL
+  );
 };
 
 // 2. Monthly Salary Trends (Past N Months)
@@ -378,6 +408,9 @@ export const resolveWarningService = async (
       message: input.resolutionNotes ? `${existing.message || ""} [Resolution: ${input.resolutionNotes}]` : existing.message,
     },
   });
+
+  // Invalidate cached dashboard metrics since operational alerts changed
+  await invalidateDashboardCache(companyId);
 
   return updated;
 };

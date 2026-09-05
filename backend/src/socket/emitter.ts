@@ -1,5 +1,6 @@
 import { logger } from "../core/config/logger.js";
 import { getIO, isSocketInitialized } from "./index.js";
+import type { SocketNotificationPayload } from "./socket.types.js";
 
 export interface EmitCheckParams {
   event?: string;
@@ -12,12 +13,23 @@ export interface EmitCheckParams {
   };
 }
 
+export interface NotifyEmployeeAndRolesParams<T = unknown> {
+  companyId?: string | null;
+  employeeId?: string | null;
+  employeeUserId?: string | null;
+  event: string;
+  data: T;
+  notification?: {
+    title: string;
+    message: string;
+    type?: "info" | "success" | "warning" | "error";
+    category?: "timeoff" | "attendance" | "payroll" | "employee" | "system";
+  };
+  authorizedRoles?: string[];
+}
+
 /**
  * Convenience helper to emit a check or notification event from any controller or service.
- * Usage in controller:
- *   emitCheck({ message: "Employee updated", payload: { id: employee.id } });
- * or simply:
- *   emitCheck();
  */
 export const emitCheck = (params?: EmitCheckParams): boolean => {
   try {
@@ -96,4 +108,81 @@ export const emitBroadcast = (event: string, data: unknown): boolean => {
     event,
     payload: data,
   });
+};
+
+/**
+ * Dispatches an event and notification to BOTH the individual employee and authorized managerial roles.
+ * Authorised roles default to ['admin', 'hr_manager', 'hr_payroll_manager'].
+ */
+export const notifyEmployeeAndAuthorizedRoles = <T = unknown>(
+  params: NotifyEmployeeAndRolesParams<T>,
+): boolean => {
+  try {
+    if (!isSocketInitialized()) {
+      logger.debug("[Socket:notify] Socket server not initialized, skipping emit");
+      return false;
+    }
+
+    const io = getIO();
+    const {
+      companyId,
+      employeeId,
+      employeeUserId,
+      event,
+      data,
+      notification,
+      authorizedRoles = ["admin", "hr_manager", "hr_payroll_manager"],
+    } = params;
+
+    const notificationPayload: SocketNotificationPayload | undefined = notification
+      ? {
+          title: notification.title,
+          message: notification.message,
+          type: notification.type || "info",
+          category: notification.category || "system",
+          metadata: data,
+          timestamp: new Date().toISOString(),
+        }
+      : undefined;
+
+    // 1. Emit to Employee rooms (by userId and employeeId)
+    if (employeeUserId) {
+      const room = `user:${employeeUserId}`;
+      io.to(room).emit(event, data);
+      if (notificationPayload) io.to(room).emit("notification", notificationPayload);
+      logger.debug(`[Socket:notify] Emitted '${event}' to employee room: ${room}`);
+    }
+
+    if (employeeId) {
+      const room = `employee:${employeeId}`;
+      io.to(room).emit(event, data);
+      if (notificationPayload) io.to(room).emit("notification", notificationPayload);
+      logger.debug(`[Socket:notify] Emitted '${event}' to employee room: ${room}`);
+    }
+
+    // 2. Emit to Authorized Role rooms (tenant-scoped and global role rooms)
+    for (const role of authorizedRoles) {
+      const normalizedRole = role.toLowerCase();
+
+      // Scoped tenant role room
+      if (companyId) {
+        const tenantRoleRoom = `company:${companyId}:role:${normalizedRole}`;
+        io.to(tenantRoleRoom).emit(event, data);
+        if (notificationPayload) io.to(tenantRoleRoom).emit("notification", notificationPayload);
+      }
+
+      // Global role room
+      const roleRoom = `role:${normalizedRole}`;
+      io.to(roleRoom).emit(event, data);
+      if (notificationPayload) io.to(roleRoom).emit("notification", notificationPayload);
+    }
+
+    logger.info(
+      `[Socket:notify] Event '${event}' delivered to employee (${employeeId || employeeUserId}) and roles (${authorizedRoles.join(", ")})`,
+    );
+    return true;
+  } catch (error) {
+    logger.warn(`[Socket:notify] Error dispatching event '${params.event}':`, error);
+    return false;
+  }
 };

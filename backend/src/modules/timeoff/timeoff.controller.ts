@@ -22,6 +22,13 @@ import {
   updateRequestService,
   cancelRequestService,
 } from "./timeoff.service.js";
+import {
+  emitTimeOffRequestCreated,
+  emitTimeOffRequestApproved,
+  emitTimeOffRequestRefused,
+  emitTimeOffRequestCancelled,
+  emitTimeOffRequestUpdated,
+} from "../../socket/modules/timeoff/timeoff.socket.js";
 
 // ==========================================
 // 1. TIME OFF TYPES CONTROLLERS
@@ -122,6 +129,32 @@ export const getTimeOffRequestById = CatchAsync(async (req: Request, res: Respon
 export const createTimeOffRequest = CatchAsync(async (req: Request, res: Response) => {
   const userId = req.user?.id || req.user?.clerkUserId;
   const result = await createRequestService(req.body, userId, req.user?.companyId);
+
+  const employeeName = (result as any).employee
+    ? `${(result as any).employee.firstName} ${(result as any).employee.lastName}`
+    : undefined;
+  const employeeUserId = (result as any).employee?.userId;
+
+  const eventPayload = {
+    requestId: result.id,
+    employeeId: result.employeeId,
+    employeeName,
+    timeOffTypeId: result.timeOffTypeId,
+    timeOffTypeName: (result as any).timeOffType?.name,
+    startDate: result.startDate,
+    endDate: result.endDate,
+    duration: Number(result.duration),
+    status: result.status as any,
+    actionBy: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
+    timestamp: new Date().toISOString(),
+  };
+
+  if (result.status === "approved") {
+    emitTimeOffRequestApproved(result.companyId, result.employeeId, employeeUserId, eventPayload);
+  } else {
+    emitTimeOffRequestCreated(result.companyId, result.employeeId, employeeUserId, eventPayload);
+  }
+
   sendResponse(res, StatusCodes.CREATED, "Time off request submitted successfully", { item: result });
 });
 
@@ -129,6 +162,28 @@ export const approveTimeOffRequest = CatchAsync(async (req: Request, res: Respon
   const id = req.params.id as string;
   const userId = req.user?.id || req.user?.clerkUserId;
   const result = await approveRequestService(id, userId, req.user?.companyId);
+
+  emitTimeOffRequestApproved(
+    result.companyId,
+    result.employeeId,
+    (result as any).employee?.userId,
+    {
+      requestId: result.id,
+      employeeId: result.employeeId,
+      employeeName: (result as any).employee
+        ? `${(result as any).employee.firstName} ${(result as any).employee.lastName}`
+        : undefined,
+      timeOffTypeId: result.timeOffTypeId,
+      timeOffTypeName: (result as any).timeOffType?.name,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      duration: Number(result.duration),
+      status: "approved",
+      actionBy: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
+      timestamp: new Date().toISOString(),
+    },
+  );
+
   sendResponse(res, StatusCodes.OK, "Time off request approved successfully", { item: result });
 });
 
@@ -136,17 +191,84 @@ export const refuseTimeOffRequest = CatchAsync(async (req: Request, res: Respons
   const id = req.params.id as string;
   const { refusalReason } = req.body || {};
   const result = await refuseRequestService(id, refusalReason, req.user?.companyId);
+
+  emitTimeOffRequestRefused(
+    result.companyId,
+    result.employeeId,
+    (result as any).employee?.userId,
+    {
+      requestId: result.id,
+      employeeId: result.employeeId,
+      employeeName: (result as any).employee
+        ? `${(result as any).employee.firstName} ${(result as any).employee.lastName}`
+        : undefined,
+      timeOffTypeId: result.timeOffTypeId,
+      timeOffTypeName: (result as any).timeOffType?.name,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      duration: Number(result.duration),
+      status: "refused",
+      refusalReason: result.refusalReason,
+      actionBy: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
+      timestamp: new Date().toISOString(),
+    },
+  );
+
   sendResponse(res, StatusCodes.OK, "Time off request refused successfully", { item: result });
 });
 
 export const updateTimeOffRequest = CatchAsync(async (req: Request, res: Response) => {
   const id = req.params.id as string;
   const result = await updateRequestService(id, req.body, req.user?.companyId);
+
+  emitTimeOffRequestUpdated(
+    result.companyId,
+    result.employeeId,
+    (result as any).employee?.userId,
+    {
+      requestId: result.id,
+      employeeId: result.employeeId,
+      employeeName: (result as any).employee
+        ? `${(result as any).employee.firstName} ${(result as any).employee.lastName}`
+        : undefined,
+      timeOffTypeId: result.timeOffTypeId,
+      timeOffTypeName: (result as any).timeOffType?.name,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      duration: Number(result.duration),
+      status: result.status as any,
+      actionBy: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
+      timestamp: new Date().toISOString(),
+    },
+  );
+
   sendResponse(res, StatusCodes.OK, "Time off request updated successfully", { item: result });
 });
 
 export const cancelTimeOffRequest = CatchAsync(async (req: Request, res: Response) => {
   const id = req.params.id as string;
   const result = await cancelRequestService(id, req.user?.companyId);
+
+  emitTimeOffRequestCancelled(
+    result.companyId,
+    result.employeeId,
+    (result as any).employee?.userId,
+    {
+      requestId: result.id,
+      employeeId: result.employeeId,
+      employeeName: (result as any).employee
+        ? `${(result as any).employee.firstName} ${(result as any).employee.lastName}`
+        : undefined,
+      timeOffTypeId: result.timeOffTypeId,
+      timeOffTypeName: (result as any).timeOffType?.name,
+      startDate: result.startDate,
+      endDate: result.endDate,
+      duration: Number(result.duration),
+      status: "cancelled",
+      actionBy: req.user ? { id: req.user.id, email: req.user.email, role: req.user.role } : null,
+      timestamp: new Date().toISOString(),
+    },
+  );
+
   sendResponse(res, StatusCodes.OK, "Time off request cancelled successfully", { item: result });
 });

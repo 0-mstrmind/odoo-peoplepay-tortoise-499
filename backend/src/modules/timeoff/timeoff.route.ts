@@ -95,7 +95,33 @@ timeOffRequestRouter.put(
   requireRole("admin", "hr_manager"),
   approveTimeOffRequest,
 );
+timeOffRequestRouter.patch(
+  "/:id/approve",
+  clerkAuthMiddleware,
+  requireRole("admin", "hr_manager"),
+  approveTimeOffRequest,
+);
+timeOffRequestRouter.post(
+  "/:id/approve",
+  clerkAuthMiddleware,
+  requireRole("admin", "hr_manager"),
+  approveTimeOffRequest,
+);
 timeOffRequestRouter.put(
+  "/:id/refuse",
+  clerkAuthMiddleware,
+  requireRole("admin", "hr_manager"),
+  validateBody(refuseRequestSchema),
+  refuseTimeOffRequest,
+);
+timeOffRequestRouter.patch(
+  "/:id/refuse",
+  clerkAuthMiddleware,
+  requireRole("admin", "hr_manager"),
+  validateBody(refuseRequestSchema),
+  refuseTimeOffRequest,
+);
+timeOffRequestRouter.post(
   "/:id/refuse",
   clerkAuthMiddleware,
   requireRole("admin", "hr_manager"),
