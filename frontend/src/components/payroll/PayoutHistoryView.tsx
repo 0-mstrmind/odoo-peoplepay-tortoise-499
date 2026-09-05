@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useAuthUser } from '@/store/auth.store'
 import { useMyEmployeeProfile } from '@/hooks/use-api'
-import { usePayslips, usePayslipDetail, type PayslipItem } from '@/hooks/use-payroll'
+import { usePayslips, usePayslip as usePayslipDetail, type Payslip as PayslipItem, type PayslipLine } from '@/hooks/use-payroll'
 
 export const PayoutHistoryView: React.FC = () => {
   const user = useAuthUser()
@@ -26,7 +26,7 @@ export const PayoutHistoryView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   // Fetch single payslip breakdown when modal is opened
-  const { data: payslipDetail, isLoading: isDetailLoading } = usePayslipDetail(selectedPayslipId)
+  const { data: payslipDetail, isLoading: isDetailLoading } = usePayslipDetail(selectedPayslipId || '')
 
   const isEmployee = user?.role?.toLowerCase() === 'employee'
   const employeeName = myEmployee
@@ -319,7 +319,7 @@ export const PayoutHistoryView: React.FC = () => {
                       Status & Date
                     </span>
                     <span className="pp-badge pp-badge-success text-[10px] uppercase font-bold">
-                      {payslipDetail.status} ({payslipDetail.paidAt?.split('T')[0] || payslipDetail.createdAt?.split('T')[0] || '2026-08-31'})
+                      {payslipDetail.status} ({(payslipDetail as any).paidAt?.split('T')[0] || payslipDetail.createdAt?.split('T')[0] || '2026-08-31'})
                     </span>
                   </div>
                 </div>
@@ -337,7 +337,7 @@ export const PayoutHistoryView: React.FC = () => {
                       Emp Code: <strong className="text-[var(--color-text-heading)]">{payslipDetail.employee?.employeeCode || 'EMP-0001'}</strong>
                     </p>
                     <p className="text-[var(--color-text-muted)]">
-                      Dept: <strong className="text-[var(--color-text-heading)]">{payslipDetail.employee?.department?.name || 'Engineering'}</strong>
+                      Dept: <strong className="text-[var(--color-text-heading)]">{typeof payslipDetail.employee?.department === 'object' ? (payslipDetail.employee?.department as any)?.name : (payslipDetail.employee?.department || 'Engineering')}</strong>
                     </p>
                   </div>
 
@@ -371,7 +371,7 @@ export const PayoutHistoryView: React.FC = () => {
 
                   <div className="p-2.5 rounded bg-[var(--color-bg-muted)] border border-[var(--color-border)]">
                     <span className="text-[10px] text-[var(--color-text-muted)] block font-medium">Contract Wage</span>
-                    <span className="text-sm font-bold text-[var(--color-text-heading)] font-mono">₹{Number(payslipDetail.contract?.wage || 75000).toLocaleString()}</span>
+                    <span className="text-sm font-bold text-[var(--color-text-heading)] font-mono">₹{Number((payslipDetail as any).contract?.wage || 75000).toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -388,7 +388,7 @@ export const PayoutHistoryView: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-[var(--color-border)] text-xs">
                       {payslipDetail.payslipLines && payslipDetail.payslipLines.length > 0 ? (
-                        payslipDetail.payslipLines.map((line) => (
+                        payslipDetail.payslipLines.map((line: PayslipLine) => (
                           <tr key={line.id} className={line.category === 'net' ? 'bg-[#00C853]/10 font-extrabold' : ''}>
                             <td className="py-2 px-3 font-mono text-[11px]">{line.ruleCode}</td>
                             <td className="py-2 px-3 font-semibold">{line.ruleName}</td>

@@ -168,7 +168,7 @@ export const TimeOffView: React.FC = () => {
     e.preventDefault()
     const empId = isStandardEmployee && myEmployee?.id
       ? myEmployee.id
-      : (selectedEmployeeId || user?.employeeId || employeesList[0]?.id)
+      : (selectedEmployeeId || (user as any)?.employeeId || employeesList[0]?.id)
 
     const typeId = newTypeId || leaveTypes[0]?.id
 
