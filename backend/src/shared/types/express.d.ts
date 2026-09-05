@@ -1,5 +1,8 @@
 import "express";
+<<<<<<< HEAD
 import "express-serve-static-core";
+=======
+>>>>>>> 011fd478bcb0ee1734b862ac0e30633c1be7625f
 
 export interface AuthenticatedUser {
   id: string;
@@ -22,6 +25,7 @@ declare global {
       };
       refreshToken?: string;
     }
+<<<<<<< HEAD
   }
 }
 
@@ -33,6 +37,8 @@ declare module "express-serve-static-core" {
       sessionId: string | null;
     };
     refreshToken?: string;
+=======
+>>>>>>> 011fd478bcb0ee1734b862ac0e30633c1be7625f
   }
 }
 
