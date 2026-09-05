@@ -1,0 +1,643 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Multi-tenant root entity representing a company/tenant.
+model Company {
+  id               String    @id @default(uuid()) @db.Uuid
+  name             String    @db.VarChar(150)
+  slug             String    @unique @db.VarChar(60)
+  logoUrl          String?   @map("logo_url") @db.Text
+  industry         String?   @db.VarChar(100)
+  country          String?   @db.VarChar(60)
+  currency         String    @default("INR") @db.VarChar(10)
+  timezone         String    @default("Asia/Kolkata") @db.VarChar(60)
+  address          String?   @db.Text
+  phone            String?   @db.VarChar(30)
+  email            String?   @db.VarChar(150)
+  isActive         Boolean   @default(true) @map("is_active")
+  subscriptionPlan String    @default("free") @map("subscription_plan") @db.VarChar(30)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Tenant Relationships
+  users                User[]
+  departments          Department[]
+  jobPositions         JobPosition[]
+  employees            Employee[]
+  employeeBankAccounts EmployeeBankAccount[]
+  contracts            Contract[]
+  workingSchedules     WorkingSchedule[]
+  scheduleLines        ScheduleLine[]
+  attendances          Attendance[]
+  timeOffTypes         TimeOffType[]
+  timeOffAllocations   TimeOffAllocation[]
+  timeOffRequests      TimeOffRequest[]
+  salaryStructures     SalaryStructure[]
+  salaryRules          SalaryRule[]
+  structureRules       StructureRule[]
+  payruns              Payrun[]
+  payrunEmployees      PayrunEmployee[]
+  payslips             Payslip[]
+  payslipLines         PayslipLine[]
+  payrollWarnings      PayrollWarning[]
+
+  @@map("companies")
+}
+
+/// User account for system access.
+/// Role values: employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  email        String    @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  role         String    @db.VarChar(50) // employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
+  employeeId   String?   @map("employee_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company                 Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  linkedEmployee          Employee?           @relation("UserLinkedEmployee", fields: [employeeId], references: [id])
+  employeeProfile         Employee?           @relation("EmployeeUserAccount")
+  contractsCreated        Contract[]          @relation("ContractCreatedBy")
+  attendancesCorrected    Attendance[]        @relation("AttendanceCorrectedBy")
+  allocationsApproved     TimeOffAllocation[] @relation("AllocationApprovedBy")
+  requestsApproved        TimeOffRequest[]    @relation("RequestApprovedBy")
+  salaryStructuresCreated SalaryStructure[]   @relation("SalaryStructureCreatedBy")
+  payrunsCreated          Payrun[]            @relation("PayrunCreatedBy")
+  payrunsValidated        Payrun[]            @relation("PayrunValidatedBy")
+  warningsResolved        PayrollWarning[]    @relation("WarningResolvedBy")
+
+  @@map("users")
+}
+
+/// Department entity within a tenant organization hierarchy.
+model Department {
+  id                 String    @id @default(uuid()) @db.Uuid
+  companyId          String    @map("company_id") @db.Uuid
+  name               String    @db.VarChar(150)
+  code               String?   @db.VarChar(20)
+  managerId          String?   @map("manager_id") @db.Uuid
+  parentDepartmentId String?   @map("parent_department_id") @db.Uuid
+  isActive           Boolean   @default(true) @map("is_active")
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt          DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company          Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  manager          Employee?    @relation("DepartmentManager", fields: [managerId], references: [id])
+  parentDepartment Department?  @relation("DepartmentHierarchy", fields: [parentDepartmentId], references: [id])
+  childDepartments Department[] @relation("DepartmentHierarchy")
+  jobPositions     JobPosition[]
+  employees        Employee[]   @relation("EmployeeDepartment")
+  contracts        Contract[]
+
+  @@map("departments")
+}
+
+/// Job positions or roles within a department.
+model JobPosition {
+  id           String    @id @default(uuid()) @db.Uuid
+  companyId    String    @map("company_id") @db.Uuid
+  title        String    @db.VarChar(150)
+  code         String?   @db.VarChar(30)
+  departmentId String?   @map("department_id") @db.Uuid
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id])
+  employees  Employee[]
+  contracts  Contract[]
+
+  @@map("job_positions")
+}
+
+/// Core employee profile record.
+/// employee_type: full_time | part_time | contract | intern
+/// employee_status: active | inactive | on_leave | terminated
+model Employee {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  employeeCode  String    @map("employee_code") @db.VarChar(30)
+  firstName     String    @map("first_name") @db.VarChar(100)
+  lastName      String    @map("last_name") @db.VarChar(100)
+  email         String    @db.VarChar(255)
+  phone         String?   @db.VarChar(30)
+  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
+  dateOfJoining DateTime? @map("date_of_joining") @db.Date
+  departmentId  String?   @map("department_id") @db.Uuid
+  managerId     String?   @map("manager_id") @db.Uuid
+  jobPositionId String?   @map("job_position_id") @db.Uuid
+  scheduleId    String?   @map("schedule_id") @db.Uuid
+  employeeType  String?   @map("employee_type") @db.VarChar(30) // full_time | part_time | contract | intern
+  status        String    @default("active") @db.VarChar(30) // active | inactive | on_leave | terminated
+  userId        String?   @unique @map("user_id") @db.Uuid
+  avatarUrl     String?   @map("avatar_url") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company               Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  department            Department?           @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  manager               Employee?             @relation("EmployeeManager", fields: [managerId], references: [id])
+  subordinates          Employee[]            @relation("EmployeeManager")
+  jobPosition           JobPosition?          @relation(fields: [jobPositionId], references: [id])
+  schedule              WorkingSchedule?      @relation(fields: [scheduleId], references: [id])
+  user                  User?                 @relation("EmployeeUserAccount", fields: [userId], references: [id])
+  usersWithEmployeeLink User[]                @relation("UserLinkedEmployee")
+  departmentsManaged    Department[]          @relation("DepartmentManager")
+  bankAccounts          EmployeeBankAccount[]
+  contracts             Contract[]
+  attendances           Attendance[]
+  timeOffAllocations    TimeOffAllocation[]
+  timeOffRequests       TimeOffRequest[]
+  payrunEmployees       PayrunEmployee[]
+  payslips              Payslip[]
+  payrollWarnings       PayrollWarning[]
+
+  @@map("employees")
+}
+
+/// Employee bank account information for salary disbursement.
+model EmployeeBankAccount {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  employeeId        String    @map("employee_id") @db.Uuid
+  bankName          String    @map("bank_name") @db.VarChar(150)
+  accountNumber     String    @map("account_number") @db.VarChar(50)
+  ifscCode          String?   @map("ifsc_code") @db.VarChar(20)
+  accountHolderName String?   @map("account_holder_name") @db.VarChar(150)
+  isPrimary         Boolean   @default(false) @map("is_primary")
+  isVerified        Boolean   @default(false) @map("is_verified")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@map("employee_bank_accounts")
+}
+
+/// Employment contract details including pay terms and assigned salary structure.
+/// contract_status: draft | active | expired | terminated
+/// pay_frequency: monthly | bi_weekly | weekly
+model Contract {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  employeeId        String    @map("employee_id") @db.Uuid
+  contractReference String    @map("contract_reference") @db.VarChar(60)
+  startDate         DateTime  @map("start_date") @db.Date
+  endDate           DateTime? @map("end_date") @db.Date
+  departmentId      String?   @map("department_id") @db.Uuid
+  jobPositionId     String?   @map("job_position_id") @db.Uuid
+  scheduleId        String?   @map("schedule_id") @db.Uuid
+  wage              Decimal   @db.Decimal(15, 2)
+  currency          String    @default("INR") @db.VarChar(10)
+  payFrequency      String    @default("monthly") @map("pay_frequency") @db.VarChar(20) // monthly | bi_weekly | weekly
+  salaryStructureId String?   @map("salary_structure_id") @db.Uuid
+  status            String    @default("draft") @db.VarChar(30) // draft | active | expired | terminated
+  notes             String?   @db.Text
+  createdBy         String?   @map("created_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  department      Department?      @relation(fields: [departmentId], references: [id])
+  jobPosition     JobPosition?     @relation(fields: [jobPositionId], references: [id])
+  schedule        WorkingSchedule? @relation(fields: [scheduleId], references: [id])
+  salaryStructure SalaryStructure? @relation(fields: [salaryStructureId], references: [id])
+  creator         User?            @relation("ContractCreatedBy", fields: [createdBy], references: [id])
+  payrunEmployees PayrunEmployee[]
+  payslips        Payslip[]
+
+  @@map("contracts")
+}
+
+/// Working schedule definitions.
+/// schedule_type: fixed | flexible | shift
+model WorkingSchedule {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  name             String    @db.VarChar(150)
+  code             String?   @db.VarChar(30)
+  scheduleType     String    @default("fixed") @map("schedule_type") @db.VarChar(30) // fixed | flexible | shift
+  totalWeeklyHours Decimal?  @map("total_weekly_hours") @db.Decimal(5, 2)
+  timezone         String?   @db.VarChar(60)
+  isActive         Boolean   @default(true) @map("is_active")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  scheduleLines ScheduleLine[]
+  employees     Employee[]
+  contracts     Contract[]
+
+  @@map("working_schedules")
+}
+
+/// Day-level schedule breakdown.
+/// day_of_week: monday | tuesday | wednesday | thursday | friday | saturday | sunday
+model ScheduleLine {
+  id                   String    @id @default(uuid()) @db.Uuid
+  companyId            String    @map("company_id") @db.Uuid
+  scheduleId           String    @map("schedule_id") @db.Uuid
+  dayOfWeek            String    @map("day_of_week") @db.VarChar(15) // monday | tuesday | wednesday | thursday | friday | saturday | sunday
+  startTime            DateTime? @map("start_time") @db.Time
+  endTime              DateTime? @map("end_time") @db.Time
+  breakDurationMinutes Int       @default(0) @map("break_duration_minutes")
+  workDurationMinutes  Int?      @map("work_duration_minutes")
+  isDayOff             Boolean   @default(false) @map("is_day_off")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  schedule WorkingSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@map("schedule_lines")
+}
+
+/// Daily attendance records with check-in, check-out, and correction tracking.
+/// attendance_status: present | late | absent | half_day | on_leave | holiday
+/// attendance_source: system | manual | biometric | mobile
+model Attendance {
+  id               String    @id @default(uuid()) @db.Uuid
+  companyId        String    @map("company_id") @db.Uuid
+  employeeId       String    @map("employee_id") @db.Uuid
+  attendanceDate   DateTime  @map("attendance_date") @db.Date
+  checkIn          DateTime? @map("check_in") @db.Timestamptz
+  checkOut         DateTime? @map("check_out") @db.Timestamptz
+  workedHours      Decimal?  @map("worked_hours") @db.Decimal(5, 2)
+  expectedHours    Decimal?  @map("expected_hours") @db.Decimal(5, 2)
+  overtimeHours    Decimal   @default(0) @map("overtime_hours") @db.Decimal(5, 2)
+  source           String    @default("system") @db.VarChar(30) // system | manual | biometric | mobile
+  status           String    @default("present") @db.VarChar(30) // present | late | absent | half_day | on_leave | holiday
+  isCorrected      Boolean   @default(false) @map("is_corrected")
+  originalCheckIn  DateTime? @map("original_check_in") @db.Timestamptz
+  originalCheckOut DateTime? @map("original_check_out") @db.Timestamptz
+  correctedBy      String?   @map("corrected_by") @db.Uuid
+  correctionReason String?   @map("correction_reason") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt        DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee  Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  corrector User?    @relation("AttendanceCorrectedBy", fields: [correctedBy], references: [id])
+
+  @@map("attendances")
+}
+
+/// Configurable time off / leave categories.
+/// time_off_unit: days | hours
+model TimeOffType {
+  id                  String    @id @default(uuid()) @db.Uuid
+  companyId           String    @map("company_id") @db.Uuid
+  name                String    @db.VarChar(100)
+  code                String?   @db.VarChar(20)
+  unit                String    @default("days") @db.VarChar(10) // days | hours
+  color               String?   @db.VarChar(10)
+  requiresAllocation  Boolean   @default(true) @map("requires_allocation")
+  approvalRequired    Boolean   @default(true) @map("approval_required")
+  payrollIntegration Boolean   @default(false) @map("payroll_integration")
+  maxConsecutiveDays  Int?      @map("max_consecutive_days")
+  carryForward        Boolean   @default(false) @map("carry_forward")
+  carryForwardLimit   Decimal?  @map("carry_forward_limit") @db.Decimal(5, 2)
+  isActive            Boolean   @default(true) @map("is_active")
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt           DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company     Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  allocations TimeOffAllocation[]
+  requests    TimeOffRequest[]
+
+  @@map("time_off_types")
+}
+
+/// Leave allocations assigned to employees.
+/// allocation_status: draft | pending_approval | approved | refused | expired
+model TimeOffAllocation {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  timeOffTypeId String    @map("time_off_type_id") @db.Uuid
+  allocated     Decimal   @db.Decimal(7, 2)
+  taken         Decimal   @default(0) @db.Decimal(7, 2)
+  remaining     Decimal   @db.Decimal(7, 2)
+  validFrom     DateTime? @map("valid_from") @db.Date
+  validTo       DateTime? @map("valid_to") @db.Date
+  status        String    @default("draft") @db.VarChar(30) // draft | pending_approval | approved | refused | expired
+  approvedBy    String?   @map("approved_by") @db.Uuid
+  approvedAt    DateTime? @map("approved_at") @db.Timestamptz
+  notes         String?   @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee    Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  timeOffType TimeOffType      @relation(fields: [timeOffTypeId], references: [id])
+  approver    User?            @relation("AllocationApprovedBy", fields: [approvedBy], references: [id])
+  requests    TimeOffRequest[]
+
+  @@map("time_off_allocations")
+}
+
+/// Employee time off / leave requests.
+/// request_status: draft | pending | approved | refused | cancelled
+model TimeOffRequest {
+  id            String    @id @default(uuid()) @db.Uuid
+  companyId     String    @map("company_id") @db.Uuid
+  employeeId    String    @map("employee_id") @db.Uuid
+  timeOffTypeId String    @map("time_off_type_id") @db.Uuid
+  allocationId  String?   @map("allocation_id") @db.Uuid
+  startDate     DateTime  @map("start_date") @db.Date
+  endDate       DateTime  @map("end_date") @db.Date
+  duration      Decimal   @db.Decimal(7, 2)
+  halfDay       Boolean   @default(false) @map("half_day")
+  halfDayPeriod String?   @map("half_day_period") @db.VarChar(10)
+  status        String    @default("draft") @db.VarChar(30) // draft | pending | approved | refused | cancelled
+  reason        String?   @db.Text
+  approvedBy    String?   @map("approved_by") @db.Uuid
+  approvedAt    DateTime? @map("approved_at") @db.Timestamptz
+  refusalReason String?   @map("refusal_reason") @db.Text
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee    Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  timeOffType TimeOffType        @relation(fields: [timeOffTypeId], references: [id])
+  allocation  TimeOffAllocation? @relation(fields: [allocationId], references: [id])
+  approver    User?              @relation("RequestApprovedBy", fields: [approvedBy], references: [id])
+
+  @@map("time_off_requests")
+}
+
+/// A Salary Structure is a named container of ordered Salary Rules.
+/// e.g. "Regular Salary" contains: BASIC -> HRA -> TRANSPORT -> GROSS -> TAX -> NET
+model SalaryStructure {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  name        String    @db.VarChar(150)
+  code        String?   @db.VarChar(30)
+  description String?   @db.Text
+  isActive    Boolean   @default(true) @map("is_active")
+  createdBy   String?   @map("created_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  creator        User?           @relation("SalaryStructureCreatedBy", fields: [createdBy], references: [id])
+  structureRules StructureRule[]
+  contracts      Contract[]
+  payruns        Payrun[]
+  payslips       Payslip[]
+
+  @@map("salary_structures")
+}
+
+/// A Salary Rule defines ONE component of the payslip.
+/// computation_method: fixed | percentage | formula
+/// category: basic | allowance | gross | deduction | net | employer_contribution
+///
+/// HOW COMPUTATION WORKS:
+///   fixed       -> amount = fixed_amount
+///   percentage  -> amount = (fixed_amount / 100) * value of rule with code = percentage_of_rule_code
+///   formula     -> amount = evaluate formula string (e.g. "BASIC * 0.12 + 500")
+///
+/// Example:
+///   BASIC  -> fixed        -> 30000
+///   HRA    -> percentage   -> 20% of BASIC  -> percentage_of_rule_code = "BASIC", fixed_amount = 20
+///   GROSS  -> formula      -> formula = "BASIC + HRA + TRANSPORT"
+///   TAX    -> percentage   -> 10% of GROSS  -> percentage_of_rule_code = "GROSS", fixed_amount = 10
+///   NET    -> formula      -> formula = "GROSS - TAX"
+model SalaryRule {
+  id                    String    @id @default(uuid()) @db.Uuid
+  companyId             String    @map("company_id") @db.Uuid
+  name                  String    @db.VarChar(150)
+  code                  String    @db.VarChar(30)
+  category              String    @db.VarChar(30) // basic | allowance | gross | deduction | net | employer_contribution
+  sequence              Int?
+  computationMethod     String    @map("computation_method") @db.VarChar(20) // fixed | percentage | formula
+  fixedAmount           Decimal   @default(0) @map("fixed_amount") @db.Decimal(15, 2)
+  percentageOfRuleCode String?   @map("percentage_of_rule_code") @db.VarChar(30)
+  formula               String?   @db.Text
+  appearsOnPayslip      Boolean   @default(true) @map("appears_on_payslip")
+  description           String?   @db.Text
+  isActive              Boolean   @default(true) @map("is_active")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  structureRules StructureRule[]
+  payslipLines   PayslipLine[]
+
+  @@map("salary_rules")
+}
+
+/// Junction table linking salary rules to structures with ordering.
+model StructureRule {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  structureId String   @map("structure_id") @db.Uuid
+  ruleId      String   @map("rule_id") @db.Uuid
+  sequence    Int
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  structure SalaryStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
+  rule      SalaryRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@map("structure_rules")
+}
+
+/// Payrun execution batch for a specific payroll period.
+/// payrun_status: draft | computing | computed | validated | paid | cancelled
+model Payrun {
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  name              String    @db.VarChar(200)
+  periodLabel       String?   @map("period_label") @db.VarChar(30)
+  periodStart       DateTime  @map("period_start") @db.Date
+  periodEnd         DateTime  @map("period_end") @db.Date
+  salaryStructureId String?   @map("salary_structure_id") @db.Uuid
+  status            String    @default("draft") @db.VarChar(30) // draft | computing | computed | validated | paid | cancelled
+  totalGross        Decimal   @default(0) @map("total_gross") @db.Decimal(15, 2)
+  totalDeductions   Decimal   @default(0) @map("total_deductions") @db.Decimal(15, 2)
+  totalNet          Decimal   @default(0) @map("total_net") @db.Decimal(15, 2)
+  totalEmployees    Int       @default(0) @map("total_employees")
+  notes             String?   @db.Text
+  computedAt        DateTime? @map("computed_at") @db.Timestamptz
+  validatedAt       DateTime? @map("validated_at") @db.Timestamptz
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz
+  createdBy         String?   @map("created_by") @db.Uuid
+  validatedBy       String?   @map("validated_by") @db.Uuid
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  salaryStructure SalaryStructure? @relation(fields: [salaryStructureId], references: [id])
+  creator         User?            @relation("PayrunCreatedBy", fields: [createdBy], references: [id])
+  validator       User?            @relation("PayrunValidatedBy", fields: [validatedBy], references: [id])
+  payrunEmployees PayrunEmployee[]
+  payslips        Payslip[]
+  payrollWarnings PayrollWarning[]
+
+  @@map("payruns")
+}
+
+/// Employees selected for a payrun; locks the active contract used.
+/// inclusion_status: pending | included | excluded
+model PayrunEmployee {
+  id              String   @id @default(uuid()) @db.Uuid
+  companyId       String   @map("company_id") @db.Uuid
+  payrunId        String   @map("payrun_id") @db.Uuid
+  employeeId      String   @map("employee_id") @db.Uuid
+  contractId      String?  @map("contract_id") @db.Uuid
+  inclusionStatus String   @default("pending") @map("inclusion_status") @db.VarChar(30) // pending | included | excluded
+  exclusionReason String?  @map("exclusion_reason") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrun   Payrun    @relation(fields: [payrunId], references: [id], onDelete: Cascade)
+  employee Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  contract Contract? @relation(fields: [contractId], references: [id])
+
+  @@map("payrun_employees")
+}
+
+/// Employee payslip computed within a payrun.
+/// payslip_status: draft | computed | validated | paid | cancelled
+model Payslip {
+  id              String    @id @default(uuid()) @db.Uuid
+  companyId       String    @map("company_id") @db.Uuid
+  payrunId        String    @map("payrun_id") @db.Uuid
+  employeeId      String    @map("employee_id") @db.Uuid
+  contractId      String?   @map("contract_id") @db.Uuid
+  structureId     String?   @map("structure_id") @db.Uuid
+  periodStart     DateTime  @map("period_start") @db.Date
+  periodEnd       DateTime  @map("period_end") @db.Date
+  workedDays      Decimal?  @map("worked_days") @db.Decimal(5, 2)
+  leaveDays       Decimal   @default(0) @map("leave_days") @db.Decimal(5, 2)
+  overtimeHours   Decimal   @default(0) @map("overtime_hours") @db.Decimal(5, 2)
+  status          String    @default("draft") @db.VarChar(30) // draft | computed | validated | paid | cancelled
+  currency        String    @default("INR") @db.VarChar(10)
+  basic           Decimal   @default(0) @db.Decimal(15, 2)
+  totalAllowances Decimal   @default(0) @map("total_allowances") @db.Decimal(15, 2)
+  gross           Decimal   @default(0) @db.Decimal(15, 2)
+  totalDeductions Decimal   @default(0) @map("total_deductions") @db.Decimal(15, 2)
+  net             Decimal   @default(0) @db.Decimal(15, 2)
+  pdfUrl          String?   @map("pdf_url") @db.Text
+  sentAt          DateTime? @map("sent_at") @db.Timestamptz
+  computedAt      DateTime? @map("computed_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  // Relations
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrun          Payrun           @relation(fields: [payrunId], references: [id], onDelete: Cascade)
+  employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  contract        Contract?        @relation(fields: [contractId], references: [id])
+  structure       SalaryStructure? @relation(fields: [structureId], references: [id])
+  payslipLines    PayslipLine[]
+  payrollWarnings PayrollWarning[]
+
+  @@map("payslips")
+}
+
+/// Snapshot of each rule's computed value — frozen at compute time.
+/// This ensures historical payslips are never affected by future rule changes.
+model PayslipLine {
+  id                String   @id @default(uuid()) @db.Uuid
+  companyId         String   @map("company_id") @db.Uuid
+  payslipId         String   @map("payslip_id") @db.Uuid
+  salaryRuleId      String?  @map("salary_rule_id") @db.Uuid
+  ruleCode          String   @map("rule_code") @db.VarChar(30)
+  ruleName          String   @map("rule_name") @db.VarChar(150)
+  category          String   @db.VarChar(30)
+  sequence          Int?
+  computationMethod String?  @map("computation_method") @db.VarChar(20)
+  baseAmount        Decimal? @map("base_amount") @db.Decimal(15, 2)
+  rate              Decimal? @db.Decimal(7, 4)
+  amount            Decimal  @db.Decimal(15, 2)
+  appearsOnPayslip  Boolean  @default(true) @map("appears_on_payslip")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payslip    Payslip     @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  salaryRule SalaryRule? @relation(fields: [salaryRuleId], references: [id])
+
+  @@map("payslip_lines")
+}
+
+/// Payroll computation issues and validation warnings.
+/// warning_type: missing_bank | duplicate_payslip | no_active_contract | missing_attendance | negative_net
+/// warning_severity: info | warning | error
+model PayrollWarning {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @map("company_id") @db.Uuid
+  payrunId    String?   @map("payrun_id") @db.Uuid
+  payslipId   String?   @map("payslip_id") @db.Uuid
+  employeeId  String?   @map("employee_id") @db.Uuid
+  warningType String    @map("warning_type") @db.VarChar(60) // missing_bank | duplicate_payslip | no_active_contract | missing_attendance | negative_net
+  severity    String    @default("warning") @db.VarChar(20) // info | warning | error
+  message     String?   @db.Text
+  isResolved  Boolean   @default(false) @map("is_resolved")
+  resolvedBy  String?   @map("resolved_by") @db.Uuid
+  resolvedAt  DateTime? @map("resolved_at") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrun   Payrun?   @relation(fields: [payrunId], references: [id], onDelete: Cascade)
+  payslip  Payslip?  @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  resolver User?     @relation("WarningResolvedBy", fields: [resolvedBy], references: [id])
+
+  @@map("payroll_warnings")
+}

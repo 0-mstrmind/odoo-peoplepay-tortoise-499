@@ -6,7 +6,8 @@ dotenv.config({ quiet: true });
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(5000),
-  MONGODB_URI: z.string().min(1, "MONGODB_URI is required"),
+  DATABASE_URL: z.string().default("postgresql://postgres:postgres@localhost:5432/peoplepay360?schema=public"),
+  MONGODB_URI: z.string().optional().default("mongodb://127.0.0.1:27017/neatnode_ts_rest"),
   JWT_ACCESS_SECRET: z.string().min(1, "JWT_ACCESS_SECRET is required"),
   JWT_ACCESS_EXPIRES_IN: z.string().default("1d"),
   JWT_REFRESH_SECRET: z.string().min(1, "JWT_REFRESH_SECRET is required"),
