@@ -11,13 +11,21 @@ import { PayrollView } from './components/payroll/PayrollView'
 import { PayoutHistoryView } from './components/payroll/PayoutHistoryView'
 import { UserManagementView } from './components/auth/UserManagementView'
 import { AuthPage } from './components/auth/AuthPage'
+import { LandingPage } from './components/landing/LandingPage'
 import { ProtectedRoute, PublicRoute } from './components/auth/ProtectedRoute'
 import { SocketProvider } from './socket/SocketProvider'
+import { useIsAuthed } from './store/auth.store'
 
 function App() {
+  const isAuthed = useIsAuthed()
+
   return (
     <SocketProvider>
       <Routes>
+        {/* Public Landing & Registration Routes */}
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/register" element={<LandingPage defaultRegisterMode={true} />} />
+
         {/* Public Authentication Route */}
         <Route
           path="/login"
@@ -29,16 +37,20 @@ function App() {
         />
         <Route path="/auth" element={<Navigate to="/login" replace />} />
 
-        {/* Protected Application Workspace under AppLayout */}
+        {/* Root Route: If authenticated, redirect to /dashboard. If unauthenticated, show LandingPage */}
         <Route
           path="/"
+          element={isAuthed ? <Navigate to="/dashboard" replace /> : <LandingPage />}
+        />
+
+        {/* Protected Application Workspace under AppLayout */}
+        <Route
           element={
             <ProtectedRoute>
               <AppLayout />
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
 
           {/* Employee Directory: HR Manager, Payroll Users/Managers, Admins */}

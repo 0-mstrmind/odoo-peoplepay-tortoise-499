@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { LoginCard } from './LoginCard'
 import { CompanyCreationCard } from './CompanyCreationCard'
 
@@ -25,14 +25,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete }) => {
     <div className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-body)] flex flex-col justify-between p-4 font-sans">
       {/* Top Header */}
       <header className="max-w-md mx-auto w-full flex items-center justify-between py-4">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)] text-white font-bold flex items-center justify-center text-base">
+        <Link to="/" className="flex items-center gap-2 group cursor-pointer">
+          <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)] text-white font-bold flex items-center justify-center text-base shadow-xs group-hover:scale-105 transition-transform">
             P
           </div>
-          <span className="text-lg font-bold text-[var(--color-text-heading)]">
+          <span className="text-lg font-bold text-[var(--color-text-heading)] group-hover:text-[var(--color-primary)] transition-colors">
             PeoplePay360
           </span>
-        </div>
+        </Link>
 
         <div className="flex items-center gap-1 bg-[var(--color-bg-muted)] p-1 rounded-lg">
           <button
