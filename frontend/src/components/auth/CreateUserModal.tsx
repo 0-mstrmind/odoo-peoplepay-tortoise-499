@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { X } from 'lucide-react'
 import apiClient from '@/lib/axios'
 
 export interface UserItem {
@@ -21,7 +22,7 @@ interface CreateUserModalProps {
 export const ROLE_OPTIONS = [
   { id: 'employee', label: 'Employee', desc: 'Standard employee self-service access' },
   { id: 'hr_manager', label: 'HR Manager', desc: 'Manage departments, positions & employee master' },
-  { id: 'hr_payroll_user', label: 'HR Payroll User', desc: 'View and compute payslips' },
+  { id: 'hr_payroll_user', label: 'HR Payroll User', desc: 'View and compute employee payslips' },
   { id: 'hr_payroll_admin', label: 'HR Payroll Admin', desc: 'Manage salary structures, rules & payruns' },
   { id: 'admin', label: 'Admin', desc: 'Full system administration & user access control' },
 ]
@@ -43,11 +44,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     { id: 'emp-2', name: 'Maya Shah', email: 'maya@company.com' },
     { id: 'emp-3', name: 'Rohan Patel', email: 'rohan@company.com' },
     { id: 'emp-4', name: 'Nisha Rao', email: 'nisha@company.com' },
-    { id: 'emp-5', name: 'Priya Sharma', email: 'priya@company.com' },
   ])
 
   useEffect(() => {
-    // Fetch live employee list from backend API
     const fetchEmployees = async () => {
       try {
         const res = await apiClient.get('/v1/employees?limit=100')
@@ -61,7 +60,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           setEmployeesList(mapped)
         }
       } catch {
-        // Fallback to sample list if backend not reachable
+        // Fallback to sample list if offline
       }
     }
     fetchEmployees()
@@ -98,19 +97,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       const selectedEmpObj = employeesList.find((e) => e.id === selectedEmployee || e.name === selectedEmployee)
       const empName = selectedEmpObj ? selectedEmpObj.name : selectedEmployee || 'New User'
 
-      // Call backend API if editing user role/status
       if (userToEdit && userToEdit.id) {
         try {
           await apiClient.patch(`/v1/auth/users/${userToEdit.id}/role`, { role })
           await apiClient.patch(`/v1/auth/users/${userToEdit.id}/status`, { isActive: status === 'active' })
         } catch {
-          // Fallback gracefully for UI demo
+          // Graceful fallback
         }
       } else if (selectedEmpObj) {
         try {
           await apiClient.patch(`/v1/employees/${selectedEmpObj.id}/role`, { role })
         } catch {
-          // Fallback gracefully for UI demo
+          // Graceful fallback
         }
       }
 
@@ -136,42 +134,43 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/60 backdrop-blur-xs transition-opacity animate-in fade-in">
-      <div className="w-full max-w-md h-full bg-[#161822] border-l border-[#2a2e3f] p-6 shadow-2xl flex flex-col justify-between overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-end bg-black/40 backdrop-blur-xs animate-in fade-in">
+      <div className="w-full max-w-md h-full bg-[var(--color-bg-base)] border-l border-[var(--color-border)] p-6 shadow-2xl flex flex-col justify-between overflow-y-auto">
         <div>
           {/* Drawer Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-[#262a39] mb-6">
+          <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)] mb-6">
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-blue-400">Open on New User</span>
-              <h3 className="text-xl font-bold text-white mt-0.5">
+              <span className="pp-badge pp-badge-neutral text-[10px]">Open on New User</span>
+              <h3 className="text-xl font-bold text-[var(--color-text-heading)] mt-1">
                 {userToEdit ? 'Edit User Access' : 'Create / Edit User'}
               </h3>
             </div>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-white p-1 rounded-lg bg-[#202432] hover:bg-[#2c3246] transition-colors"
+              className="text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] p-1.5 rounded-lg bg-[var(--color-bg-muted)] transition-colors cursor-pointer"
+              title="Close"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
           </div>
 
           {error && (
-            <div className="mb-4 p-3 rounded-lg bg-red-950/60 border border-red-800 text-red-200 text-xs">
+            <div className="mb-4 p-3 rounded bg-[var(--color-danger-bg)] border border-[var(--color-danger)] text-xs text-[#a00020]">
               {error}
             </div>
           )}
 
-          {/* Form Content */}
-          <form id="user-form" onSubmit={handleSubmit} className="space-y-5">
+          {/* Form */}
+          <form id="user-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Employee Selector */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                Employee <span className="text-blue-400">*</span>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                Employee <span className="text-[var(--color-danger)]">*</span>
               </label>
               <select
                 value={selectedEmployee}
                 onChange={(e) => handleSelectEmployee(e.target.value)}
-                className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="pp-input"
               >
                 <option value="">Select employee...</option>
                 {employeesList.map((emp) => (
@@ -184,8 +183,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
             {/* Work Email */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-1.5">
-                Work Email <span className="text-blue-400">*</span>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                Work Email <span className="text-[var(--color-danger)]">*</span>
               </label>
               <input
                 type="email"
@@ -193,14 +192,14 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="employee@company.com"
-                className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="pp-input"
               />
             </div>
 
-            {/* Roles Radio List */}
+            {/* Roles Choice List */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-2">
-                Roles <span className="text-blue-400">*</span>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-2">
+                Roles <span className="text-[var(--color-danger)]">*</span>
               </label>
               <div className="space-y-2">
                 {ROLE_OPTIONS.map((r) => {
@@ -208,10 +207,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   return (
                     <label
                       key={r.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                      className={`flex items-start gap-3 p-2.5 rounded-lg border transition-all cursor-pointer ${
                         isChecked
-                          ? 'bg-blue-950/40 border-blue-500 text-white'
-                          : 'bg-[#101218] border-[#292d3e] text-gray-300 hover:border-[#383e54]'
+                          ? 'bg-[var(--color-primary-light)] border-[var(--color-primary)]'
+                          : 'bg-[var(--color-bg-surface)] border-[var(--color-border)] hover:border-[var(--color-border-strong)]'
                       }`}
                     >
                       <input
@@ -220,11 +219,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                         value={r.id}
                         checked={isChecked}
                         onChange={() => setRole(r.id)}
-                        className="mt-0.5 accent-blue-500"
+                        className="mt-0.5 accent-[var(--color-primary)]"
                       />
                       <div>
-                        <div className="text-xs font-medium text-white">{r.label}</div>
-                        <div className="text-[11px] text-gray-400">{r.desc}</div>
+                        <div className="text-xs font-semibold text-[var(--color-text-heading)]">{r.label}</div>
+                        <div className="text-[11px] text-[var(--color-text-muted)]">{r.desc}</div>
                       </div>
                     </label>
                   )
@@ -234,17 +233,17 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
             {/* Account Status Toggle */}
             <div>
-              <label className="block text-xs font-semibold text-gray-300 mb-2">
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-2">
                 Account Status
               </label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setStatus('active')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                  className={`px-3 py-1.5 rounded text-xs font-semibold border transition-colors cursor-pointer ${
                     status === 'active'
-                      ? 'bg-emerald-950/60 border-emerald-500 text-emerald-300'
-                      : 'bg-[#101218] border-[#292d3e] text-gray-400'
+                      ? 'pp-badge-success border-emerald-500 font-bold'
+                      : 'bg-[var(--color-bg-muted)] border-[var(--color-border)] text-[var(--color-text-muted)]'
                   }`}
                 >
                   Active
@@ -252,10 +251,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setStatus('inactive')}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                  className={`px-3 py-1.5 rounded text-xs font-semibold border transition-colors cursor-pointer ${
                     status === 'inactive'
-                      ? 'bg-rose-950/60 border-rose-500 text-rose-300'
-                      : 'bg-[#101218] border-[#292d3e] text-gray-400'
+                      ? 'pp-badge-danger border-red-500 font-bold'
+                      : 'bg-[var(--color-bg-muted)] border-[var(--color-border)] text-[var(--color-text-muted)]'
                   }`}
                 >
                   Inactive
@@ -265,17 +264,17 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           </form>
         </div>
 
-        {/* Drawer Actions & Caption Footer */}
-        <div className="pt-6 border-t border-[#262a39] space-y-4">
+        {/* Drawer Actions & Caption */}
+        <div className="pt-4 border-t border-[var(--color-border)] space-y-3">
           <button
             type="submit"
             form="user-form"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg text-sm transition-all duration-150 shadow-lg shadow-blue-900/40 flex items-center justify-center gap-2"
+            className="pp-btn-primary w-full py-2.5 text-sm font-medium"
           >
             {loading ? 'Saving Access...' : 'Create User / Save Access'}
           </button>
-          <p className="text-[11px] text-gray-400 text-center italic bg-[#101218] p-2.5 rounded border border-[#252938]">
+          <p className="text-[11px] text-[var(--color-text-muted)] text-center italic bg-[var(--color-bg-surface)] p-2.5 rounded border border-[var(--color-border)]">
             User accounts are separate from Employee records, but should be linked to an employee for access and ownership.
           </p>
         </div>

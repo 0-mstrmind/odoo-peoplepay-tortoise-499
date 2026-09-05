@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import { UserPlus, Search, Filter, Shield } from 'lucide-react'
 import { type UserItem, CreateUserModal } from './CreateUserModal'
 import apiClient from '@/lib/axios'
 
-// Sample initial data matching the exact screenshot wireframe
 const INITIAL_USERS: UserItem[] = [
   {
     id: 'u-1',
@@ -46,7 +46,6 @@ export const UserManagementView: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
 
   useEffect(() => {
-    // Fetch users from backend API if available
     const fetchUsers = async () => {
       try {
         const response = await apiClient.get('/v1/auth/users')
@@ -69,7 +68,7 @@ export const UserManagementView: React.FC = () => {
           setUsers(mapped)
         }
       } catch {
-        // Fallback to pre-loaded wireframe sample users if endpoint restricted
+        // Fallback to sample data if endpoint not reachable
       }
     }
     fetchUsers()
@@ -97,7 +96,6 @@ export const UserManagementView: React.FC = () => {
     })
   }
 
-  // Filtered users calculation
   const filteredUsers = users.filter((u) => {
     const matchesSearch =
       u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -111,51 +109,53 @@ export const UserManagementView: React.FC = () => {
   })
 
   return (
-    <div className="w-full bg-[#181b24] border border-[#2a2e3d] rounded-2xl p-6 text-white shadow-2xl">
+    <div className="pp-card w-full shadow-sm">
       {/* Top Banner Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-[#262a38]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-[var(--color-border)]">
         <div>
-          <div className="flex items-center gap-2.5">
-            <h2 className="text-xl font-bold text-white tracking-tight">User Management</h2>
-            <span className="px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-blue-950 text-blue-400 border border-blue-800">
-              ADMIN ONLY
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-[var(--color-text-heading)]">User Management</h2>
+            <span className="pp-badge pp-badge-neutral text-[10px] inline-flex items-center gap-1">
+              <Shield className="w-3 h-3 text-[var(--color-primary)]" />
+              <span>ADMIN ONLY</span>
             </span>
           </div>
-          <p className="text-xs text-gray-400 mt-1">
-            Manage application user accounts, role permissions, and access status.
+          <p className="text-xs text-[var(--color-text-muted)] mt-1">
+            Administrators create user accounts and assign access. Employees use Login to enter the HR and Payroll application.
           </p>
         </div>
 
-        {/* Action Header Controls */}
-        <div className="flex items-center gap-3">
+        {/* New User Action Button */}
+        <div>
           <button
             onClick={handleCreateNew}
-            className="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg transition-all shadow-md shadow-blue-900/30 flex items-center gap-2"
+            className="pp-btn-primary text-xs font-semibold py-2 px-3.5 inline-flex items-center gap-1.5"
           >
-            <span className="text-base font-bold">+</span> New User
+            <UserPlus className="w-3.5 h-3.5" />
+            <span>New User</span>
           </button>
         </div>
       </div>
 
       {/* Toolbar: Search + Role Filter */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-5">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
         <div className="relative w-full sm:w-80">
+          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search users, employees or email..."
-            className="w-full bg-[#101218] border border-[#2e3344] rounded-lg pl-9 pr-3.5 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className="pp-input text-xs pl-8"
           />
-          <span className="absolute left-3 top-2.5 text-gray-500 text-xs">🔍</span>
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <label className="text-xs text-gray-400 whitespace-nowrap">Filter Role:</label>
+          <Filter className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="bg-[#101218] border border-[#2e3344] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+            className="pp-input text-xs"
           >
             <option value="all">Role Filter (All)</option>
             <option value="admin">Admin</option>
@@ -166,22 +166,22 @@ export const UserManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Users Data Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#272b38] bg-[#101218]">
-        <table className="w-full text-left border-collapse">
+      {/* Data Table */}
+      <div className="pp-card-flat overflow-x-auto p-0">
+        <table className="pp-table">
           <thead>
-            <tr className="border-b border-[#232734] bg-[#141720]">
-              <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">User</th>
-              <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Employee</th>
-              <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Work Email</th>
-              <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Role</th>
-              <th className="py-3 px-4 text-[11px] font-semibold uppercase tracking-wider text-gray-400 text-right">Status</th>
+            <tr>
+              <th>User</th>
+              <th>Employee</th>
+              <th>Work Email</th>
+              <th>Role</th>
+              <th className="text-right">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#202432]">
+          <tbody>
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-xs text-gray-500 italic">
+                <td colSpan={5} className="py-6 text-center text-xs text-[var(--color-text-muted)] italic">
                   No matching user accounts found.
                 </td>
               </tr>
@@ -190,35 +190,26 @@ export const UserManagementView: React.FC = () => {
                 <tr
                   key={user.id}
                   onClick={() => handleEditUser(user)}
-                  className="hover:bg-[#1b1f2d] transition-colors cursor-pointer group"
+                  className="cursor-pointer transition-colors"
                 >
-                  <td className="py-3 px-4 text-xs font-semibold text-blue-400 group-hover:underline">
+                  <td className="font-semibold text-[var(--color-primary)]">
                     {user.name}
                   </td>
-                  <td className="py-3 px-4 text-xs text-gray-300">
-                    {user.employeeName}
-                  </td>
-                  <td className="py-3 px-4 text-xs text-gray-400 font-mono">
+                  <td>{user.employeeName}</td>
+                  <td className="font-mono text-xs text-[var(--color-text-muted)]">
                     {user.email}
                   </td>
-                  <td className="py-3 px-4 text-xs text-gray-200">
-                    <span className="inline-block px-2 py-0.5 rounded bg-[#1c2130] border border-[#2f364b] text-gray-300">
+                  <td>
+                    <span className="pp-badge pp-badge-neutral font-normal">
                       {user.role}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-xs text-right">
+                  <td className="text-right">
                     <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                        user.status === 'active'
-                          ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800/80'
-                          : 'bg-rose-950/80 text-rose-400 border border-rose-800/80'
+                      className={`pp-badge ${
+                        user.status === 'active' ? 'pp-badge-success' : 'pp-badge-neutral'
                       }`}
                     >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          user.status === 'active' ? 'bg-emerald-400' : 'bg-rose-400'
-                        }`}
-                      ></span>
                       {user.status === 'active' ? 'Active' : 'Inactive'}
                     </span>
                   </td>
@@ -229,15 +220,15 @@ export const UserManagementView: React.FC = () => {
         </table>
       </div>
 
-      {/* Table Footer Caption */}
-      <div className="mt-4 pt-3 border-t border-[#232734] flex flex-col sm:flex-row items-center justify-between text-xs text-gray-400 gap-2">
+      {/* Footer Captions */}
+      <div className="mt-4 pt-3 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between text-xs text-[var(--color-text-muted)] gap-2">
         <span>Select a user to edit access, or create a new user.</span>
-        <span className="text-[11px] text-gray-500 italic">
+        <span className="text-[11px] italic">
           User accounts are separate from Employee records, but should be linked to an employee for access and ownership.
         </span>
       </div>
 
-      {/* Create / Edit Drawer Modal */}
+      {/* Drawer / Modal */}
       <CreateUserModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
