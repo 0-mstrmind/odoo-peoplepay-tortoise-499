@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Axios instance for PeoplePay360 API
  *
  * - Base URL sourced from VITE_API_URL env variable
@@ -8,7 +8,8 @@
  */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
+const rawBase = import.meta.env.VITE_API_URL ?? 'http://localhost:4000/api/v1'
+const BASE_URL = rawBase.endsWith('/v1') ? rawBase : `${rawBase.replace(/\/+$/, '')}/v1`
 
 export const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -48,11 +49,9 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     if (error.response?.status === 401) {
-      // Clear persisted auth state so next navigation goes to login
       localStorage.removeItem('pp-auth')
-      // Redirect to login without full page reload where possible
       if (typeof window !== 'undefined') {
-        window.location.href = '/login'
+        window.dispatchEvent(new CustomEvent('pp:unauthorized'))
       }
     }
     return Promise.reject(error)

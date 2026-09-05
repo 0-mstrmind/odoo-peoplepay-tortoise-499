@@ -48,6 +48,19 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         {/* Left Nav Menu Items — NO HR logo as strictly requested */}
         <nav className="flex items-center gap-1 sm:gap-2 md:gap-4 overflow-x-auto no-scrollbar py-1">
+          {/* 0. Dashboard */}
+          <button
+            type="button"
+            onClick={() => handleItemClick('Dashboard')}
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+              activeItem === 'Dashboard'
+                ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+            }`}
+          >
+            Dashboard
+          </button>
+
           {/* 1. Employees ▼ (Active in wireframe) */}
           <div className="relative">
             <button

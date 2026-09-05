@@ -90,4 +90,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 export const useToken     = () => useAuthStore((s) => s.token)
 export const useAuthUser  = () => useAuthStore((s) => s.user)
 export const useCompanyId = () => useAuthStore((s) => s.companyId)
-export const useIsAuthed  = () => useAuthStore((s) => !!s.token)
+export const useIsAuthed  = () => useAuthStore((s) => !!s.token && !!s.user)
+
+/**
+ * Checks if a given role satisfies the allowed roles list.
+ * 'admin' and 'super_admin' bypass role restrictions.
+ */
+export function hasRolePermission(userRole?: string | null, allowedRoles?: UserRole[]): boolean {
+  if (!allowedRoles || allowedRoles.length === 0) return true
+  if (!userRole) return false
+  if (userRole === 'admin' || userRole === 'super_admin') return true
+  return allowedRoles.includes(userRole as UserRole)
+}
