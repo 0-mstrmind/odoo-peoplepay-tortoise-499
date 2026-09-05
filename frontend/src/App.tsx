@@ -9,7 +9,13 @@ import { EmployeesPage } from './components/employees/EmployeesPage'
 import { UserManagementView } from './components/auth/UserManagementView'
 import { AuthPage } from './components/auth/AuthPage'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
-import { useAuthStore, useIsAuthed, useAuthUser } from './store/auth.store'
+import {
+  useAuthStore,
+  useIsAuthed,
+  useAuthUser,
+  canAccessEmployees,
+  canAccessUserManagement,
+} from './store/auth.store'
 
 function App() {
   const isAuthed = useIsAuthed()
@@ -99,17 +105,25 @@ function App() {
     )
   }
 
-  // 2. Navigation Handler
+  // 2. Navigation Handler with RBAC Guard
   const handleNavigate = (view: string, subItem?: string) => {
-    setCurrentView(view)
-    setActiveSubItem(subItem)
-
-    if (view === 'user-management' && user.role !== 'admin' && user.role !== 'super_admin') {
+    const role = user.role
+    if (view === 'user-management' && !canAccessUserManagement(role)) {
       toast.error('Access Restricted', {
         description: 'User Management portal is restricted to Administrators only.',
       })
       return
     }
+
+    if (view === 'employees' && !canAccessEmployees(role)) {
+      toast.error('Access Restricted', {
+        description: 'Employee Directory access requires HR or Manager role.',
+      })
+      return
+    }
+
+    setCurrentView(view)
+    setActiveSubItem(subItem)
 
     if (subItem) {
       toast.info(`Navigated to ${view} / ${subItem}`, {
@@ -119,7 +133,7 @@ function App() {
     }
   }
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
+  const isAdmin = canAccessUserManagement(user.role)
 
   // Render view based on selection
   const renderCurrentView = () => {
@@ -128,10 +142,21 @@ function App() {
         return (
           <ProtectedRoute onAccessDeniedReturn={() => setCurrentView('dashboard')}>
             <DashboardPage
-              onNavigateToEmployees={() => {
-                setCurrentView('employees')
-                setActiveSubItem('All Employees')
-              }}
+              onNavigateToEmployees={
+                canAccessEmployees(user.role)
+                  ? () => {
+                      setCurrentView('employees')
+                      setActiveSubItem('All Employees')
+                    }
+                  : undefined
+              }
+              onNavigateToUserManagement={
+                isAdmin
+                  ? () => {
+                      setCurrentView('user-management')
+                    }
+                  : undefined
+              }
             />
           </ProtectedRoute>
         )
@@ -150,10 +175,10 @@ function App() {
               The User Management Portal requires Administrator role permissions.
             </p>
             <button
-              onClick={() => setCurrentView('employees')}
+              onClick={() => setCurrentView('dashboard')}
               className="pp-btn-primary text-xs py-2 px-4"
             >
-              Return to Employee Master
+              Return to Dashboard
             </button>
           </div>
         )
@@ -161,7 +186,15 @@ function App() {
       default:
         return (
           <ProtectedRoute
-            allowedRoles={['admin', 'super_admin', 'hr_manager', 'payroll_manager']}
+            allowedRoles={[
+              'admin',
+              'super_admin',
+              'hr_manager',
+              'hr_payroll_user',
+              'payroll_user',
+              'hr_payroll_manager',
+              'payroll_manager',
+            ]}
             onAccessDeniedReturn={() => setCurrentView('dashboard')}
           >
             <EmployeesPage />

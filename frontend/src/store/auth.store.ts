@@ -101,4 +101,42 @@ export function hasRolePermission(userRole?: string | null, allowedRoles?: UserR
   if (!userRole) return false
   if (userRole === 'admin' || userRole === 'super_admin') return true
   return allowedRoles.includes(userRole as UserRole)
-}
+}
+
+// ── Granular Module RBAC Helpers ──────────────────────────────────────────
+
+export function canAccessEmployees(role?: string | null): boolean {
+  if (!role) return false
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+}
+
+export function canAccessContracts(role?: string | null): boolean {
+  if (!role) return false
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+}
+
+export function canAccessAttendance(role?: string | null): boolean {
+  // All authenticated users have attendance access (employees submit check-ins/logs, HR manages)
+  return !!role
+}
+
+export function canAccessTimeOff(role?: string | null): boolean {
+  // All authenticated users have time off access (employees submit requests, HR approves)
+  return !!role
+}
+
+export function canAccessPayroll(role?: string | null): boolean {
+  if (!role) return false
+  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+}
+
+export function canAccessSalaryStructures(role?: string | null): boolean {
+  if (!role) return false
+  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+}
+
+export function canAccessUserManagement(role?: string | null): boolean {
+  if (!role) return false
+  return ['admin', 'super_admin'].includes(role)
+}
+
