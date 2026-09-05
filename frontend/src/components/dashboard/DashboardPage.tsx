@@ -604,7 +604,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                       {checkInMutation.isPending || checkOutMutation.isPending
                         ? 'Processing...'
                         : checkInState === 'checked_in'
-                        ? 'Clock Out'
+                        ? 'Clock Out (End Shift)'
                         : 'Clock In Now'}
                     </span>
                   </button>
