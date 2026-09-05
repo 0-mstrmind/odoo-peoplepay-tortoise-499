@@ -8,14 +8,10 @@ export type RedisConnectionStatus =
   | "offline";
 
 export interface CacheOptions {
-  /**
-   * Time to live in seconds. Default is 300 seconds (5 minutes).
-   */
+ 
   ttlSeconds?: number;
-  /**
-   * Optional custom key prefix.
-   */
   prefix?: string;
+  keyGenerator?: (req: any) => string;
 }
 
 export interface RedisHealth {

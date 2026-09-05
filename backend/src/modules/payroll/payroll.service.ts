@@ -8,6 +8,7 @@ import type {
   QueryPayrunInput,
   QueryPayslipInput,
 } from "./payroll.validation.js";
+import { invalidateDashboardCache } from "../dashboard/dashboard.service.js";
 
 /**
  * Resolves caller tenant company ID
@@ -516,7 +517,7 @@ export const validatePayrunService = async (
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedPayrun = await prisma.$transaction(async (tx) => {
     await tx.payslip.updateMany({
       where: { payrunId },
       data: { status: "validated" },
@@ -542,6 +543,11 @@ export const validatePayrunService = async (
       },
     });
   });
+
+  // Invalidate dashboard cache so expenditure/counts reflect new validated status
+  invalidateDashboardCache(companyId).catch(() => {});
+
+  return updatedPayrun;
 };
 
 /**
@@ -561,7 +567,7 @@ export const markPaidPayrunService = async (
     );
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedPayrun = await prisma.$transaction(async (tx) => {
     await tx.payslip.updateMany({
       where: { payrunId },
       data: { status: "paid" },
@@ -586,6 +592,11 @@ export const markPaidPayrunService = async (
       },
     });
   });
+
+  // Invalidate dashboard cache so expenditure/counts reflect paid status
+  invalidateDashboardCache(companyId).catch(() => {});
+
+  return updatedPayrun;
 };
 
 /**

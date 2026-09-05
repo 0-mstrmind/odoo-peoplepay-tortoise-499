@@ -19,7 +19,19 @@ export const cacheMiddleware = (options?: CacheOptions) => {
     try {
       const companyId = req.user?.companyId || "global";
       const userRole = req.user?.role || "anonymous";
-      const cacheKey = `${prefix}:${companyId}:${userRole}:${req.originalUrl || req.url}`;
+
+      let cacheKey: string;
+      if (options?.keyGenerator) {
+        cacheKey = options.keyGenerator(req);
+      } else {
+        // Deterministic query parameter sorting to prevent duplicate cache misses
+        const queryKeys = Object.keys(req.query || {}).sort();
+        const sortedQuery = queryKeys.length > 0
+          ? "?" + queryKeys.map((k) => `${k}=${encodeURIComponent(String(req.query[k]))}`).join("&")
+          : "";
+        const endpointPath = (req.baseUrl || "") + (req.path || "");
+        cacheKey = `${prefix}:${companyId}:${userRole}:${endpointPath}${sortedQuery}`;
+      }
 
       const cached = await cacheService.get<Record<string, unknown>>(cacheKey);
 
