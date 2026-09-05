@@ -35,6 +35,7 @@ export interface AuthUser {
   name:      string
   role:      UserRole
   avatarUrl?: string
+  employeeId?: string
 }
 
 interface AuthState {
@@ -62,7 +63,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       // ── Actions ──────────────────────────────────────────────
       setAuth: (token, user) =>
-        set({ token, user, isLoading: false }),
+        set({
+          token,
+          user: user
+            ? { ...user, role: (user.role ? user.role.toLowerCase() : '') as UserRole }
+            : null,
+          isLoading: false,
+        }),
 
       setCompanyId: (companyId) =>
         set({ companyId }),
@@ -82,6 +89,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         companyId: state.companyId,
         user:      state.user,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user?.role) {
+          state.user.role = state.user.role.toLowerCase() as UserRole
+        }
+      },
     },
   ),
 )
@@ -99,20 +111,23 @@ export const useIsAuthed  = () => useAuthStore((s) => !!s.token && !!s.user)
 export function hasRolePermission(userRole?: string | null, allowedRoles?: UserRole[]): boolean {
   if (!allowedRoles || allowedRoles.length === 0) return true
   if (!userRole) return false
-  if (userRole === 'admin' || userRole === 'super_admin') return true
-  return allowedRoles.includes(userRole as UserRole)
+  const r = userRole.toLowerCase()
+  if (r === 'admin' || r === 'super_admin') return true
+  return allowedRoles.some((allowed) => allowed.toLowerCase() === r)
 }
 
 // ── Granular Module RBAC Helpers ──────────────────────────────────────────
 
 export function canAccessEmployees(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase()
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessContracts(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase()
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessAttendance(role?: string | null): boolean {
@@ -127,16 +142,19 @@ export function canAccessTimeOff(role?: string | null): boolean {
 
 export function canAccessPayroll(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase()
+  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessSalaryStructures(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase()
+  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessUserManagement(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin'].includes(role)
+  const r = role.toLowerCase()
+  return ['admin', 'super_admin'].includes(r)
 }
 

@@ -187,55 +187,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             Attendance
           </button>
 
-          {/* 4. Time Off ▼ */}
-          <div className="relative overflow-visible">
-            <button
-              type="button"
-              onClick={() => handleToggle('Time Off')}
-              title="Time Off Management — Leave Allocations & Requests"
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-                activeItem === 'Time Off'
-                  ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
-                  : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-              }`}
-            >
-              <span>Time Off</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                  openDropdown === 'Time Off' ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
-
-            {openDropdown === 'Time Off' && (
-              <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  type="button"
-                  title="View employee leave requests"
-                  onClick={() => handleItemClick('Time Off', 'Time Off Requests')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Time Off Requests
-                </button>
-                <button
-                  type="button"
-                  title="Grant leave allocations to employees"
-                  onClick={() => handleItemClick('Time Off', 'Leave Allocations')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Leave Allocations
-                </button>
-                <button
-                  type="button"
-                  title="Configure leave types and rules"
-                  onClick={() => handleItemClick('Time Off', 'Leave Types')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Leave Types
-                </button>
-              </div>
-            )}
-          </div>
+          {/* 4. Time Off */}
+          <button
+            type="button"
+            onClick={() => handleItemClick('Time Off')}
+            title="Time Off & Leave Management"
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+              activeItem === 'Time Off'
+                ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+            }`}
+          >
+            Time Off
+          </button>
 
           {/* 5. Payroll */}
           <button

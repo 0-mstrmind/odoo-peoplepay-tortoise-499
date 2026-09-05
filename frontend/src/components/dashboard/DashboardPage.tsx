@@ -73,9 +73,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
   const [checkInState, setCheckInState] = useState<'checked_out' | 'checked_in'>('checked_out')
 
-  const role = user?.role
+  const role = (user?.role || '').toLowerCase()
   const isEmployee = role === 'employee'
-  const isHRManager = role === 'hr_manager'
+  const isHRManager = role === 'hr_manager' || role === 'hr_payroll_manager'
   const isPayrollAccess = canAccessPayroll(role)
   const isAdmin = canAccessUserManagement(role)
 

@@ -1,3 +1,4 @@
+import React from 'react'
 import { UserCheck, Clock } from 'lucide-react'
 import type { TodayAttendancePresentItem } from '@/hooks/use-api'
 
@@ -59,7 +60,7 @@ export const TodayPresentTable: React.FC<TodayPresentTableProps> = ({
               <th className="py-2.5 px-4">Check-Out</th>
               <th className="py-2.5 px-4">Hours Worked</th>
               <th className="py-2.5 px-4">Status</th>
-              <th className="py-2.5 px-4">Allotted Manager</th>
+              <th className="py-2.5 px-4">Manager</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
@@ -157,11 +158,11 @@ export const TodayPresentTable: React.FC<TodayPresentTableProps> = ({
                     </span>
                   </td>
 
-                  {/* Allotted Manager */}
+                  {/* Reporting Manager */}
                   <td className="py-3 px-4 text-[var(--color-text-muted)]">
                     {emp.managerName || (
                       <span className="italic text-[10px] text-[var(--color-text-muted)]/70">
-                        Direct HR Allotment
+                        &mdash;
                       </span>
                     )}
                   </td>

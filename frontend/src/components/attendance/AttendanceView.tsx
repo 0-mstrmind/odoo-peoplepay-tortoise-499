@@ -5,53 +5,45 @@ import {
   UserX,
   Search,
   Plus,
-  LogIn,
-  LogOut,
   Calendar as CalendarIcon,
-  Shield,
   Building2,
   RefreshCw,
   History,
+  FileCheck,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthUser } from '@/store/auth.store'
 import {
   useTodayAttendanceSummary,
   useAttendanceList,
-  useCheckIn,
-  useCheckOut,
+  useAttendanceRequests,
   useDepartmentsMaster,
 } from '@/hooks/use-api'
 import { AttendanceStatsCards } from './AttendanceStatsCards'
 import { TodayPresentTable } from './TodayPresentTable'
 import { TodayAbsentTable } from './TodayAbsentTable'
+import { AttendanceRequestsTable } from './AttendanceRequestsTable'
 import { ManualAttendanceModal } from './ManualAttendanceModal'
 
 export const AttendanceView: React.FC = () => {
   const user = useAuthUser()
-  const role = user?.role
-  const isHRManager = role === 'hr_manager' || role === 'hr_payroll_manager'
+  const role = (user?.role || '').toLowerCase()
+  const isHRManager = role === 'hr_manager' || role === 'hr_payroll_manager' || role === 'admin' || role === 'super_admin'
   const isAdmin = role === 'admin' || role === 'super_admin'
 
   // Default to today's date in YYYY-MM-DD
   const todayStr = new Date().toISOString().split('T')[0]
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
 
-  // HR Allotment scope: default true for HR Manager, false for Admin
-  const [isAllottedOnly, setIsAllottedOnly] = useState<boolean>(isHRManager && !isAdmin)
-
   // Filters
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'present' | 'absent' | 'logs'>('present')
+  const [activeTab, setActiveTab] = useState<'present' | 'absent' | 'requests' | 'logs'>('present')
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false)
   const [modalEmployeeId, setModalEmployeeId] = useState<string>('')
   const [modalEmployeeName, setModalEmployeeName] = useState<string>('')
-
-  // Personal punch state
-  const [personalPunchActive, setPersonalPunchActive] = useState<boolean>(true)
 
   // Backend TanStack Query integrations
   const {
@@ -61,8 +53,16 @@ export const AttendanceView: React.FC = () => {
     isRefetching: isSummaryRefetching,
   } = useTodayAttendanceSummary({
     departmentId: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    hrAllotted: isAllottedOnly,
     date: selectedDate,
+    search: searchQuery,
+  })
+
+  const {
+    data: requestsData,
+    isLoading: isRequestsLoading,
+    refetch: refetchRequests,
+  } = useAttendanceRequests({
+    departmentId: selectedDepartment !== 'all' ? selectedDepartment : undefined,
     search: searchQuery,
   })
 
@@ -72,7 +72,6 @@ export const AttendanceView: React.FC = () => {
     refetch: refetchLogs,
   } = useAttendanceList({
     departmentId: selectedDepartment !== 'all' ? selectedDepartment : undefined,
-    hrAllotted: isAllottedOnly,
     date: selectedDate,
     search: searchQuery,
     page: 1,
@@ -82,34 +81,6 @@ export const AttendanceView: React.FC = () => {
   // Departments list from backend
   const { data: departments = summaryData?.departments || [] } = useDepartmentsMaster()
 
-  // Punch Mutations
-  const checkInMutation = useCheckIn()
-  const checkOutMutation = useCheckOut()
-
-  const handlePersonalCheckIn = async () => {
-    try {
-      await checkInMutation.mutateAsync({
-        attendanceDate: selectedDate,
-      })
-      setPersonalPunchActive(true)
-      toast.success('Punched in successfully!')
-      refetchSummary()
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to punch in')
-    }
-  }
-
-  const handlePersonalCheckOut = async () => {
-    try {
-      await checkOutMutation.mutateAsync()
-      setPersonalPunchActive(false)
-      toast.success('Punched out successfully!')
-      refetchSummary()
-    } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to punch out')
-    }
-  }
-
   const handleOpenManualModal = (empId?: string, empName?: string) => {
     setModalEmployeeId(empId || '')
     setModalEmployeeName(empName || '')
@@ -118,6 +89,10 @@ export const AttendanceView: React.FC = () => {
 
   const presentCount = summaryData?.stats.presentCount ?? 0
   const absentCount = summaryData?.stats.absentCount ?? 0
+  const requestItems = (requestsData as any)?.items || (Array.isArray(requestsData) ? requestsData : [])
+  const pendingRequestsCount =
+    summaryData?.stats?.pendingRequestsCount ??
+    requestItems.filter((r: any) => !r.isCorrected && r.status !== 'absent').length
   const logItems = (logsData as any)?.items || (Array.isArray(logsData) ? logsData : [])
 
   return (
@@ -137,7 +112,7 @@ export const AttendanceView: React.FC = () => {
             )}
           </div>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">
-            Real-time daily attendance monitoring, check-in tracking, and allotted employee supervision.
+            Real-time daily attendance monitoring, check-in tracking, and workforce attendance supervision.
           </p>
         </div>
 
@@ -147,6 +122,7 @@ export const AttendanceView: React.FC = () => {
             type="button"
             onClick={() => {
               refetchSummary()
+              refetchRequests()
               refetchLogs()
               toast.info('Attendance data refreshed')
             }}
@@ -171,90 +147,11 @@ export const AttendanceView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Personal Quick Punch Card & Scope Switcher Banner */}
-      <div className="pp-card p-4 border border-[var(--color-border)] bg-[rgba(113,72,103,0.03)] flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Left: HR Manager Employee Scope Selection */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-[var(--color-primary)]" />
-            <span className="text-xs font-bold text-[var(--color-text-heading)]">
-              Workforce Allotment View
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setIsAllottedOnly(true)}
-              className={`px-3 py-1.5 rounded-[4px] text-xs font-semibold transition-all cursor-pointer ${
-                isAllottedOnly
-                  ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                  : 'bg-[var(--color-bg-muted)] text-[var(--color-text-body)] hover:bg-[var(--color-border)]'
-              }`}
-            >
-              Allotted to Me (My Team)
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsAllottedOnly(false)}
-              className={`px-3 py-1.5 rounded-[4px] text-xs font-semibold transition-all cursor-pointer ${
-                !isAllottedOnly
-                  ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                  : 'bg-[var(--color-bg-muted)] text-[var(--color-text-body)] hover:bg-[var(--color-border)]'
-              }`}
-            >
-              All Company Employees
-            </button>
-          </div>
-          <p className="text-[11px] text-[var(--color-text-muted)] pt-0.5">
-            {isAllottedOnly
-              ? 'Showing only employees whose manager or department is assigned to your HR profile.'
-              : 'Showing all active employees across the entire organization.'}
-          </p>
-        </div>
-
-        {/* Right: Quick Punch Widget for HR Manager */}
-        <div className="flex items-center gap-3 p-2.5 rounded-[6px] bg-[var(--color-bg-base)] border border-[var(--color-border)]">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-[var(--color-text-muted)] font-medium">
-              Your Daily Punch
-            </span>
-            <span className="text-xs font-bold text-[var(--color-text-heading)]">
-              {user?.name || user?.email}
-            </span>
-          </div>
-
-          <div className="h-7 w-px bg-[var(--color-border)] mx-1" />
-
-          {personalPunchActive ? (
-            <button
-              type="button"
-              onClick={handlePersonalCheckOut}
-              disabled={checkOutMutation.isPending}
-              className="px-3 py-1.5 rounded-[4px] bg-[#FF1744] hover:bg-[#D50000] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>{checkOutMutation.isPending ? 'Punching Out...' : 'Punch Out'}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handlePersonalCheckIn}
-              disabled={checkInMutation.isPending}
-              className="px-3 py-1.5 rounded-[4px] bg-[#00C853] hover:bg-[#00B248] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
-            >
-              <LogIn className="w-3.5 h-3.5" />
-              <span>{checkInMutation.isPending ? 'Punching In...' : 'Punch In'}</span>
-            </button>
-          )}
-        </div>
-      </div>
 
       {/* 3. KPI Metrics Summary Cards */}
       <AttendanceStatsCards
         stats={summaryData?.stats}
         isLoading={isSummaryLoading}
-        isAllottedOnly={isAllottedOnly}
       />
 
       {/* 4. Filter Bar & Scope Controls */}
@@ -303,7 +200,33 @@ export const AttendanceView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Navigation Tabs: Today Present, Today Absent, Attendance History Logs */}
+      {/* Pending Attendance Requests Alert Banner */}
+      {pendingRequestsCount > 0 && activeTab !== 'requests' && (
+        <div className="pp-card p-3.5 border-l-4 border-l-[#FFAA00] border-[var(--color-border)] bg-[rgba(255,170,0,0.06)] flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-[rgba(255,170,0,0.15)] text-[#FFAA00] flex items-center justify-center shrink-0">
+              <FileCheck className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-[var(--color-text-heading)]">
+                {pendingRequestsCount} Pending Attendance Request{pendingRequestsCount === 1 ? '' : 's'} Awaiting Approval
+              </p>
+              <p className="text-[11px] text-[var(--color-text-muted)]">
+                Employees have submitted manual attendance or correction requests requiring your review.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('requests')}
+            className="px-3 py-1.5 rounded-[4px] bg-[#FFAA00] hover:bg-[#E69900] text-black text-xs font-bold transition-colors cursor-pointer shrink-0 shadow-xs"
+          >
+            Review Requests &rarr;
+          </button>
+        </div>
+      )}
+
+      {/* 5. Navigation Tabs: Today Present, Today Absent, Attendance Requests, History Logs */}
       <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-2 overflow-x-auto">
         <div className="flex items-center gap-2">
           {/* Tab 1: Today: Present */}
@@ -352,7 +275,30 @@ export const AttendanceView: React.FC = () => {
             </span>
           </button>
 
-          {/* Tab 3: Attendance History & Logs */}
+          {/* Tab 3: Attendance Requests (Corrections / Manual Punches) */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('requests')}
+            className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === 'requests'
+                ? 'border-[var(--color-primary)] text-[var(--color-primary)] bg-[rgba(113,72,103,0.04)]'
+                : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+            }`}
+          >
+            <FileCheck className="w-4 h-4 text-[var(--color-primary)]" />
+            <span>Attendance Requests</span>
+            {pendingRequestsCount > 0 ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#FFAA00] text-black">
+                {pendingRequestsCount}
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[var(--color-bg-muted)] text-[var(--color-text-muted)]">
+                {requestItems.length}
+              </span>
+            )}
+          </button>
+
+          {/* Tab 4: Attendance History & Logs */}
           <button
             type="button"
             onClick={() => setActiveTab('logs')}
@@ -386,6 +332,18 @@ export const AttendanceView: React.FC = () => {
           items={summaryData?.absent || []}
           isLoading={isSummaryLoading}
           onLogAttendance={(id, name) => handleOpenManualModal(id, name)}
+        />
+      )}
+
+      {activeTab === 'requests' && (
+        <AttendanceRequestsTable
+          items={requestItems}
+          isLoading={isRequestsLoading}
+          onRefresh={() => {
+            refetchRequests()
+            refetchSummary()
+            refetchLogs()
+          }}
         />
       )}
 
@@ -476,6 +434,7 @@ export const AttendanceView: React.FC = () => {
         onClose={() => {
           setIsModalOpen(false)
           refetchSummary()
+          refetchRequests()
           refetchLogs()
         }}
         initialEmployeeId={modalEmployeeId}

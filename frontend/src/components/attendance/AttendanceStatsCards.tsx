@@ -4,13 +4,11 @@ import type { TodayAttendanceStats } from '@/hooks/use-api'
 interface AttendanceStatsCardsProps {
   stats?: TodayAttendanceStats
   isLoading?: boolean
-  isAllottedOnly?: boolean
 }
 
 export const AttendanceStatsCards: React.FC<AttendanceStatsCardsProps> = ({
   stats,
   isLoading = false,
-  isAllottedOnly = true,
 }) => {
   const total = stats?.totalEmployees ?? 0
   const present = stats?.presentCount ?? 0
@@ -25,7 +23,7 @@ export const AttendanceStatsCards: React.FC<AttendanceStatsCardsProps> = ({
       <div className="pp-card p-4 flex items-center justify-between border border-[var(--color-border)] shadow-xs">
         <div className="space-y-1">
           <p className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-            {isAllottedOnly ? 'Allotted Employees' : 'Total Employees'}
+            Total Employees
           </p>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-extrabold text-[var(--color-text-heading)]">
@@ -34,7 +32,7 @@ export const AttendanceStatsCards: React.FC<AttendanceStatsCardsProps> = ({
             <span className="text-[11px] text-[var(--color-text-muted)]">Active</span>
           </div>
           <p className="text-[10px] text-[var(--color-text-muted)]">
-            {isAllottedOnly ? 'Under your HR management' : 'Company-wide workforce'}
+            Active company workforce
           </p>
         </div>
         <div className="w-11 h-11 rounded-lg bg-[rgba(113,72,103,0.1)] text-[var(--color-primary)] flex items-center justify-center font-bold shrink-0">

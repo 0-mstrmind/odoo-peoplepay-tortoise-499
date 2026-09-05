@@ -47,7 +47,7 @@ export const TodayAbsentTable: React.FC<TodayAbsentTableProps> = ({
               <th className="py-2.5 px-4">Department & Job</th>
               <th className="py-2.5 px-4">Email</th>
               <th className="py-2.5 px-4">Attendance Status</th>
-              <th className="py-2.5 px-4">Allotted Manager</th>
+              <th className="py-2.5 px-4">Manager</th>
               <th className="py-2.5 px-4 text-right">HR Action</th>
             </tr>
           </thead>
@@ -107,11 +107,11 @@ export const TodayAbsentTable: React.FC<TodayAbsentTableProps> = ({
                     </span>
                   </td>
 
-                  {/* Allotted Manager */}
+                  {/* Reporting Manager */}
                   <td className="py-3 px-4 text-[var(--color-text-muted)]">
                     {emp.managerName || (
                       <span className="italic text-[10px] text-[var(--color-text-muted)]/70">
-                        Direct HR Allotment
+                        &mdash;
                       </span>
                     )}
                   </td>
