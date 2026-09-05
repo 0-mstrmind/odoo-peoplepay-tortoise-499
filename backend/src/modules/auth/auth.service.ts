@@ -42,7 +42,7 @@ export const loginService = async (email: string, password: string) => {
   const accessToken = createAccessToken({
     userId: user.id,
     email: user.email,
-    role: user.role,
+    role: user.role.toLowerCase(),
     type: "access",
   });
 
@@ -60,7 +60,7 @@ export const loginService = async (email: string, password: string) => {
       id: user.id,
       email: user.email,
       name,
-      role: user.role,
+      role: user.role.toLowerCase(),
       companyId: user.companyId,
       employeeId: user.employeeId || emp?.id || null,
       departmentId: emp?.departmentId || null,

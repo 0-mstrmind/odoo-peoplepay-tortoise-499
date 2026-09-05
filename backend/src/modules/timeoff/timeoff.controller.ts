@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import CatchAsync from "../../shared/utils/CatchAsync.js";
 import sendResponse from "../../shared/utils/ApiResponse.js";
+import { queryRequestSchema } from "./timeoff.validation.js";
 import {
   listTimeOffTypesService,
   getTimeOffTypeByIdService,
@@ -111,12 +112,8 @@ export const getEmployeeLeaveBalances = CatchAsync(async (req: Request, res: Res
 // ==========================================
 
 export const getTimeOffRequests = CatchAsync(async (req: Request, res: Response) => {
-  const query = {
-    employeeId: req.query.employeeId as string | undefined,
-    status: req.query.status as string | undefined,
-    timeOffTypeId: req.query.timeOffTypeId as string | undefined,
-  };
-  const result = await listRequestsService(query, req.user?.companyId);
+  const query = queryRequestSchema.parse(req.query);
+  const result = await listRequestsService(query, req.user, req.user?.companyId);
   sendResponse(res, StatusCodes.OK, "Time off requests fetched successfully", { items: result });
 });
 

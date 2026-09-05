@@ -40,7 +40,7 @@ export const authMiddleware = async (req: Request, _res: Response, next: NextFun
       id: dbUser.id,
       userId: dbUser.id,
       email: dbUser.email,
-      role: dbUser.role,
+      role: dbUser.role.toLowerCase(),
       companyId: dbUser.companyId ?? undefined,
       isActive: dbUser.isActive,
     };

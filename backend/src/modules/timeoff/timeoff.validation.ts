@@ -57,6 +57,8 @@ export const queryRequestSchema = z.object({
   employeeId: z.string().uuid().optional(),
   status: z.string().optional(),
   timeOffTypeId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+  search: z.string().optional(),
 });
 
 export const refuseRequestSchema = z.object({

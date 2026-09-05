@@ -28,7 +28,7 @@ export const createAttendanceRequestSchema = z.object({
 });
 
 export const reviewAttendanceRequestSchema = z.object({
-  action: z.enum(["approve", "refuse"]),
+  action: z.enum(["approve", "refuse"]).optional(),
   reviewNote: z.string().optional(),
   status: z
     .enum(["present", "late", "absent", "half_day", "on_leave", "holiday"])
@@ -64,15 +64,17 @@ export const queryAttendanceSchema = z.object({
   employeeId: z.string().uuid().optional(),
   departmentId: z.string().uuid().optional(),
   managerId: z.string().uuid().optional(),
-  hrAllotted: z
-    .string()
-    .optional()
-    .transform((val) => (val === "true" ? true : val === "false" ? false : undefined)),
   date: z.string().regex(dateRegex, "Date must be YYYY-MM-DD format").optional(),
   startDate: z.string().regex(dateRegex).optional(),
   endDate: z.string().regex(dateRegex).optional(),
   status: z.string().optional(),
   search: z.string().optional(),
+  source: z.string().optional(),
+  hasRequest: z
+    .string()
+    .optional()
+    .transform((val) => (val === "true" ? true : val === "false" ? false : undefined)),
+  requestStatus: z.enum(["pending", "approved", "refused", "all"]).optional(),
   isCorrected: z
     .string()
     .optional()
@@ -90,10 +92,6 @@ export const queryAttendanceSchema = z.object({
 export const todayAttendanceSummarySchema = z.object({
   departmentId: z.string().uuid().optional(),
   managerId: z.string().uuid().optional(),
-  hrAllotted: z
-    .string()
-    .optional()
-    .transform((val) => (val === "true" ? true : val === "false" ? false : undefined)),
   date: z.string().regex(dateRegex, "Date must be YYYY-MM-DD format").optional(),
   search: z.string().optional(),
 });

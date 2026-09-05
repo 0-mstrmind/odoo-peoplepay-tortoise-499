@@ -372,22 +372,74 @@ const checkForOverlappingRequests = async (
   }
 };
 
-export const listRequestsService = async (query: QueryRequestInput, callerCompanyId?: string | null) => {
+export const listRequestsService = async (
+  query: QueryRequestInput,
+  currentUser?: { id?: string; employeeId?: string | null; role?: string },
+  callerCompanyId?: string | null,
+) => {
   const companyId = await resolveCompanyId(callerCompanyId);
   const where: any = { companyId, deletedAt: null };
 
   if (query.employeeId) where.employeeId = query.employeeId;
-  if (query.status) where.status = query.status;
+  if (query.status && query.status !== "all") where.status = query.status;
   if (query.timeOffTypeId) where.timeOffTypeId = query.timeOffTypeId;
+
+  // Employee relation conditions (role, department, search)
+  const employeeWhere: any = {};
+  const conditions: any[] = [];
+
+  if (currentUser?.role?.toLowerCase() === "employee") {
+    let empId = currentUser.employeeId;
+    if (!empId && currentUser.id) {
+      const u = await prisma.user.findUnique({
+        where: { id: currentUser.id },
+        select: { employeeId: true, linkedEmployee: { select: { id: true } } },
+      });
+      empId = u?.employeeId || u?.linkedEmployee?.id;
+    }
+    where.employeeId = empId || "00000000-0000-0000-0000-000000000000";
+  }
+
+  if (query.departmentId) {
+    employeeWhere.departmentId = query.departmentId;
+  }
+
+  if (query.search && query.search.trim()) {
+    const s = query.search.trim();
+    conditions.push({
+      OR: [
+        { firstName: { contains: s, mode: "insensitive" } },
+        { lastName: { contains: s, mode: "insensitive" } },
+        { employeeCode: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (conditions.length > 0) {
+    employeeWhere.AND = conditions;
+  }
+
+  if (Object.keys(employeeWhere).length > 0) {
+    where.employee = employeeWhere;
+  }
 
   return prisma.timeOffRequest.findMany({
     where,
     include: {
       employee: {
-        select: { id: true, firstName: true, lastName: true, employeeCode: true, email: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeCode: true,
+          email: true,
+          department: { select: { id: true, name: true } },
+          jobPosition: { select: { id: true, title: true } },
+          manager: { select: { id: true, firstName: true, lastName: true } },
+        },
       },
       timeOffType: {
-        select: { id: true, name: true, unit: true, requiresAllocation: true, approvalRequired: true },
+        select: { id: true, name: true, unit: true, requiresAllocation: true, approvalRequired: true, color: true },
       },
       allocation: {
         select: { id: true, allocated: true, taken: true, remaining: true, validFrom: true, validTo: true },

@@ -254,9 +254,9 @@ export const createAttendanceRequestService = async (
       expectedHours,
       overtimeHours,
       source: input.source || "manual",
-      status: "present",
+      status: "pending",
       isCorrected: false,
-      correctionReason: input.correctionReason,
+      correctionReason: input.correctionReason || "Manual attendance request",
     },
     include: {
       employee: {
@@ -317,7 +317,7 @@ export const approveAttendanceRequestService = async (
       workedHours,
       expectedHours,
       overtimeHours,
-      status: input.status || (workedHours && workedHours > 0 ? "present" : attendance.status),
+      status: input.status || "present",
       isCorrected: true,
       originalCheckIn: attendance.originalCheckIn || attendance.checkIn,
       originalCheckOut: attendance.originalCheckOut || attendance.checkOut,
@@ -388,9 +388,45 @@ export const listAttendancesService = async (
   const companyId = await resolveCompanyId(callerCompanyId);
   const where: any = { companyId, deletedAt: null };
 
-  if (query.employeeId) where.employeeId = query.employeeId;
+  const callerRole = currentUser?.role?.toLowerCase();
+  if (callerRole === "employee" && currentUser) {
+    let empId = currentUser.employeeId;
+    if (!empId && currentUser.id) {
+      const u = await prisma.user.findUnique({
+        where: { id: currentUser.id },
+        select: { employeeId: true, linkedEmployee: { select: { id: true } } },
+      });
+      empId = u?.employeeId || u?.linkedEmployee?.id;
+    }
+    where.employeeId = empId || "00000000-0000-0000-0000-000000000000";
+  } else if (query.employeeId) {
+    where.employeeId = query.employeeId;
+  }
   if (query.status) where.status = query.status;
+  if (query.source) where.source = query.source;
   if (typeof query.isCorrected === "boolean") where.isCorrected = query.isCorrected;
+
+  if (query.hasRequest) {
+    where.OR = [
+      { status: "pending" },
+      { correctionReason: { not: null } },
+      { source: "manual" },
+    ];
+  }
+
+  if (query.requestStatus === "pending") {
+    where.isCorrected = false;
+    where.status = { not: "absent" };
+    where.OR = [
+      { status: "pending" },
+      { correctionReason: { not: null } },
+      { source: "manual" },
+    ];
+  } else if (query.requestStatus === "approved") {
+    where.isCorrected = true;
+  } else if (query.requestStatus === "refused") {
+    where.status = "absent";
+  }
 
   if (query.date) {
     where.attendanceDate = new Date(`${query.date}T00:00:00.000Z`);
@@ -400,7 +436,7 @@ export const listAttendancesService = async (
     if (query.endDate) where.attendanceDate.lte = new Date(`${query.endDate}T23:59:59.999Z`);
   }
 
-  // Employee relation conditions (department, manager / HR allotment, search)
+  // Employee relation conditions (department, manager filter, search)
   const employeeWhere: any = {};
 
   if (query.departmentId) {
@@ -409,32 +445,23 @@ export const listAttendancesService = async (
 
   if (query.managerId) {
     employeeWhere.managerId = query.managerId;
-  } else if (query.hrAllotted) {
-    let hrEmpId = currentUser?.employeeId;
-    if (!hrEmpId && currentUser?.id) {
-      const u = await prisma.user.findUnique({
-        where: { id: currentUser.id },
-        select: { employeeId: true, linkedEmployee: { select: { id: true } } },
-      });
-      hrEmpId = u?.employeeId || u?.linkedEmployee?.id;
-    }
-
-    if (hrEmpId) {
-      employeeWhere.OR = [
-        { managerId: hrEmpId },
-        { department: { managerId: hrEmpId } },
-      ];
-    }
   }
+
+  const conditions: any[] = [];
 
   if (query.search && query.search.trim()) {
     const s = query.search.trim();
-    employeeWhere.OR = [
-      ...(employeeWhere.OR || []),
-      { firstName: { contains: s, mode: "insensitive" } },
-      { lastName: { contains: s, mode: "insensitive" } },
-      { employeeCode: { contains: s, mode: "insensitive" } },
-    ];
+    conditions.push({
+      OR: [
+        { firstName: { contains: s, mode: "insensitive" } },
+        { lastName: { contains: s, mode: "insensitive" } },
+        { employeeCode: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (conditions.length > 0) {
+    employeeWhere.AND = conditions;
   }
 
   if (Object.keys(employeeWhere).length > 0) {
@@ -486,7 +513,7 @@ export const listAttendancesService = async (
 };
 
 /**
- * 6B. Today's Attendance Summary (Present vs Absent, HR Allotted Scope, Department Breakdown)
+ * 6B. Today's Attendance Summary (Present vs Absent Breakdown)
  */
 export const getTodayAttendanceSummaryService = async (
   query: TodayAttendanceSummaryInput,
@@ -508,35 +535,25 @@ export const getTodayAttendanceSummaryService = async (
     empWhere.departmentId = query.departmentId;
   }
 
-  // HR Allotment check
-  if (query.managerId) {
-    empWhere.managerId = query.managerId;
-  } else if (query.hrAllotted) {
-    let hrEmpId = currentUser?.employeeId;
-    if (!hrEmpId && currentUser?.id) {
-      const u = await prisma.user.findUnique({
-        where: { id: currentUser.id },
-        select: { employeeId: true, linkedEmployee: { select: { id: true } } },
-      });
-      hrEmpId = u?.employeeId || u?.linkedEmployee?.id;
-    }
+  const conditions: any[] = [];
 
-    if (hrEmpId) {
-      empWhere.OR = [
-        { managerId: hrEmpId },
-        { department: { managerId: hrEmpId } },
-      ];
-    }
+  if (query.managerId) {
+    conditions.push({ managerId: query.managerId });
   }
 
   if (query.search && query.search.trim()) {
     const s = query.search.trim();
-    empWhere.OR = [
-      ...(empWhere.OR || []),
-      { firstName: { contains: s, mode: "insensitive" } },
-      { lastName: { contains: s, mode: "insensitive" } },
-      { employeeCode: { contains: s, mode: "insensitive" } },
-    ];
+    conditions.push({
+      OR: [
+        { firstName: { contains: s, mode: "insensitive" } },
+        { lastName: { contains: s, mode: "insensitive" } },
+        { employeeCode: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (conditions.length > 0) {
+    empWhere.AND = conditions;
   }
 
   // 1. Fetch all matching in-scope employees and active departments
@@ -601,8 +618,8 @@ export const getTodayAttendanceSummaryService = async (
 
   for (const emp of employees) {
     const att = attendanceByEmpId.get(emp.id);
-
-    if (att && att.status !== "absent") {
+    const isConfirmedPresent = att && att.status !== "absent" && att.status !== "pending";
+    if (isConfirmedPresent) {
       if (att.status === "late") lateCount++;
       if (att.status === "half_day") halfDayCount++;
       if (att.status === "on_leave") onLeaveCount++;
@@ -645,6 +662,22 @@ export const getTodayAttendanceSummaryService = async (
   const absentCount = absent.length;
   const attendanceRate = totalEmployees > 0 ? parseFloat(((presentCount / totalEmployees) * 100).toFixed(1)) : 0;
 
+  // Pending user attendance requests within in-scope employees
+  const pendingRequestsCount = employeeIds.length > 0 ? await prisma.attendance.count({
+    where: {
+      companyId,
+      employeeId: { in: employeeIds },
+      deletedAt: null,
+      isCorrected: false,
+      status: { not: "absent" },
+      OR: [
+        { status: "pending" },
+        { correctionReason: { not: null } },
+        { source: "manual" },
+      ],
+    },
+  }) : 0;
+
   return {
     date: dateStr,
     stats: {
@@ -655,6 +688,7 @@ export const getTodayAttendanceSummaryService = async (
       halfDayCount,
       onLeaveCount,
       attendanceRate,
+      pendingRequestsCount,
     },
     present,
     absent,
