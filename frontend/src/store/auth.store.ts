@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Zustand Auth Store — PeoplePay360
  *
  * Persisted to localStorage under key "pp-auth".
@@ -20,10 +20,14 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type UserRole =
+  | 'admin'
   | 'super_admin'
   | 'hr_manager'
+  | 'hr_payroll_manager'
+  | 'hr_payroll_user'
   | 'payroll_manager'
   | 'employee'
+  | (string & {})
 
 export interface AuthUser {
   id:        string
