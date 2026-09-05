@@ -311,7 +311,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
 
-                {(user?.role === 'admin' || user?.role === 'super_admin') && (
+                {['admin', 'super_admin'].includes(user?.role?.toLowerCase() || '') && (
                   <button
                     type="button"
                     title="Open Admin User Access & Management Portal"

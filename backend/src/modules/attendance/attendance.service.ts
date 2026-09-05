@@ -141,6 +141,9 @@ export const checkInService = async (
     );
   }
 
+  const isEmployeeRole = currentUser?.role?.toLowerCase() === "employee";
+  const initialStatus = isEmployeeRole ? "pending" : "present";
+
   return prisma.attendance.create({
     data: {
       companyId,
@@ -148,7 +151,7 @@ export const checkInService = async (
       attendanceDate,
       checkIn: checkInTime,
       source: input.source || "system",
-      status: "present",
+      status: initialStatus,
       isCorrected: false,
     },
     include: {
@@ -203,6 +206,8 @@ export const checkOutService = async (
     checkOutTime,
   );
 
+  const isEmployeeRole = currentUser?.role?.toLowerCase() === "employee";
+
   return prisma.attendance.update({
     where: { id: attendance.id },
     data: {
@@ -210,7 +215,7 @@ export const checkOutService = async (
       workedHours,
       expectedHours,
       overtimeHours,
-      status: workedHours < (expectedHours / 2) && expectedHours > 0 ? "half_day" : "present",
+      status: isEmployeeRole ? "pending" : (workedHours < (expectedHours / 2) && expectedHours > 0 ? "half_day" : "present"),
     },
     include: {
       employee: {
@@ -261,7 +266,7 @@ export const createAttendanceRequestService = async (
       expectedHours,
       overtimeHours,
       source: input.source || "manual",
-      status: "present",
+      status: "pending",
       isCorrected: false,
       correctionReason: input.correctionReason,
     },

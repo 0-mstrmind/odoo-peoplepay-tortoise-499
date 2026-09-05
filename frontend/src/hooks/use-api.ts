@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Example custom React Query hooks wired to the Axios API client.
  *
  * Pattern used throughout PeoplePay360:
@@ -52,6 +52,21 @@ export function useEmployees(params?: { page?: number; limit?: number; search?: 
     queryFn:  async () => {
       const { data } = await apiClient.get<PaginatedResponse<Employee>>('/employees', { params })
       return data
+    },
+    enabled: !!companyId,
+  })
+}
+
+/** Fetch logged-in user's own detailed employee profile */
+export function useMyEmployeeProfile() {
+  const companyId = useCompanyId()
+
+  return useQuery({
+    queryKey: ['employee', 'me', companyId],
+    queryFn: async () => {
+      const response = await apiClient.get<any>('/employees/me')
+      const res = response.data
+      return res?.employee || res?.data?.employee || res?.data || null
     },
     enabled: !!companyId,
   })

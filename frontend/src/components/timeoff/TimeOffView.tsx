@@ -16,13 +16,15 @@ import {
   useRefuseTimeOffRequest,
   useCreateTimeOffRequest,
 } from '@/hooks/use-timeoff'
-import { useEmployees } from '@/hooks/use-api'
+import { useEmployees, useMyEmployeeProfile } from '@/hooks/use-api'
 
 export const TimeOffView: React.FC = () => {
   const user = useAuthUser()
-  const role = user?.role
-  const canApprove = role === 'admin' || role === 'super_admin' || role === 'hr_manager'
+  const role = user?.role?.toLowerCase()
+  const isStandardEmployee = role === 'employee'
+  const canApprove = role === 'admin' || role === 'super_admin' || role === 'hr_manager' || role === 'hr_payroll_manager'
 
+  const { data: myEmployee } = useMyEmployeeProfile()
   const { data: requests = [], isLoading: isLoadingRequests } = useTimeOffRequests()
   const { data: allocations = [], isLoading: isLoadingAllocations } = useTimeOffAllocations()
   const { data: leaveTypes = [] } = useTimeOffTypes()
@@ -65,22 +67,45 @@ export const TimeOffView: React.FC = () => {
   }
 
   const handleOpenModal = () => {
-    if (employeesList.length > 0 && !selectedEmployeeId) {
+    if (isStandardEmployee && myEmployee?.id) {
+      setSelectedEmployeeId(myEmployee.id)
+    } else if (employeesList.length > 0 && !selectedEmployeeId) {
       setSelectedEmployeeId(employeesList[0].id)
     }
-    if (leaveTypes.length > 0 && !selectedTypeId) {
+    if (leaveTypes.length > 0) {
       setSelectedTypeId(leaveTypes[0].id)
     }
     setIsModalOpen(true)
   }
 
+  const todayObj = new Date()
+  const todayStr = todayObj.toISOString().split('T')[0]
+  const maxObj = new Date()
+  maxObj.setMonth(maxObj.getMonth() + 6)
+  const maxStr = maxObj.toISOString().split('T')[0]
+
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    const empId = selectedEmployeeId || (employeesList[0]?.id)
+    const empId = isStandardEmployee && myEmployee?.id ? myEmployee.id : (selectedEmployeeId || employeesList[0]?.id)
     const typeId = selectedTypeId || (leaveTypes[0]?.id)
 
     if (!empId || !typeId || !newFrom || !newTo) {
       setFeedback('Please fill out all required fields.')
+      return
+    }
+
+    if (newFrom < todayStr) {
+      setFeedback('Time off start date cannot be in the past. Please select today or a future date.')
+      return
+    }
+
+    if (newTo < newFrom) {
+      setFeedback('End date cannot be prior to start date.')
+      return
+    }
+
+    if (newFrom > maxStr || newTo > maxStr) {
+      setFeedback('Time off requests cannot be scheduled more than 6 months in advance.')
       return
     }
 
@@ -103,7 +128,7 @@ export const TimeOffView: React.FC = () => {
     }
   }
 
-  const pendingRequests = requests.filter((r) => r.status === 'pending')
+  const pendingRequests = requests.filter((r: any) => r.status === 'pending')
 
   return (
     <div className="space-y-6">
@@ -152,7 +177,7 @@ export const TimeOffView: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {allocations.map((alloc) => {
+            {allocations.map((alloc: any) => {
               const typeName = alloc.timeOffType?.name || 'Leave'
               const allocated = Number(alloc.allocated) || 0
               const remaining = Number(alloc.remaining) || 0
@@ -216,7 +241,7 @@ export const TimeOffView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
-                  {pendingRequests.map((r) => {
+                  {pendingRequests.map((r: any) => {
                     const empName = r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : 'N/A'
                     const leaveType = r.timeOffType?.name || 'Leave'
                     const startDateStr = r.startDate?.split('T')[0] || r.startDate
@@ -306,7 +331,7 @@ export const TimeOffView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
-                {requests.map((r) => {
+                {requests.map((r: any) => {
                   const empName = r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : 'N/A'
                   const leaveType = r.timeOffType?.name || 'Leave'
                   const startDateStr = r.startDate?.split('T')[0] || r.startDate
@@ -361,24 +386,43 @@ export const TimeOffView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmitRequest} className="space-y-3">
-              {employeesList.length > 0 && (
+              {isStandardEmployee ? (
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                     Employee
                   </label>
-                  <select
-                    value={selectedEmployeeId}
-                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                    className="pp-input text-xs w-full"
-                    required
-                  >
-                    {employeesList.map((emp: any) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
-                      </option>
-                    ))}
-                  </select>
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    value={
+                      myEmployee
+                        ? `${myEmployee.firstName} ${myEmployee.lastName} (${myEmployee.employeeCode || myEmployee.email})`
+                        : user?.email ? `${user.email} (My Profile)` : 'My Employee Account'
+                    }
+                    className="pp-input text-xs w-full bg-[var(--color-bg-muted)] font-semibold cursor-not-allowed opacity-90"
+                  />
                 </div>
+              ) : (
+                employeesList.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                      Employee
+                    </label>
+                    <select
+                      value={selectedEmployeeId}
+                      onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                      className="pp-input text-xs w-full"
+                      required
+                    >
+                      {employeesList.map((emp: any) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
               )}
 
               <div>
@@ -391,7 +435,7 @@ export const TimeOffView: React.FC = () => {
                   className="pp-input text-xs w-full"
                   required
                 >
-                  {leaveTypes.map((type) => (
+                  {leaveTypes.map((type: any) => (
                     <option key={type.id} value={type.id}>
                       {type.name}
                     </option>
@@ -409,6 +453,8 @@ export const TimeOffView: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    min={todayStr}
+                    max={maxStr}
                     value={newFrom}
                     onChange={(e) => setNewFrom(e.target.value)}
                     className="pp-input text-xs w-full"
@@ -421,6 +467,8 @@ export const TimeOffView: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    min={newFrom || todayStr}
+                    max={maxStr}
                     value={newTo}
                     onChange={(e) => setNewTo(e.target.value)}
                     className="pp-input text-xs w-full"

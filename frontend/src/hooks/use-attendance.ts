@@ -12,9 +12,10 @@ export interface AttendanceRecordItem {
   workedHours: number | null
   expectedHours: number | null
   overtimeHours: number | null
-  status: 'present' | 'late' | 'half_day' | 'absent' | 'on_leave' | 'holiday'
+  status: 'present' | 'pending' | 'refused' | 'late' | 'half_day' | 'absent' | 'on_leave' | 'holiday'
   source: 'system' | 'manual' | 'biometric' | 'mobile'
   isCorrected?: boolean
+  correctionReason?: string
   employee?: {
     id: string
     firstName: string
@@ -124,6 +125,48 @@ export function useCheckOut() {
         payload || {}
       )
       return response.data?.data?.item || response.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+/**
+  Mutation for Approving an Attendance Request (HR / Admin)
+ */
+export function useApproveAttendanceRequest() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.patch<{ success: boolean; message: string; data: AttendanceRecordItem }>(
+        `/attendances/requests/${id}/approve`,
+        { action: 'approve' }
+      )
+      return response.data?.data || response.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['attendance'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}
+
+/**
+  Mutation for Refusing an Attendance Request (HR / Admin)
+ */
+export function useRefuseAttendanceRequest() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: { id: string; reviewNote?: string }) => {
+      const response = await apiClient.patch<{ success: boolean; message: string; data: AttendanceRecordItem }>(
+        `/attendances/requests/${payload.id}/refuse`,
+        { action: 'refuse', reviewNote: payload.reviewNote }
+      )
+      return response.data?.data || response.data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['attendance'] })

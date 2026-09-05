@@ -20,12 +20,12 @@ async function seedEmployeeData() {
     console.log(`[Seed] Created Company: ${company.name} (${company.id})`);
   }
 
-  // 2. Resolve or create Engineering Department & Job Position
-  let department = await prisma.department.findFirst({
+  // 2. Resolve or create Departments (Engineering, Human Resources, Finance)
+  let engDepartment = await prisma.department.findFirst({
     where: { name: "Engineering", companyId: company.id },
   });
-  if (!department) {
-    department = await prisma.department.create({
+  if (!engDepartment) {
+    engDepartment = await prisma.department.create({
       data: {
         name: "Engineering",
         code: "ENG",
@@ -35,22 +35,92 @@ async function seedEmployeeData() {
     console.log(`[Seed] Created Department: Engineering`);
   }
 
-  let jobPosition = await prisma.jobPosition.findFirst({
-    where: { title: "Software Engineer", companyId: company.id },
+  let hrDepartment = await prisma.department.findFirst({
+    where: { name: "Human Resources", companyId: company.id },
   });
-  if (!jobPosition) {
-    jobPosition = await prisma.jobPosition.create({
+  if (!hrDepartment) {
+    hrDepartment = await prisma.department.create({
       data: {
-        title: "Software Engineer",
-        code: "SWE",
-        departmentId: department.id,
+        name: "Human Resources",
+        code: "HR",
         companyId: company.id,
       },
     });
-    console.log(`[Seed] Created Job Position: Software Engineer`);
+    console.log(`[Seed] Created Department: Human Resources`);
   }
 
-  // 3. Resolve or create Working Schedule (Standard 40-Hour Week)
+  let finDepartment = await prisma.department.findFirst({
+    where: { name: "Finance & Payroll", companyId: company.id },
+  });
+  if (!finDepartment) {
+    finDepartment = await prisma.department.create({
+      data: {
+        name: "Finance & Payroll",
+        code: "FIN",
+        companyId: company.id,
+      },
+    });
+    console.log(`[Seed] Created Department: Finance & Payroll`);
+  }
+
+  // 3. Resolve or create Job Positions
+  let sweJobPosition = await prisma.jobPosition.findFirst({
+    where: { title: "Software Engineer", companyId: company.id },
+  });
+  if (!sweJobPosition) {
+    sweJobPosition = await prisma.jobPosition.create({
+      data: {
+        title: "Software Engineer",
+        code: "SWE",
+        departmentId: engDepartment.id,
+        companyId: company.id,
+      },
+    });
+  }
+
+  let hrManagerJobPosition = await prisma.jobPosition.findFirst({
+    where: { title: "HR Manager", companyId: company.id },
+  });
+  if (!hrManagerJobPosition) {
+    hrManagerJobPosition = await prisma.jobPosition.create({
+      data: {
+        title: "HR Manager",
+        code: "HRM",
+        departmentId: hrDepartment.id,
+        companyId: company.id,
+      },
+    });
+  }
+
+  let payrollUserJobPosition = await prisma.jobPosition.findFirst({
+    where: { title: "Payroll Specialist", companyId: company.id },
+  });
+  if (!payrollUserJobPosition) {
+    payrollUserJobPosition = await prisma.jobPosition.create({
+      data: {
+        title: "Payroll Specialist",
+        code: "PYS",
+        departmentId: finDepartment.id,
+        companyId: company.id,
+      },
+    });
+  }
+
+  let payrollManagerJobPosition = await prisma.jobPosition.findFirst({
+    where: { title: "Payroll Manager", companyId: company.id },
+  });
+  if (!payrollManagerJobPosition) {
+    payrollManagerJobPosition = await prisma.jobPosition.create({
+      data: {
+        title: "Payroll Manager",
+        code: "PYM",
+        departmentId: finDepartment.id,
+        companyId: company.id,
+      },
+    });
+  }
+
+  // 4. Resolve or create Working Schedule (Standard 40-Hour Week)
   let schedule = await prisma.workingSchedule.findFirst({
     where: { name: "Standard 40-Hour Work Week", companyId: company.id },
   });
@@ -81,7 +151,6 @@ async function seedEmployeeData() {
       });
     }
 
-    // Weekend days off
     for (const day of ["saturday", "sunday"]) {
       await prisma.scheduleLine.create({
         data: {
@@ -99,7 +168,73 @@ async function seedEmployeeData() {
 
   const hashedPassword = await bcrypt.hash("Password123!", 10);
 
-  // 4. Seed / Update Master Employee Record: Rahul Verma
+  // 5. Seed HR Manager Employee Record & User Account (Maya Shah)
+  const hrManagerEmail = "hr.manager@peoplepay360.com";
+  let hrManagerEmp = await prisma.employee.findFirst({
+    where: { email: hrManagerEmail, companyId: company.id },
+  });
+
+  if (!hrManagerEmp) {
+    hrManagerEmp = await prisma.employee.create({
+      data: {
+        employeeCode: "EMP-HR-001",
+        firstName: "Maya",
+        lastName: "Shah",
+        email: hrManagerEmail,
+        phone: "+91 98202 34567",
+        dateOfBirth: new Date("1990-03-20"),
+        dateOfJoining: new Date("2023-01-10"),
+        departmentId: hrDepartment.id,
+        jobPositionId: hrManagerJobPosition.id,
+        scheduleId: schedule.id,
+        employeeType: "full_time",
+        status: "active",
+        companyId: company.id,
+      },
+    });
+    console.log(`[Seed] Created HR Manager Employee record: Maya Shah (${hrManagerEmp.id})`);
+  }
+
+  let hrManagerUser = await prisma.user.findFirst({ where: { email: hrManagerEmail } });
+  if (!hrManagerUser) {
+    hrManagerUser = await prisma.user.create({
+      data: {
+        email: hrManagerEmail,
+        passwordHash: hashedPassword,
+        role: "HR_MANAGER",
+        isActive: true,
+        companyId: company.id,
+        employeeId: hrManagerEmp.id,
+        clerkUserId: `clerk_hrmanager_${Date.now()}`,
+      },
+    });
+  } else {
+    hrManagerUser = await prisma.user.update({
+      where: { id: hrManagerUser.id },
+      data: {
+        passwordHash: hashedPassword,
+        role: "HR_MANAGER",
+        isActive: true,
+        employeeId: hrManagerEmp.id,
+      },
+    });
+  }
+  await prisma.employee.update({
+    where: { id: hrManagerEmp.id },
+    data: { userId: hrManagerUser.id },
+  });
+
+  // Set Maya Shah as manager for HR and Engineering departments
+  await prisma.department.update({
+    where: { id: hrDepartment.id },
+    data: { managerId: hrManagerEmp.id },
+  });
+  await prisma.department.update({
+    where: { id: engDepartment.id },
+    data: { managerId: hrManagerEmp.id },
+  });
+
+  // 6. Seed Primary Test Employee Record: Rahul Verma (reporting to Maya Shah)
   const employeeEmail = "rahul.employee@peoplepay360.com";
   let employee = await prisma.employee.findFirst({
     where: { email: employeeEmail, companyId: company.id },
@@ -115,9 +250,10 @@ async function seedEmployeeData() {
         phone: "+91 9876543210",
         dateOfBirth: new Date("1995-06-15"),
         dateOfJoining: new Date("2024-01-15"),
-        departmentId: department.id,
-        jobPositionId: jobPosition.id,
+        departmentId: engDepartment.id,
+        jobPositionId: sweJobPosition.id,
         scheduleId: schedule.id,
+        managerId: hrManagerEmp.id,
         employeeType: "full_time",
         status: "active",
         companyId: company.id,
@@ -128,18 +264,15 @@ async function seedEmployeeData() {
     employee = await prisma.employee.update({
       where: { id: employee.id },
       data: {
-        departmentId: department.id,
-        jobPositionId: jobPosition.id,
+        departmentId: engDepartment.id,
+        jobPositionId: sweJobPosition.id,
         scheduleId: schedule.id,
+        managerId: hrManagerEmp.id,
       },
     });
   }
 
-  // 5. Seed / Update EMPLOYEE User Login Account
-  let employeeUser = await prisma.user.findFirst({
-    where: { email: employeeEmail },
-  });
-
+  let employeeUser = await prisma.user.findFirst({ where: { email: employeeEmail } });
   if (!employeeUser) {
     employeeUser = await prisma.user.create({
       data: {
@@ -152,7 +285,6 @@ async function seedEmployeeData() {
         clerkUserId: `clerk_emp_${Date.now()}`,
       },
     });
-    console.log(`[Seed] Created EMPLOYEE User account: ${employeeUser.email}`);
   } else {
     employeeUser = await prisma.user.update({
       where: { id: employeeUser.id },
@@ -164,13 +296,119 @@ async function seedEmployeeData() {
       },
     });
   }
-
   await prisma.employee.update({
     where: { id: employee.id },
     data: { userId: employeeUser.id },
   });
 
-  // 6. Seed Employee Bank Account
+  // 7. Seed HR Payroll User (Aarav Mehta)
+  const payrollUserEmail = "payroll.user@peoplepay360.com";
+  let payrollUserEmp = await prisma.employee.findFirst({
+    where: { email: payrollUserEmail, companyId: company.id },
+  });
+  if (!payrollUserEmp) {
+    payrollUserEmp = await prisma.employee.create({
+      data: {
+        employeeCode: "EMP-PAY-001",
+        firstName: "Aarav",
+        lastName: "Mehta",
+        email: payrollUserEmail,
+        phone: "+91 98201 11223",
+        departmentId: finDepartment.id,
+        jobPositionId: payrollUserJobPosition.id,
+        scheduleId: schedule.id,
+        managerId: hrManagerEmp.id,
+        status: "active",
+        companyId: company.id,
+      },
+    });
+  }
+  let payrollUserAcc = await prisma.user.findFirst({ where: { email: payrollUserEmail } });
+  if (!payrollUserAcc) {
+    payrollUserAcc = await prisma.user.create({
+      data: {
+        email: payrollUserEmail,
+        passwordHash: hashedPassword,
+        role: "HR_PAYROLL_USER",
+        isActive: true,
+        companyId: company.id,
+        employeeId: payrollUserEmp.id,
+        clerkUserId: `clerk_payuser_${Date.now()}`,
+      },
+    });
+  } else {
+    payrollUserAcc = await prisma.user.update({
+      where: { id: payrollUserAcc.id },
+      data: { passwordHash: hashedPassword, role: "HR_PAYROLL_USER", isActive: true, employeeId: payrollUserEmp.id },
+    });
+  }
+  await prisma.employee.update({ where: { id: payrollUserEmp.id }, data: { userId: payrollUserAcc.id } });
+
+  // 8. Seed HR Payroll Manager (Nisha Rao)
+  const payrollManagerEmail = "payroll.manager@peoplepay360.com";
+  let payrollManagerEmp = await prisma.employee.findFirst({
+    where: { email: payrollManagerEmail, companyId: company.id },
+  });
+  if (!payrollManagerEmp) {
+    payrollManagerEmp = await prisma.employee.create({
+      data: {
+        employeeCode: "EMP-PAY-002",
+        firstName: "Nisha",
+        lastName: "Rao",
+        email: payrollManagerEmail,
+        phone: "+91 98201 33445",
+        departmentId: finDepartment.id,
+        jobPositionId: payrollManagerJobPosition.id,
+        scheduleId: schedule.id,
+        managerId: hrManagerEmp.id,
+        status: "active",
+        companyId: company.id,
+      },
+    });
+  }
+  let payrollManagerAcc = await prisma.user.findFirst({ where: { email: payrollManagerEmail } });
+  if (!payrollManagerAcc) {
+    payrollManagerAcc = await prisma.user.create({
+      data: {
+        email: payrollManagerEmail,
+        passwordHash: hashedPassword,
+        role: "HR_PAYROLL_MANAGER",
+        isActive: true,
+        companyId: company.id,
+        employeeId: payrollManagerEmp.id,
+        clerkUserId: `clerk_paymgr_${Date.now()}`,
+      },
+    });
+  } else {
+    payrollManagerAcc = await prisma.user.update({
+      where: { id: payrollManagerAcc.id },
+      data: { passwordHash: hashedPassword, role: "HR_PAYROLL_MANAGER", isActive: true, employeeId: payrollManagerEmp.id },
+    });
+  }
+  await prisma.employee.update({ where: { id: payrollManagerEmp.id }, data: { userId: payrollManagerAcc.id } });
+
+  // 9. Seed System Admin User
+  const adminEmail = "admin@peoplepay360.com";
+  let adminAcc = await prisma.user.findFirst({ where: { email: adminEmail } });
+  if (!adminAcc) {
+    await prisma.user.create({
+      data: {
+        email: adminEmail,
+        passwordHash: hashedPassword,
+        role: "ADMIN",
+        isActive: true,
+        companyId: company.id,
+        clerkUserId: `clerk_admin_${Date.now()}`,
+      },
+    });
+  } else {
+    await prisma.user.update({
+      where: { id: adminAcc.id },
+      data: { passwordHash: hashedPassword, role: "ADMIN", isActive: true },
+    });
+  }
+
+  // 10. Seed Employee Bank Account
   let bankAccount = await prisma.employeeBankAccount.findFirst({
     where: { employeeId: employee.id },
   });
@@ -191,7 +429,7 @@ async function seedEmployeeData() {
     console.log(`[Seed] Created Employee Bank Account for Rahul Verma`);
   }
 
-  // 7. Seed Salary Structure & Rules
+  // 11. Seed Salary Structure & Rules
   let salaryStructure = await prisma.salaryStructure.findFirst({
     where: { name: "Standard Software Engineer Salary Structure", companyId: company.id },
   });
@@ -260,46 +498,27 @@ async function seedEmployeeData() {
         name: "Provident Fund (PF)",
         code: "PF",
         category: "deduction",
-        sequence: 100,
+        sequence: 40,
         computationMethod: "percentage",
-        percentageValue: 12,
-        basedOnCode: "BASIC",
+        percentageValue: 6,
         appearsOnPayslip: true,
       },
     });
 
-    // Link rules to structure
-    const rulesToLink = [
-      { ruleId: ruleBasic.id, seq: 10 },
-      { ruleId: ruleHRA.id, seq: 20 },
-      { ruleId: ruleSpecial.id, seq: 30 },
-      { ruleId: rulePF.id, seq: 100 },
-    ];
-
-    for (const item of rulesToLink) {
-      await prisma.structureRule.upsert({
-        where: {
-          structureId_ruleId: {
-            structureId: salaryStructure.id,
-            ruleId: item.ruleId,
-          },
-        },
-        update: {},
-        create: {
-          companyId: company.id,
-          structureId: salaryStructure.id,
-          ruleId: item.ruleId,
-          sequence: item.seq,
-          isEnabled: true,
-        },
-      });
-    }
-    console.log(`[Seed] Created Salary Structure & Rules`);
+    await prisma.structureRule.createMany({
+      data: [
+        { companyId: company.id, structureId: salaryStructure.id, ruleId: ruleBasic.id, sequence: 10 },
+        { companyId: company.id, structureId: salaryStructure.id, ruleId: ruleHRA.id, sequence: 20 },
+        { companyId: company.id, structureId: salaryStructure.id, ruleId: ruleSpecial.id, sequence: 30 },
+        { companyId: company.id, structureId: salaryStructure.id, ruleId: rulePF.id, sequence: 40 },
+      ],
+      skipDuplicates: true,
+    });
   }
 
-  // 8. Seed Employment Contract for Rahul Verma
+  // 12. Seed Contract for Rahul Verma
   let contract = await prisma.contract.findFirst({
-    where: { employeeId: employee.id, status: "active" },
+    where: { employeeId: employee.id, status: "active", companyId: company.id },
   });
 
   if (!contract) {
@@ -308,83 +527,144 @@ async function seedEmployeeData() {
         companyId: company.id,
         employeeId: employee.id,
         contractReference: "CNT-2026-0001",
-        startDate: new Date("2024-01-15"),
-        departmentId: department.id,
-        jobPositionId: jobPosition.id,
+        salaryStructureId: salaryStructure.id,
         scheduleId: schedule.id,
+        departmentId: engDepartment.id,
+        jobPositionId: sweJobPosition.id,
+        startDate: new Date("2024-01-15"),
         wage: 75000.0,
         currency: "INR",
-        payFrequency: "monthly",
-        salaryStructureId: salaryStructure.id,
         status: "active",
-        notes: "Full-time employment agreement for Senior Software Engineer role.",
       },
     });
-    console.log(`[Seed] Created Active Employment Contract for Rahul Verma (Ref: CNT-2026-0001)`);
+    console.log(`[Seed] Created Active Contract: CNT-2026-0001 for Rahul Verma`);
   }
 
-  // 9. Seed Time Off Types, Allocations & Requests
-  let casualLeaveType = await prisma.timeOffType.findFirst({
+  // 13. Seed Time Off Types & Allocations for Rahul Verma
+  let typeCasual = await prisma.timeOffType.findFirst({
     where: { code: "CL", companyId: company.id },
   });
-  if (!casualLeaveType) {
-    casualLeaveType = await prisma.timeOffType.create({
+
+  if (!typeCasual) {
+    typeCasual = await prisma.timeOffType.create({
       data: {
         companyId: company.id,
         name: "Casual Leave",
         code: "CL",
         unit: "days",
-        color: "#00C853",
         requiresAllocation: true,
         approvalRequired: true,
+        color: "#714867",
+        isActive: true,
       },
     });
   }
 
-  let sickLeaveType = await prisma.timeOffType.findFirst({
+  let typeSick = await prisma.timeOffType.findFirst({
     where: { code: "SL", companyId: company.id },
   });
-  if (!sickLeaveType) {
-    sickLeaveType = await prisma.timeOffType.create({
+
+  if (!typeSick) {
+    typeSick = await prisma.timeOffType.create({
       data: {
         companyId: company.id,
         name: "Sick Leave",
         code: "SL",
         unit: "days",
-        color: "#FF9100",
         requiresAllocation: true,
         approvalRequired: true,
+        color: "#00C853",
+        isActive: true,
       },
     });
   }
 
-  let paidLeaveType = await prisma.timeOffType.findFirst({
+  let typePaid = await prisma.timeOffType.findFirst({
     where: { code: "PL", companyId: company.id },
   });
-  if (!paidLeaveType) {
-    paidLeaveType = await prisma.timeOffType.create({
+
+  if (!typePaid) {
+    typePaid = await prisma.timeOffType.create({
       data: {
         companyId: company.id,
-        name: "Earned / Paid Leave",
+        name: "Paid Time Off",
         code: "PL",
         unit: "days",
-        color: "#29B6F6",
         requiresAllocation: true,
         approvalRequired: true,
+        color: "#FFAA00",
+        isActive: true,
       },
     });
   }
 
-  // Allocations for Rahul Verma
-  let clAllocation = await prisma.timeOffAllocation.findFirst({
-    where: { employeeId: employee.id, timeOffTypeId: casualLeaveType.id },
+  let typeUnpaid = await prisma.timeOffType.findFirst({
+    where: { code: "UPL", companyId: company.id },
   });
-  if (!clAllocation) {
-    clAllocation = await prisma.timeOffAllocation.create({
+
+  if (!typeUnpaid) {
+    typeUnpaid = await prisma.timeOffType.create({
+      data: {
+        companyId: company.id,
+        name: "Unpaid Leave",
+        code: "UPL",
+        unit: "days",
+        requiresAllocation: false,
+        approvalRequired: true,
+        color: "#FF1744",
+        isActive: true,
+      },
+    });
+  }
+
+  let typeComp = await prisma.timeOffType.findFirst({
+    where: { code: "COMP", companyId: company.id },
+  });
+
+  if (!typeComp) {
+    typeComp = await prisma.timeOffType.create({
+      data: {
+        companyId: company.id,
+        name: "Compensatory Off",
+        code: "COMP",
+        unit: "days",
+        requiresAllocation: true,
+        approvalRequired: true,
+        color: "#29B6F6",
+        isActive: true,
+      },
+    });
+  }
+
+  let typeMatPat = await prisma.timeOffType.findFirst({
+    where: { code: "MAT_PAT", companyId: company.id },
+  });
+
+  if (!typeMatPat) {
+    typeMatPat = await prisma.timeOffType.create({
+      data: {
+        companyId: company.id,
+        name: "Maternity / Paternity Leave",
+        code: "MAT_PAT",
+        unit: "days",
+        requiresAllocation: true,
+        approvalRequired: true,
+        color: "#AB47BC",
+        isActive: true,
+      },
+    });
+  }
+
+  // Seed Allocations
+  let allocCL = await prisma.timeOffAllocation.findFirst({
+    where: { employeeId: employee.id, timeOffTypeId: typeCasual.id },
+  });
+  if (!allocCL) {
+    await prisma.timeOffAllocation.create({
       data: {
         companyId: company.id,
         employeeId: employee.id,
-        timeOffTypeId: casualLeaveType.id,
+        timeOffTypeId: typeCasual.id,
         allocated: 12,
         taken: 2,
         remaining: 10,
@@ -393,17 +673,22 @@ async function seedEmployeeData() {
         validTo: new Date("2026-12-31"),
       },
     });
+  } else {
+    await prisma.timeOffAllocation.update({
+      where: { id: allocCL.id },
+      data: { allocated: 12, taken: 2, remaining: 10, status: "approved" },
+    });
   }
 
-  let slAllocation = await prisma.timeOffAllocation.findFirst({
-    where: { employeeId: employee.id, timeOffTypeId: sickLeaveType.id },
+  let allocSL = await prisma.timeOffAllocation.findFirst({
+    where: { employeeId: employee.id, timeOffTypeId: typeSick.id },
   });
-  if (!slAllocation) {
-    slAllocation = await prisma.timeOffAllocation.create({
+  if (!allocSL) {
+    await prisma.timeOffAllocation.create({
       data: {
         companyId: company.id,
         employeeId: employee.id,
-        timeOffTypeId: sickLeaveType.id,
+        timeOffTypeId: typeSick.id,
         allocated: 10,
         taken: 1,
         remaining: 9,
@@ -412,258 +697,120 @@ async function seedEmployeeData() {
         validTo: new Date("2026-12-31"),
       },
     });
+  } else {
+    await prisma.timeOffAllocation.update({
+      where: { id: allocSL.id },
+      data: { allocated: 10, taken: 1, remaining: 9, status: "approved" },
+    });
   }
 
-  // Time Off Requests for Rahul Verma
-  const existingReqs = await prisma.timeOffRequest.count({
-    where: { employeeId: employee.id },
+  let allocPL = await prisma.timeOffAllocation.findFirst({
+    where: { employeeId: employee.id, timeOffTypeId: typePaid.id },
   });
-  if (existingReqs === 0) {
-    // Approved past request 1
-    await prisma.timeOffRequest.create({
+  if (!allocPL) {
+    await prisma.timeOffAllocation.create({
       data: {
         companyId: company.id,
         employeeId: employee.id,
-        timeOffTypeId: casualLeaveType.id,
-        allocationId: clAllocation.id,
-        startDate: new Date("2026-08-10"),
-        endDate: new Date("2026-08-11"),
-        duration: 2,
+        timeOffTypeId: typePaid.id,
+        allocated: 15,
+        taken: 0,
+        remaining: 15,
         status: "approved",
-        reason: "Personal work at home",
-        approvedAt: new Date("2026-08-08"),
+        validFrom: new Date("2026-01-01"),
+        validTo: new Date("2026-12-31"),
       },
     });
+  } else {
+    await prisma.timeOffAllocation.update({
+      where: { id: allocPL.id },
+      data: { allocated: 15, taken: 0, remaining: 15, status: "approved" },
+    });
+  }
 
-    // Approved past request 2
-    await prisma.timeOffRequest.create({
+  let allocComp = await prisma.timeOffAllocation.findFirst({
+    where: { employeeId: employee.id, timeOffTypeId: typeComp.id },
+  });
+  if (!allocComp) {
+    await prisma.timeOffAllocation.create({
       data: {
         companyId: company.id,
         employeeId: employee.id,
-        timeOffTypeId: sickLeaveType.id,
-        allocationId: slAllocation.id,
-        startDate: new Date("2026-08-25"),
-        endDate: new Date("2026-08-25"),
-        duration: 1,
+        timeOffTypeId: typeComp.id,
+        allocated: 5,
+        taken: 0,
+        remaining: 5,
         status: "approved",
-        reason: "Viral fever doctor visit",
-        approvedAt: new Date("2026-08-25"),
+        validFrom: new Date("2026-01-01"),
+        validTo: new Date("2026-12-31"),
       },
     });
-
-    // Pending upcoming request 3
-    await prisma.timeOffRequest.create({
-      data: {
-        companyId: company.id,
-        employeeId: employee.id,
-        timeOffTypeId: casualLeaveType.id,
-        allocationId: clAllocation.id,
-        startDate: new Date("2026-09-10"),
-        endDate: new Date("2026-09-12"),
-        duration: 3,
-        status: "pending",
-        reason: "Family event travel",
-      },
+  } else {
+    await prisma.timeOffAllocation.update({
+      where: { id: allocComp.id },
+      data: { allocated: 5, taken: 0, remaining: 5, status: "approved" },
     });
-    console.log(`[Seed] Created Time Off Allocations & Sample Requests`);
   }
 
-  // 10. Seed Daily Attendance Records (August 1 to September 5, 2026)
-  const existingAttendances = await prisma.attendance.count({
-    where: { employeeId: employee.id },
+  let allocMatPat = await prisma.timeOffAllocation.findFirst({
+    where: { employeeId: employee.id, timeOffTypeId: typeMatPat.id },
   });
-
-  if (existingAttendances < 15) {
-    console.log(`[Seed] Generating realistic daily attendance logs for August and September 2026...`);
-    const startDate = new Date("2026-08-01");
-    const endDate = new Date("2026-09-05");
-
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dayOfWeek = d.getDay(); // 0 = Sun, 6 = Sat
-      if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
-
-      // Skip leave days (10 Aug, 11 Aug, 25 Aug)
-      const dateStr = d.toISOString().split("T")[0];
-      if (dateStr === "2026-08-10" || dateStr === "2026-08-11" || dateStr === "2026-08-25") {
-        continue;
-      }
-
-      // Check if record exists
-      const existingAtt = await prisma.attendance.findFirst({
-        where: {
-          employeeId: employee.id,
-          attendanceDate: new Date(dateStr),
-        },
-      });
-
-      if (!existingAtt) {
-        // Randomize check in: 08:52 AM to 09:12 AM
-        const checkIn = new Date(d);
-        const checkInMinutes = Math.floor(Math.random() * 20) - 8;
-        checkIn.setHours(9, Math.max(0, checkInMinutes), 0);
-
-        // Randomize check out: 05:30 PM to 06:15 PM
-        const checkOut = new Date(d);
-        const checkOutMinutes = Math.floor(Math.random() * 45);
-        checkOut.setHours(17, 30 + checkOutMinutes, 0);
-
-        const workedMs = checkOut.getTime() - checkIn.getTime();
-        const workedHours = Number((workedMs / (1000 * 60 * 60)).toFixed(2));
-        const isLate = checkInMinutes > 10;
-
-        await prisma.attendance.create({
-          data: {
-            companyId: company.id,
-            employeeId: employee.id,
-            attendanceDate: new Date(dateStr),
-            checkIn: checkIn,
-            checkOut: checkOut,
-            workedHours: workedHours,
-            expectedHours: 8.0,
-            status: isLate ? "late" : "present",
-            source: "system",
-          },
-        });
-      }
-    }
-    console.log(`[Seed] Seeded attendance logs for Rahul Verma`);
-  }
-
-  // 11. Seed August 2026 Completed Payrun & Payslip
-  let payrun = await prisma.payrun.findFirst({
-    where: { name: "August 2026 Monthly Payrun", companyId: company.id },
-  });
-
-  if (!payrun) {
-    payrun = await prisma.payrun.create({
+  if (!allocMatPat) {
+    await prisma.timeOffAllocation.create({
       data: {
         companyId: company.id,
-        name: "August 2026 Monthly Payrun",
-        periodLabel: "2026-08",
-        periodStart: new Date("2026-08-01"),
-        periodEnd: new Date("2026-08-31"),
-        salaryStructureId: salaryStructure.id,
-        status: "validated",
-        totalGross: 75000.0,
-        totalDeductions: 4500.0,
-        totalNet: 70500.0,
-        totalEmployees: 1,
-        computedAt: new Date("2026-08-31"),
-        validatedAt: new Date("2026-08-31"),
-        paidAt: new Date("2026-09-01"),
-      },
-    });
-
-    await prisma.payrunEmployee.create({
-      data: {
-        companyId: company.id,
-        payrunId: payrun.id,
         employeeId: employee.id,
-        contractId: contract.id,
-        inclusionStatus: "included",
+        timeOffTypeId: typeMatPat.id,
+        allocated: 90,
+        taken: 0,
+        remaining: 90,
+        status: "approved",
+        validFrom: new Date("2026-01-01"),
+        validTo: new Date("2026-12-31"),
       },
     });
-
-    const payslip = await prisma.payslip.create({
-      data: {
-        companyId: company.id,
-        payrunId: payrun.id,
-        employeeId: employee.id,
-        contractId: contract.id,
-        structureId: salaryStructure.id,
-        periodStart: new Date("2026-08-01"),
-        periodEnd: new Date("2026-08-31"),
-        workedDays: 20,
-        leaveDays: 3,
-        status: "paid",
-        currency: "INR",
-        basic: 37500.0,
-        totalAllowances: 37500.0,
-        gross: 75000.0,
-        totalDeductions: 4500.0,
-        net: 70500.0,
-        computedAt: new Date("2026-08-31"),
-      },
+  } else {
+    await prisma.timeOffAllocation.update({
+      where: { id: allocMatPat.id },
+      data: { allocated: 90, taken: 0, remaining: 90, status: "approved" },
     });
-
-    // Payslip Lines
-    const lines = [
-      { ruleCode: "BASIC", ruleName: "Basic Salary", category: "basic", amount: 37500.0 },
-      { ruleCode: "HRA", ruleName: "House Rent Allowance (HRA)", category: "allowance", amount: 18750.0 },
-      { ruleCode: "SPEC_ALL", ruleName: "Special Allowance", category: "allowance", amount: 18750.0 },
-      { ruleCode: "PF", ruleName: "Provident Fund (PF)", category: "deduction", amount: 4500.0 },
-    ];
-
-    for (const l of lines) {
-      await prisma.payslipLine.create({
-        data: {
-          companyId: company.id,
-          payslipId: payslip.id,
-          ruleCode: l.ruleCode,
-          ruleName: l.ruleName,
-          category: l.category,
-          amount: l.amount,
-          appearsOnPayslip: true,
-        },
-      });
-    }
-    console.log(`[Seed] Created August 2026 Payrun & Payslip for Rahul Verma`);
-  }
-
-  // 12. Seed / Update System Users for Other Roles
-  const otherUsers = [
-    { email: "employee@peoplepay360.com", role: "EMPLOYEE", name: "Standard Employee" },
-    { email: "hr.manager@peoplepay360.com", role: "HR_MANAGER", name: "HR Manager" },
-    { email: "payroll.user@peoplepay360.com", role: "HR_PAYROLL_USER", name: "HR Payroll User" },
-    { email: "payroll.manager@peoplepay360.com", role: "HR_PAYROLL_MANAGER", name: "HR Payroll Manager" },
-    { email: "admin@peoplepay360.com", role: "ADMIN", name: "System Admin" },
-  ];
-
-  for (const u of otherUsers) {
-    const existing = await prisma.user.findFirst({ where: { email: u.email } });
-    if (!existing) {
-      await prisma.user.create({
-        data: {
-          email: u.email,
-          passwordHash: hashedPassword,
-          role: u.role,
-          isActive: true,
-          companyId: company.id,
-          clerkUserId: `clerk_${u.role.toLowerCase()}_${Date.now()}`,
-        },
-      });
-      console.log(`[Seed] Created ${u.role} User account: ${u.email}`);
-    } else {
-      await prisma.user.update({
-        where: { id: existing.id },
-        data: {
-          passwordHash: hashedPassword,
-          role: u.role,
-          isActive: true,
-        },
-      });
-    }
   }
 
   console.log("\n=======================================================");
-  console.log("FULL EMPLOYEE & SYSTEM DATA SEEDED SUCCESSFULLY!");
+  console.log("FULL EMPLOYEE & HR SYSTEM ROLES SEEDED SUCCESSFULLY!");
   console.log("=======================================================");
-  console.log("PRIMARY EMPLOYEE ACCOUNT (Rahul Verma):");
-  console.log("  Email:        rahul.employee@peoplepay360.com");
-  console.log("  Password:     Password123!");
-  console.log("  Role:         EMPLOYEE");
-  console.log("  Department:   Engineering (ENG)");
-  console.log("  Job Position: Software Engineer (SWE)");
-  console.log("  Contract:     CNT-2026-0001 (Active, ₹75,000 / month)");
-  console.log("  Bank Account: HDFC Bank (A/C: 50100458923412)");
-  console.log("  Leave Bal:    10 Days CL, 9 Days SL, 15 Days PL");
-  console.log("  Attendance:   20+ Logged Days (Aug & Sep 2026)");
-  console.log("  Payslips:     August 2026 Net ₹70,500 (Paid)");
+  console.log("1. HR MANAGER ACCOUNT:");
+  console.log("   Email:        hr.manager@peoplepay360.com");
+  console.log("   Password:     Password123!");
+  console.log("   Role:         HR_MANAGER");
+  console.log("   Employee:     Maya Shah (EMP-HR-001)");
+  console.log("   Access:       Employees, Contracts, Attendance, Time Off Approvals");
   console.log("-------------------------------------------------------");
-  console.log("ADMIN ACCOUNT:");
-  console.log("  Email:        admin@peoplepay360.com");
-  console.log("  Password:     Password123!");
-  console.log("  Role:         ADMIN");
+  console.log("2. HR PAYROLL USER ACCOUNT:");
+  console.log("   Email:        payroll.user@peoplepay360.com");
+  console.log("   Password:     Password123!");
+  console.log("   Role:         HR_PAYROLL_USER");
+  console.log("   Employee:     Aarav Mehta (EMP-PAY-001)");
+  console.log("   Access:       HR + Payruns & Payslips (Create/Read/Update)");
+  console.log("-------------------------------------------------------");
+  console.log("3. HR PAYROLL MANAGER ACCOUNT:");
+  console.log("   Email:        payroll.manager@peoplepay360.com");
+  console.log("   Password:     Password123!");
+  console.log("   Role:         HR_PAYROLL_MANAGER");
+  console.log("   Employee:     Nisha Rao (EMP-PAY-002)");
+  console.log("   Access:       Full HR + Full Payroll & Salary Structures");
+  console.log("-------------------------------------------------------");
+  console.log("4. STANDARD EMPLOYEE ACCOUNT:");
+  console.log("   Email:        rahul.employee@peoplepay360.com");
+  console.log("   Password:     Password123!");
+  console.log("   Role:         EMPLOYEE");
+  console.log("   Employee:     Rahul Verma (EMP-2026-TEST)");
+  console.log("   HR Manager:   Maya Shah (hr.manager@peoplepay360.com)");
+  console.log("-------------------------------------------------------");
+  console.log("5. ADMIN ACCOUNT:");
+  console.log("   Email:        admin@peoplepay360.com");
+  console.log("   Password:     Password123!");
+  console.log("   Role:         ADMIN");
   console.log("=======================================================\n");
 
   process.exit(0);

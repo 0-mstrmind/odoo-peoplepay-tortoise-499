@@ -10,6 +10,7 @@ import {
   Loader2,
   AlertCircle,
   X,
+  Check,
 } from 'lucide-react'
 import { useAuthUser } from '@/store/auth.store'
 import {
@@ -17,6 +18,8 @@ import {
   useAttendanceList,
   useCheckIn,
   useCheckOut,
+  useApproveAttendanceRequest,
+  useRefuseAttendanceRequest,
 } from '@/hooks/use-attendance'
 
 interface AttendanceRecord {
@@ -26,18 +29,22 @@ interface AttendanceRecord {
   checkIn: string
   checkOut: string | null
   workedHours: number
-  status: 'present' | 'late' | 'half_day' | 'absent' | 'on_leave' | 'holiday'
+  status: 'present' | 'pending' | 'refused' | 'late' | 'half_day' | 'absent' | 'on_leave' | 'holiday'
+  correctionReason?: string
 }
 
 export const AttendanceView: React.FC = () => {
   const user = useAuthUser()
   const isEmployee = user?.role?.toLowerCase() === 'employee'
+  const canApprove = !isEmployee
 
   // Backend Attendance Hooks
   const { data: todayAttendance } = useTodayAttendance()
   const { data: attendanceData, isLoading: isListLoading } = useAttendanceList({ limit: 50 })
   const checkInMutation = useCheckIn()
   const checkOutMutation = useCheckOut()
+  const approveMutation = useApproveAttendanceRequest()
+  const refuseMutation = useRefuseAttendanceRequest()
 
   const [isCheckedIn, setIsCheckedIn] = useState(false)
   const [hasCompletedToday, setHasCompletedToday] = useState(false)
@@ -68,18 +75,48 @@ export const AttendanceView: React.FC = () => {
         setIsCheckedIn(true)
         const checkInDate = result.checkIn ? new Date(result.checkIn) : new Date()
         setCheckInTime(checkInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
-        setActionFeedback('Punched In successfully at ' + checkInDate.toLocaleTimeString())
+        setActionFeedback(
+          isEmployee
+            ? 'Punch In request submitted successfully — Pending HR approval.'
+            : 'Punched In successfully at ' + checkInDate.toLocaleTimeString()
+        )
       } else {
         await checkOutMutation.mutateAsync({ attendanceId: todayAttendance?.id })
         setIsCheckedIn(false)
         setHasCompletedToday(true)
-        setActionFeedback('Punched Out successfully at ' + new Date().toLocaleTimeString() + '. Today\'s shift is completed.')
+        setActionFeedback(
+          isEmployee
+            ? 'Punch Out request submitted successfully — Pending HR approval.'
+            : 'Punched Out successfully at ' + new Date().toLocaleTimeString() + '. Today\'s shift is completed.'
+        )
       }
     } catch (err: any) {
       const errMsg = err?.response?.data?.message || err?.message || 'Attendance request failed'
       setActionFeedback(`Error: ${errMsg}`)
     }
     setTimeout(() => setActionFeedback(null), 4000)
+  }
+
+  const handleApproveRequest = async (id: string, name: string) => {
+    try {
+      await approveMutation.mutateAsync(id)
+      setActionFeedback(`Approved attendance request for ${name}.`)
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to approve request'
+      setActionFeedback(`Error: ${errMsg}`)
+    }
+    setTimeout(() => setActionFeedback(null), 3500)
+  }
+
+  const handleRefuseRequest = async (id: string, name: string) => {
+    try {
+      await refuseMutation.mutateAsync({ id })
+      setActionFeedback(`Refused attendance request for ${name}.`)
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to refuse request'
+      setActionFeedback(`Error: ${errMsg}`)
+    }
+    setTimeout(() => setActionFeedback(null), 3500)
   }
 
   // Format list items from backend if available
@@ -96,9 +133,12 @@ export const AttendanceView: React.FC = () => {
           checkOut: item.checkOut ? new Date(item.checkOut).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null,
           workedHours: item.workedHours ? Number(item.workedHours) : 0,
           status: item.status,
+          correctionReason: item.correctionReason,
         }
       })
     : []
+
+  const pendingApprovals = displayRecords.filter((r) => r.status === 'pending')
 
   return (
     <div className="space-y-6">
@@ -149,8 +189,8 @@ export const AttendanceView: React.FC = () => {
                   {checkInMutation.isPending || checkOutMutation.isPending
                     ? 'Processing...'
                     : isCheckedIn
-                    ? 'Punch Out (Check-Out)'
-                    : 'Punch In (Check-In)'}
+                    ? 'Punch Out (Check-Out Request)'
+                    : 'Punch In (Check-In Request)'}
                 </span>
               </button>
             )}
@@ -182,6 +222,70 @@ export const AttendanceView: React.FC = () => {
           >
             <X className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* Pending Attendance Approvals Section for HR Manager / Admin */}
+      {canApprove && pendingApprovals.length > 0 && (
+        <div className="pp-card border border-amber-500/30 bg-amber-500/5 shadow-xs rounded-[6px] p-4 space-y-3">
+          <div className="flex items-center justify-between border-b border-amber-500/20 pb-2.5">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+              <h3 className="text-sm font-extrabold text-[var(--color-text-heading)] mb-0">
+                Pending Attendance Punch Approvals ({pendingApprovals.length})
+              </h3>
+            </div>
+            <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Action Required</span>
+          </div>
+
+          <div className="space-y-2">
+            {pendingApprovals.map((req) => (
+              <div
+                key={req.id}
+                className="p-3 rounded-[6px] bg-[var(--color-bg-base)] border border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+              >
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-[var(--color-text-heading)]">
+                    <span>{req.employeeName}</span>
+                    <span className="pp-badge pp-badge-warning text-[10px] uppercase font-bold">
+                      Pending HR Approval
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[var(--color-text-muted)] mt-1 flex items-center gap-3 font-mono">
+                    <span>Date: {req.date}</span>
+                    <span>In: {req.checkIn}</span>
+                    <span>Out: {req.checkOut || '—'}</span>
+                  </div>
+                  {req.correctionReason && (
+                    <p className="text-[10px] text-[var(--color-text-muted)] italic mt-0.5">
+                      Note: {req.correctionReason}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleApproveRequest(req.id, req.employeeName)}
+                    disabled={approveMutation.isPending || refuseMutation.isPending}
+                    className="pp-btn text-xs py-1 px-3 bg-[#00C853] hover:bg-[#00a845] text-white font-semibold rounded inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>Approve</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRefuseRequest(req.id, req.employeeName)}
+                    disabled={approveMutation.isPending || refuseMutation.isPending}
+                    className="pp-btn text-xs py-1 px-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Refuse</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -282,7 +386,7 @@ export const AttendanceView: React.FC = () => {
                     {!isEmployee && <td className="py-3 px-4 font-bold">{r.employeeName}</td>}
                     <td className="py-3 px-4 font-mono">{r.checkIn}</td>
                     <td className="py-3 px-4 font-mono text-[var(--color-text-muted)]">
-                      {r.checkOut || <span className="text-[#00C853] font-bold">Active</span>}
+                      {r.checkOut || (r.status === 'pending' ? <span className="text-amber-500 font-semibold">Pending</span> : <span className="text-[#00C853] font-bold">Active</span>)}
                     </td>
                     <td className="py-3 px-4 font-mono font-semibold">{r.workedHours} hrs</td>
                     <td className="py-3 px-4">
@@ -290,12 +394,16 @@ export const AttendanceView: React.FC = () => {
                         className={`pp-badge uppercase text-[10px] font-bold ${
                           r.status === 'present'
                             ? 'pp-badge-success'
+                            : r.status === 'pending'
+                            ? 'pp-badge-warning'
+                            : r.status === 'refused'
+                            ? 'pp-badge-danger'
                             : r.status === 'late'
                             ? 'pp-badge-warning'
                             : 'pp-badge-neutral'
                         }`}
                       >
-                        {r.status.replace('_', ' ')}
+                        {r.status === 'pending' ? 'Pending Approval' : r.status.replace('_', ' ')}
                       </span>
                     </td>
                   </tr>
@@ -308,3 +416,4 @@ export const AttendanceView: React.FC = () => {
     </div>
   )
 }
+

@@ -62,15 +62,15 @@ export interface TimeOffAllocationItem {
 export function useTimeOffTypes() {
   const companyId = useCompanyId()
 
-  return useQuery({
+  return useQuery<TimeOffTypeItem[]>({
     queryKey: ['timeoff', 'types', companyId],
     queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: TimeOffTypeItem[] | { items: TimeOffTypeItem[] } }>(
-        '/time-off-types'
-      )
-      const data = response.data?.data
-      if (Array.isArray(data)) return data
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items
+      const response = await apiClient.get<any>('/time-off-types')
+      const res = response.data
+      if (Array.isArray(res?.items)) return res.items
+      if (Array.isArray(res?.data?.items)) return res.data.items
+      if (Array.isArray(res?.data)) return res.data
+      if (Array.isArray(res)) return res
       return []
     },
     enabled: !!companyId,
@@ -83,16 +83,15 @@ export function useTimeOffTypes() {
 export function useTimeOffRequests(params?: { status?: string; employeeId?: string }) {
   const companyId = useCompanyId()
 
-  return useQuery({
+  return useQuery<TimeOffRequestItem[]>({
     queryKey: ['timeoff', 'requests', companyId, params],
     queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: TimeOffRequestItem[] | { items: TimeOffRequestItem[] } }>(
-        '/time-off-requests',
-        { params }
-      )
-      const data = response.data?.data
-      if (Array.isArray(data)) return data
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items
+      const response = await apiClient.get<any>('/time-off-requests', { params })
+      const res = response.data
+      if (Array.isArray(res?.items)) return res.items
+      if (Array.isArray(res?.data?.items)) return res.data.items
+      if (Array.isArray(res?.data)) return res.data
+      if (Array.isArray(res)) return res
       return []
     },
     enabled: !!companyId,
@@ -105,16 +104,18 @@ export function useTimeOffRequests(params?: { status?: string; employeeId?: stri
 export function useTimeOffAllocations(employeeId?: string) {
   const companyId = useCompanyId()
 
-  return useQuery({
+  return useQuery<TimeOffAllocationItem[]>({
     queryKey: ['timeoff', 'allocations', companyId, employeeId],
     queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: TimeOffAllocationItem[] | { items: TimeOffAllocationItem[] } }>(
+      const response = await apiClient.get<any>(
         '/time-off-allocations',
         { params: employeeId ? { employeeId } : {} }
       )
-      const data = response.data?.data
-      if (Array.isArray(data)) return data
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items
+      const res = response.data
+      if (Array.isArray(res?.items)) return res.items
+      if (Array.isArray(res?.data?.items)) return res.data.items
+      if (Array.isArray(res?.data)) return res.data
+      if (Array.isArray(res)) return res
       return []
     },
     enabled: !!companyId,
