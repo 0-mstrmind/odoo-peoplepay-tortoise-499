@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
-import { useAuthStore } from '@/store/auth.store'
+﻿import React, { useState } from 'react'
+import { Eye, EyeOff, KeyRound, AlertCircle } from 'lucide-react'
+import { useAuthStore, type UserRole } from '@/store/auth.store'
 import apiClient from '@/lib/axios'
 
 interface LoginCardProps {
@@ -26,8 +27,8 @@ export const LoginCard: React.FC<LoginCardProps> = ({
     setLoading(true)
 
     try {
-      const response = await apiClient.post('/v1/auth/login', {
-        email: email.trim(),
+      const response = await apiClient.post('/auth/login', {
+        email: email.trim().toLowerCase(),
         password,
       })
 
@@ -40,20 +41,22 @@ export const LoginCard: React.FC<LoginCardProps> = ({
           id: user.id,
           email: user.email,
           name: user.name || user.email.split('@')[0],
-          role: user.role || 'employee',
+          role: (user.role as UserRole) || 'employee',
         })
         if (user.companyId) {
           setCompanyId(user.companyId)
         }
-        if (onLoginSuccess) onLoginSuccess()
+        onLoginSuccess?.()
       } else {
-        setError('Invalid login response')
+        setError('Unexpected response from authentication server.')
       }
     } catch (err: any) {
-      if (!err.response) {
-        setError('Cannot connect to API server. Ensure backend dev server is running on port 3000.')
+      if (err.response?.data?.message) {
+        setError(err.response.data.message)
+      } else if (!err.response) {
+        setError('Cannot connect to backend server. Ensure backend is running on http://localhost:4000')
       } else {
-        setError(err.response?.data?.message || 'Invalid email or password')
+        setError('Invalid email or password.')
       }
     } finally {
       setLoading(false)
@@ -61,62 +64,80 @@ export const LoginCard: React.FC<LoginCardProps> = ({
   }
 
   return (
-    <div className="pp-card w-full max-w-sm mx-auto shadow-sm">
-      <h2 className="text-xl font-bold text-[var(--color-text-heading)] mb-4">Sign In</h2>
+    <div className="pp-card w-full max-w-md mx-auto shadow-md border border-[var(--color-border)] p-6 sm:p-8">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-1.5">
+          <div className="w-7 h-7 rounded-[6px] bg-[var(--color-primary)] text-white font-bold flex items-center justify-center text-xs shadow-2xs">
+            P
+          </div>
+          <span className="text-xs font-bold uppercase tracking-wider text-[var(--color-primary)]">
+            PeoplePay360 ERP
+          </span>
+        </div>
+        <h2 className="text-2xl font-bold text-[var(--color-text-heading)] leading-tight">
+          Sign In
+        </h2>
+        <p className="text-xs text-[var(--color-text-muted)] mt-1">
+          Enter your corporate credentials to access your workspace.
+        </p>
+      </div>
 
+      {/* Error Alert */}
       {error && (
-        <div className="mb-4 p-2.5 rounded bg-[var(--color-danger-bg)] text-xs text-[#a00020] flex items-center justify-between font-medium">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 font-bold text-sm">×</button>
+        <div className="mb-4 p-3 rounded-[4px] bg-[rgba(255,23,68,0.08)] border border-[rgba(255,23,68,0.25)] text-xs text-[#a00020] flex items-start gap-2 font-medium">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-[#FF1744]" />
+          <div className="flex-1">
+            <span>{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="font-bold text-sm leading-none text-[#a00020] hover:opacity-75 cursor-pointer ml-1"
+          >
+            ×
+          </button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3.5">
+      {/* Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-heading)] mb-1">
-            Email
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-heading)] mb-1">
+            Work Email
           </label>
           <input
             type="email"
             required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="name@company.com"
-            className="pp-input"
+            className="pp-input text-sm rounded-[4px] w-full"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[var(--color-text-heading)] mb-1">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--color-text-heading)] mb-1">
             Password
           </label>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="pp-input pr-10"
+              className="pp-input text-sm rounded-[4px] w-full pr-10"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] p-1 rounded focus:outline-none"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] p-1 rounded cursor-pointer"
               title={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? (
-                // Eye Off Icon
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.88 9.88a3 3 0 104.24 4.24M10.73 5.08A10.43 10.43 0 0112 5c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 01-4.24-4.24M3 3l18 18" />
-                </svg>
-              ) : (
-                // Eye Icon
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-              )}
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -124,13 +145,15 @@ export const LoginCard: React.FC<LoginCardProps> = ({
         <button
           type="submit"
           disabled={loading}
-          className="pp-btn-primary w-full py-2 text-sm font-medium mt-1"
+          className="pp-btn-primary w-full py-2.5 text-sm font-semibold rounded-[4px] shadow-xs active:scale-[0.99] transition-all cursor-pointer flex items-center justify-center gap-2 mt-2"
         >
-          {loading ? 'Signing In...' : 'Sign In'}
+          <KeyRound className="w-4 h-4" />
+          <span>{loading ? 'Authenticating...' : 'Sign In'}</span>
         </button>
       </form>
 
-      <div className="mt-4 pt-3 border-t border-[var(--color-border)] text-center text-xs text-[var(--color-text-muted)]">
+      {/* Footer */}
+      <div className="mt-6 pt-4 border-t border-[var(--color-border)] text-center text-xs text-[var(--color-text-muted)]">
         Need a new company workspace?{' '}
         <button
           type="button"

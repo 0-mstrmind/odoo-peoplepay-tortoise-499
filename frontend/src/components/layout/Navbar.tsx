@@ -48,6 +48,20 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         {/* Left Nav Menu Items — Fixed non-scrollable layout */}
         <nav className="flex items-center flex-wrap gap-1 sm:gap-2 md:gap-3 py-1 overflow-visible">
+          {/* 0. Dashboard */}
+          <button
+            type="button"
+            onClick={() => handleItemClick('Dashboard')}
+            title="HR & Payroll Executive Operational Dashboard"
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+              activeItem === 'Dashboard'
+                ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+            }`}
+          >
+            Dashboard
+          </button>
+
           {/* 1. Employees ▼ */}
           <div className="relative overflow-visible">
             <button
