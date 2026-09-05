@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { UserPlus, Search, Filter, Shield, KeyRound, Edit3 } from 'lucide-react'
+import { UserPlus, Search, Shield, KeyRound, Edit3 } from 'lucide-react'
 import { type UserItem, CreateUserModal } from './CreateUserModal'
 import apiClient from '@/lib/axios'
 
@@ -29,7 +29,6 @@ export const UserManagementView: React.FC = () => {
   const [users, setUsers] = useState<UserItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
   const [modalMode, setModalMode] = useState<'edit' | 'password'>('edit')
@@ -50,7 +49,6 @@ export const UserManagementView: React.FC = () => {
     try {
       const params: any = {}
       if (debouncedSearch) params.search = debouncedSearch
-      if (roleFilter && roleFilter !== 'all') params.role = roleFilter
 
       const response = await apiClient.get('/v1/users', { params })
       const resData = response.data?.data
@@ -78,7 +76,7 @@ export const UserManagementView: React.FC = () => {
 
   useEffect(() => {
     fetchUsers()
-  }, [debouncedSearch, roleFilter])
+  }, [debouncedSearch])
 
   const handleCreateNew = () => {
     setEditingUser(null)
@@ -125,8 +123,8 @@ export const UserManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Toolbar: Search + Role Filter */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-4">
+      {/* Toolbar: Search */}
+      <div className="flex items-center justify-between gap-3 mb-4">
         <div className="relative w-full sm:w-80">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
           <input
@@ -134,24 +132,8 @@ export const UserManagementView: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search users, employees or email..."
-            className="pp-input text-xs pl-8"
+            className="pp-input text-xs pl-8 w-full"
           />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="pp-input text-xs font-medium"
-          >
-            <option value="all">Role Filter (All)</option>
-            <option value="EMPLOYEE">Employee</option>
-            <option value="HR_MANAGER">HR Manager</option>
-            <option value="HR_PAYROLL_USER">HR Payroll User</option>
-            <option value="HR_PAYROLL_MANAGER">HR Payroll Manager</option>
-            <option value="ADMIN">Admin</option>
-          </select>
         </div>
       </div>
 
