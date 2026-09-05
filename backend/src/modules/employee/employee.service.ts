@@ -19,13 +19,17 @@ export const resolveCompanyId = async (providedCompanyId?: string | null): Promi
     cacheKey,
     async () => {
       if (providedCompanyId) {
-        const company = await prisma.company.findUnique({ where: { id: providedCompanyId } });
+        const company = await prisma.company.findUnique({
+          where: { id: providedCompanyId },
+          select: { id: true },
+        });
         if (company) return company.id;
       }
 
       // Fallback to first active company or create default
       let defaultCompany = await prisma.company.findFirst({
         where: { deletedAt: null },
+        select: { id: true },
         orderBy: { createdAt: "asc" },
       });
 
@@ -395,12 +399,12 @@ export const createEmployeeService = async (
   }
 
   // Role assignment authorization check
-  const isAdmin = caller.role.toLowerCase() === "admin";
-  if (input.role && !isAdmin) {
-    throw new ApiError(StatusCodes.FORBIDDEN, "Only administrators can assign user roles to employees");
+  const isAdmin = caller.role.toLowerCase() === "admin" || caller.role.toLowerCase() === "super_admin";
+  if (input.role && !isAdmin && input.role.toLowerCase() !== "employee") {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR Managers can only create employees with the 'employee' role. Administrator privileges are required to assign Admin or HR roles.");
   }
 
-  const roleToAssign = isAdmin && input.role ? input.role : "employee";
+  const roleToAssign = input.role ? (isAdmin ? input.role : "employee") : "employee";
   const shouldCreateUser = Boolean(input.role || input.createAccount);
 
   return prisma.$transaction(async (tx) => {

@@ -110,11 +110,11 @@ function App() {
             }
           />
 
-          {/* User Management: System Administrators Only */}
+          {/* User Management: Administrators & HR Managers */}
           <Route
             path="user-management"
             element={
-              <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+              <ProtectedRoute allowedRoles={['admin', 'super_admin', 'hr_manager', 'hr_payroll_manager']}>
                 <UserManagementView />
               </ProtectedRoute>
             }

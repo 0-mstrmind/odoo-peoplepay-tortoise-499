@@ -100,8 +100,6 @@ export interface PayslipLine {
   rate?: number | string | null
 }
 
-export type PayslipItem = Payslip
-
 export interface Payslip {
   id: string
   companyId?: string
@@ -127,8 +125,9 @@ export interface Payslip {
   createdAt?: string
   updatedAt?: string
   contract?: {
-    id: string
+    id?: string
     wage?: number | string
+    structureId?: string
   } | null
   employee?: {
     id: string
@@ -144,11 +143,6 @@ export interface Payslip {
     name: string
     periodLabel: string
   }
-  contract?: {
-    id?: string
-    wage?: number | string
-    structureId?: string
-  } | null
   lines?: PayslipLine[]
   payslipLines?: PayslipLine[]
 }

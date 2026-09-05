@@ -330,19 +330,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </div>
         )}
 
-        {/* Section 3: Administration (Admin Only) */}
+        {/* Section 3: Administration & User Access */}
         {showUserMgmt && (
           <div>
             {!isCollapsed && (
               <h4 className="px-2.5 mb-1.5 text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                Administration
+                Administration &amp; Access
               </h4>
             )}
             <nav className="space-y-0.5">
               <button
                 type="button"
                 onClick={() => navigate('/user-management')}
-                title="Admin User Access & Management Portal"
+                title="User Access & Management Portal"
                 className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
                   isUserMgmt
                     ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
@@ -355,7 +355,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 </div>
                 {!isCollapsed && (
                   <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-[rgba(113,72,103,0.12)] text-[var(--color-primary)] rounded">
-                    Admin
+                    Access
                   </span>
                 )}
               </button>

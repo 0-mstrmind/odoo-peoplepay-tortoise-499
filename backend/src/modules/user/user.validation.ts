@@ -12,6 +12,7 @@ export const createUserSchema = z.object({
   employeeId: z.string().uuid("Invalid employee ID"),
   email: z.string().trim().email("Invalid work email address").max(255),
   role: UserRoleEnum.default("EMPLOYEE"),
+  password: z.string().min(6, "Password must be at least 6 characters").max(100),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -19,6 +20,7 @@ export const updateUserSchema = z.object({
   role: UserRoleEnum.optional(),
   isActive: z.boolean().optional(),
   email: z.string().trim().email().optional(),
+  password: z.string().min(6, "Password must be at least 6 characters").max(100).optional(),
 });
 
 export const queryUserSchema = z.object({

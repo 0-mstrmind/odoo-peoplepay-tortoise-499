@@ -32,11 +32,12 @@ export const createUser = CatchAsync(async (req: Request, res: Response) => {
     employeeId: req.body.employeeId || req.body.employee_id,
     email: req.body.email,
     role: req.body.role,
+    password: req.body.password,
     isActive: req.body.isActive ?? req.body.is_active,
   };
 
   const input = createUserSchema.parse(body);
-  const user = await createUserService(input, req.user?.companyId);
+  const user = await createUserService(input, req.user?.companyId, req.user?.role);
   sendResponse(res, StatusCodes.CREATED, "User account created successfully", { user });
 });
 
@@ -46,10 +47,11 @@ export const updateUser = CatchAsync(async (req: Request, res: Response) => {
     role: req.body.role,
     isActive: req.body.isActive ?? req.body.is_active,
     email: req.body.email,
+    password: req.body.password,
   };
 
   const input = updateUserSchema.parse(body);
-  const user = await updateUserService(id, input, req.user?.companyId);
+  const user = await updateUserService(id, input, req.user?.companyId, req.user?.role);
   sendResponse(res, StatusCodes.OK, "User access updated successfully", { user });
 });
 
@@ -57,6 +59,6 @@ export const updateUserStatus = CatchAsync(async (req: Request, res: Response) =
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const isActive = req.body.isActive ?? req.body.is_active ?? req.body.status === "ACTIVE";
 
-  const user = await updateUserService(id, { isActive }, req.user?.companyId);
+  const user = await updateUserService(id, { isActive }, req.user?.companyId, req.user?.role);
   sendResponse(res, StatusCodes.OK, "User status updated successfully", { user });
 });

@@ -11,9 +11,9 @@ import {
 
 const userRouter = Router();
 
-// Apply router-level Admin security middleware to all endpoints
+// Apply router-level security middleware (Admins and HR Managers)
 userRouter.use(authMiddleware);
-userRouter.use(requireRole("ADMIN", "super_admin"));
+userRouter.use(requireRole("ADMIN", "super_admin", "hr_manager", "hr_payroll_manager"));
 
 userRouter.get("/", getUsers);
 userRouter.get("/:id", getUserById);

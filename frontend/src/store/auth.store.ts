@@ -155,6 +155,7 @@ export function canAccessSalaryStructures(role?: string | null): boolean {
 export function canAccessUserManagement(role?: string | null): boolean {
   if (!role) return false
   const r = role.toLowerCase().trim()
-  return ['admin', 'super_admin'].includes(r)
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_manager'].includes(r)
 }
+
 

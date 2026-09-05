@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { X, Lock, AlertCircle, UserPlus, Users } from 'lucide-react'
+import { X, Lock, AlertCircle, UserPlus, Users, Sparkles, Eye, EyeOff, Mail, ShieldAlert } from 'lucide-react'
+import { toast } from 'sonner'
 import apiClient from '@/lib/axios'
+import { useAuthUser } from '@/store/auth.store'
 
 export interface UserItem {
   id: string
@@ -35,19 +37,28 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   userToEdit,
   onSaved,
 }) => {
+  const currentUser = useAuthUser()
+  const isCurrentUserAdmin = currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'super_admin'
+
+  const availableRoles = isCurrentUserAdmin
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((r) => r.id === 'EMPLOYEE')
+
   const [selectedEmployee, setSelectedEmployee] = useState('')
   const [isCreatingNewEmployee, setIsCreatingNewEmployee] = useState(false)
   const [newFirstName, setNewFirstName] = useState('')
   const [newLastName, setNewLastName] = useState('')
   
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [role, setRole] = useState('EMPLOYEE')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [canDeactivate, setCanDeactivate] = useState(true)
   const [loading, setLoading] = useState(false)
   
   // Field-specific inline errors
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; employeeId?: string; firstName?: string; general?: string }>({})
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; employeeId?: string; firstName?: string; general?: string }>({})
 
   const [employeesList, setEmployeesList] = useState<Array<{ id: string; name: string; email: string }>>([])
 
@@ -88,6 +99,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     if (userToEdit) {
       setSelectedEmployee(userToEdit.employeeId || '')
       setEmail(userToEdit.email)
+      setPassword('')
+      setShowPassword(false)
       
       // Normalize role name
       const r = userToEdit.role.toUpperCase().replace(/ /g, '_')
@@ -109,11 +122,38 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     } else {
       setSelectedEmployee('')
       setEmail('')
+      setPassword('')
+      setShowPassword(false)
       setRole('EMPLOYEE')
       setStatus('active')
       setCanDeactivate(true)
     }
   }, [userToEdit, isOpen])
+
+  const generateRandomPassword = () => {
+    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
+    const lower = 'abcdefghijkmnpqrstuvwxyz'
+    const numbers = '23456789'
+    const symbols = '!@#$%^&*'
+    const all = upper + lower + numbers + symbols
+
+    const pwd = [
+      upper[Math.floor(Math.random() * upper.length)],
+      lower[Math.floor(Math.random() * lower.length)],
+      numbers[Math.floor(Math.random() * numbers.length)],
+      symbols[Math.floor(Math.random() * symbols.length)],
+    ]
+
+    for (let i = pwd.length; i < 12; i++) {
+      pwd.push(all[Math.floor(Math.random() * all.length)])
+    }
+
+    const shuffled = pwd.sort(() => 0.5 - Math.random()).join('')
+    setPassword(shuffled)
+    setShowPassword(true)
+    setFieldErrors((prev) => ({ ...prev, password: undefined }))
+    toast.success('Random password generated!')
+  }
 
   const handleSelectEmployee = (empId: string) => {
     setFieldErrors((prev) => ({ ...prev, employeeId: undefined }))
@@ -158,6 +198,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
         }
       } else if (!selectedEmployee) {
         setFieldErrors({ employeeId: 'Please select an employee or add a new employee profile' })
+        return
+      }
+
+      if (!password || password.length < 6) {
+        setFieldErrors({ password: 'Password must be at least 6 characters' })
         return
       }
     }
@@ -216,6 +261,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           employee_id: targetEmployeeId,
           email: email.trim().toLowerCase(),
           role,
+          password,
           is_active: status === 'active',
         })
 
@@ -231,6 +277,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           employeeId: targetEmployeeId,
         }
 
+        toast.success(`User account created! Login credentials dispatched to ${email.trim().toLowerCase()}`)
         onSaved(savedUser)
       }
 
@@ -399,13 +446,79 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
               )}
             </div>
 
+            {/* Password Field (Only for new user creation) */}
+            {!userToEdit && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-[var(--color-text-heading)]">
+                    Password <span className="text-[var(--color-danger)]">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="text-[11px] font-bold text-[var(--color-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    title="Generate secure random password"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>Generate Random Password</span>
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      setFieldErrors((prev) => ({ ...prev, password: undefined }))
+                    }}
+                    placeholder="Enter password or click Generate Random"
+                    className={`pp-input text-xs pr-10 font-mono ${fieldErrors.password ? 'border-red-500' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] rounded cursor-pointer"
+                    title={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                {fieldErrors.password && (
+                  <p className="text-[11px] text-red-600 font-semibold mt-1">{fieldErrors.password}</p>
+                )}
+                <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-[var(--color-text-muted)] bg-[var(--color-bg-muted)] p-2 rounded border border-[var(--color-border)]">
+                  <Mail className="w-3.5 h-3.5 shrink-0 text-[var(--color-primary)] mt-0.5" />
+                  <span>
+                    This password and login details will be dispatched to <strong>{email || 'the work email'}</strong> upon creation.
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Roles Choice List */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-2">
-                Roles <span className="text-[var(--color-danger)]">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-semibold text-[var(--color-text-heading)]">
+                  Roles <span className="text-[var(--color-danger)]">*</span>
+                </label>
+                {!isCurrentUserAdmin && (
+                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 bg-amber-500/15 px-2 py-0.5 rounded">
+                    Employee Access Only
+                  </span>
+                )}
+              </div>
+
+              {!isCurrentUserAdmin && (
+                <div className="mb-2 p-2 bg-amber-500/10 border border-amber-500/25 rounded text-[11px] text-amber-800 dark:text-amber-300 flex items-start gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-amber-600 mt-0.5" />
+                  <span>HR Managers are permitted to provision Employee accounts. Administrator privilege is required for HR and Admin accounts.</span>
+                </div>
+              )}
+
               <div className="space-y-2">
-                {ROLE_OPTIONS.map((r) => {
+                {availableRoles.map((r) => {
                   const isChecked = role === r.id
                   return (
                     <label

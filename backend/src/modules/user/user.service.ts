@@ -1,8 +1,10 @@
 import { StatusCodes } from "http-status-codes";
+import bcrypt from "bcryptjs";
 import { prisma } from "../../core/config/prisma.js";
 import { logger } from "../../core/config/logger.js";
 import ApiError from "../../shared/utils/ApiError.js";
 import { resolveCompanyId } from "../employee/employee.service.js";
+import { sendUserCredentialsEmail } from "../../core/services/email.service.js";
 import type { CreateUserInput, UpdateUserInput, QueryUserInput } from "./user.validation.js";
 
 // Optional Clerk SDK helper (graceful fallback if keys missing)
@@ -183,9 +185,24 @@ export const getUserByIdService = async (userId: string, callerCompanyId?: strin
 /**
  * Create a new user account with Clerk sync & local DB rollback
  */
-export const createUserService = async (input: CreateUserInput, callerCompanyId?: string | null) => {
+export const createUserService = async (
+  input: CreateUserInput,
+  callerCompanyId?: string | null,
+  callerRole?: string | null,
+) => {
   const companyId = await resolveCompanyId(callerCompanyId);
-  const { employeeId, email, role, isActive = true } = input;
+  const { employeeId, email, role, password, isActive = true } = input;
+
+  // Step 1: Role permission guard (HRs can only create Employees, Admins can create all)
+  const normalizedRole = role.toUpperCase();
+  const isCallerAdmin = callerRole && ["ADMIN", "super_admin"].includes(callerRole.toUpperCase());
+  if (!isCallerAdmin && normalizedRole !== "EMPLOYEE") {
+    throw new ApiError(
+      StatusCodes.FORBIDDEN,
+      "HR Managers are only authorized to create user accounts with the EMPLOYEE role. Administrator privileges are required to create Admin and HR accounts.",
+      [{ field: "role" }],
+    );
+  }
 
   // Step 2: Validate employee exists in company
   const employee = await prisma.employee.findFirst({
@@ -222,8 +239,8 @@ export const createUserService = async (input: CreateUserInput, callerCompanyId?
     );
   }
 
-  // Normalize role to upper case
-  const normalizedRole = role.toUpperCase();
+  // Step 5: Hash the password
+  const passwordHash = await bcrypt.hash(password, 10);
 
   // Step 6: Clerk account creation
   let clerkUserId: string | null = null;
@@ -242,6 +259,7 @@ export const createUserService = async (input: CreateUserInput, callerCompanyId?
           companyId,
           clerkUserId,
           email: email.toLowerCase().trim(),
+          passwordHash,
           employeeId,
           role: normalizedRole,
           isActive,
@@ -257,11 +275,27 @@ export const createUserService = async (input: CreateUserInput, callerCompanyId?
       return created;
     });
 
+    // Step 8: Send user credentials to the entered email address
+    const company = await prisma.company.findUnique({
+      where: { id: companyId },
+      select: { name: true },
+    });
+
+    sendUserCredentialsEmail({
+      email: email.toLowerCase().trim(),
+      name: `${employee.firstName} ${employee.lastName}`.trim(),
+      password,
+      role: normalizedRole,
+      companyName: company?.name || "PeoplePay360",
+    }).catch((emailErr) => {
+      logger.warn(`[User] Failed to send credentials email to ${email}: ${emailErr.message}`);
+    });
+
     return newUser;
   } catch (dbErr: any) {
     logger.error(`[User] Local DB insert failed: ${dbErr.message}`);
 
-    // Step 8: Rollback Clerk user account if DB insert fails
+    // Step 9: Rollback Clerk user account if DB insert fails
     if (clerkUserId && deleteClerkUser && !clerkUserId.startsWith("clerk_user_")) {
       await deleteClerkUser(clerkUserId);
     }
@@ -280,6 +314,7 @@ export const updateUserService = async (
   userId: string,
   input: UpdateUserInput,
   callerCompanyId?: string | null,
+  callerRole?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
 
@@ -289,6 +324,18 @@ export const updateUserService = async (
 
   if (!existingUser) {
     throw new ApiError(StatusCodes.NOT_FOUND, "User account not found");
+  }
+
+  const isCallerAdmin = callerRole && ["ADMIN", "super_admin"].includes(callerRole.toUpperCase());
+
+  // Non-admins cannot promote anyone or modify Admin accounts
+  if (!isCallerAdmin) {
+    if (existingUser.role.toUpperCase() === "ADMIN") {
+      throw new ApiError(StatusCodes.FORBIDDEN, "Only Administrators can modify Administrator accounts");
+    }
+    if (input.role && input.role.toUpperCase() !== "EMPLOYEE") {
+      throw new ApiError(StatusCodes.FORBIDDEN, "HR Managers can only assign the EMPLOYEE role");
+    }
   }
 
   const newRole = input.role ? input.role.toUpperCase() : existingUser.role.toUpperCase();
@@ -314,12 +361,18 @@ export const updateUserService = async (
     }
   }
 
+  let updatedPasswordHash: string | undefined = undefined;
+  if (input.password) {
+    updatedPasswordHash = await bcrypt.hash(input.password, 10);
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: {
       ...(input.role ? { role: newRole } : {}),
       ...(input.isActive !== undefined ? { isActive: newIsActive } : {}),
       ...(input.email ? { email: input.email.toLowerCase().trim() } : {}),
+      ...(updatedPasswordHash ? { passwordHash: updatedPasswordHash } : {}),
     },
   });
 
