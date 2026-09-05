@@ -71,7 +71,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
         if (!userToEdit) {
           // New User Mode: fetch unlinked employees
           const res = await apiClient.get('/v1/employees?withoutUser=true&limit=100')
-          const items = res.data?.data?.data || res.data?.data || []
+          const items = res.data?.items || res.data?.data?.items || res.data?.data || []
           if (Array.isArray(items)) {
             const mapped = items.map((e: any) => ({
               id: e.id,
@@ -111,8 +111,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       const fetchDetail = async () => {
         try {
           const res = await apiClient.get(`/v1/users/${userToEdit.id}`)
-          if (res.data?.data?.canDeactivate !== undefined) {
-            setCanDeactivate(res.data.data.canDeactivate)
+          const canDeact = res.data?.canDeactivate !== undefined
+            ? res.data.canDeactivate
+            : res.data?.data?.canDeactivate
+          if (canDeact !== undefined) {
+            setCanDeactivate(canDeact)
           }
         } catch {
           // Default to true
@@ -221,7 +224,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           role,
           isActive: status === 'active',
         })
-        const updated = res.data?.data?.user || res.data?.data
+        const updated = res.data?.user || res.data?.data?.user || res.data?.data || {}
 
         const savedUser: UserItem = {
           id: userToEdit.id,
@@ -229,7 +232,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           employeeName: userToEdit.employeeName,
           email: updated.email || email,
           role: updated.role || role,
-          status: updated.isActive === false ? 'inactive' : 'active',
+          status: (updated.isActive ?? (status === 'active')) ? 'active' : 'inactive',
           employeeId: userToEdit.employeeId,
         }
 
@@ -241,20 +244,45 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
         // If creating new employee on-the-fly:
         if (isCreatingNewEmployee) {
-          const empRes = await apiClient.post('/v1/employees', {
-            employeeCode: `EMP-${Date.now().toString().slice(-6)}`,
-            firstName: newFirstName.trim(),
-            lastName: newLastName.trim() || 'Staff',
-            email: email.trim().toLowerCase(),
-            status: 'active',
-            employeeType: 'full_time',
-          })
-          const createdEmp = empRes.data?.data?.employee || empRes.data?.employee || empRes.data?.data
-          targetEmployeeId = createdEmp.id
-          empName = `${createdEmp.firstName} ${createdEmp.lastName}`
+          try {
+            const empRes = await apiClient.post('/v1/employees', {
+              employeeCode: `EMP-${Date.now().toString().slice(-6)}`,
+              firstName: newFirstName.trim(),
+              lastName: newLastName.trim() || 'Staff',
+              email: email.trim().toLowerCase(),
+              status: 'active',
+              employeeType: 'full_time',
+            })
+            const createdEmp = empRes.data?.employee || empRes.data?.data?.employee || empRes.data?.data || empRes.data
+            targetEmployeeId = createdEmp?.id
+            empName = `${createdEmp?.firstName || newFirstName} ${createdEmp?.lastName || newLastName}`.trim()
+          } catch (empErr: any) {
+            const empMsg = empErr.response?.data?.message || empErr.message || ''
+            if (empMsg.toLowerCase().includes('already exists') || empErr.response?.status === 409) {
+              const searchRes = await apiClient.get(`/v1/employees?search=${encodeURIComponent(email.trim().toLowerCase())}`)
+              const searchItems = searchRes.data?.items || searchRes.data?.data?.items || searchRes.data?.data || []
+              const existingEmp = searchItems.find((e: any) => e.email?.toLowerCase() === email.trim().toLowerCase())
+              if (existingEmp) {
+                if (existingEmp.userId) {
+                  throw new Error(`A user account already exists for ${email.trim().toLowerCase()}.`)
+                }
+                targetEmployeeId = existingEmp.id
+                empName = `${existingEmp.firstName} ${existingEmp.lastName}`.trim()
+              } else {
+                throw empErr
+              }
+            } else {
+              throw empErr
+            }
+          }
         } else {
           const empObj = employeesList.find((e) => e.id === selectedEmployee)
           if (empObj) empName = empObj.name
+        }
+
+        if (!targetEmployeeId) {
+          setFieldErrors({ employeeId: 'Please select an employee or provide employee details.' })
+          return
         }
 
         const res = await apiClient.post('/v1/users', {
@@ -265,15 +293,15 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           is_active: status === 'active',
         })
 
-        const created = res.data?.data?.user || res.data?.data
+        const created = res.data?.user || res.data?.data?.user || res.data?.data || res.data
 
         const savedUser: UserItem = {
-          id: created.id,
+          id: created?.id || targetEmployeeId,
           name: empName,
           employeeName: empName,
-          email: created.email || email,
-          role: created.role || role,
-          status: created.isActive === false ? 'inactive' : 'active',
+          email: created?.email || email.trim().toLowerCase(),
+          role: created?.role || role,
+          status: (created?.isActive ?? (status === 'active')) ? 'active' : 'inactive',
           employeeId: targetEmployeeId,
         }
 
@@ -284,15 +312,23 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       onClose()
     } catch (err: any) {
       const respData = err.response?.data
-      const message = respData?.message || respData?.error || 'Failed to save user access configuration.'
-      const field = respData?.field
+      const message =
+        respData?.message ||
+        respData?.error ||
+        (Array.isArray(respData?.errors) && respData.errors[0]?.message) ||
+        err.message ||
+        'Failed to save user access configuration.'
+
+      const field =
+        respData?.field ||
+        (Array.isArray(respData?.errors) && (respData.errors[0]?.field || respData.errors[0]?.path))
 
       if (field === 'email') {
         setFieldErrors({ email: message })
       } else if (field === 'employeeId' || field === 'employee_id') {
         setFieldErrors({ employeeId: message })
-      } else if (field === 'isActive') {
-        setFieldErrors({ general: message })
+      } else if (field === 'password') {
+        setFieldErrors({ password: message })
       } else {
         setFieldErrors({ general: message })
       }

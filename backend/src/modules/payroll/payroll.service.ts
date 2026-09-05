@@ -882,10 +882,11 @@ export const adjustPayslipService = async (
       computationMethod: "fixed",
       baseAmount: amount,
       rate: null,
-      amount,
       appearsOnPayslip: true,
-      isManualAdjustment: true,
-      adjustmentNote: input.note || null,
+      ...({
+        isManualAdjustment: true,
+        adjustmentNote: input.note || null,
+      } as any),
     },
   });
 
