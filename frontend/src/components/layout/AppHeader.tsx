@@ -2,6 +2,7 @@ import React from 'react'
 import { useLocation } from 'react-router-dom'
 import { PanelLeft, PanelLeftClose, ChevronRight, ShieldCheck } from 'lucide-react'
 import type { AuthUser } from '@/store/auth.store'
+import { NotificationDropdown } from './NotificationDropdown'
 
 export interface AppHeaderProps {
   isSidebarCollapsed?: boolean
@@ -95,7 +96,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right side: User Role Badge */}
+      {/* Right side: User Role Badge & Real-Time Notification Bell */}
       <div className="flex items-center gap-2.5">
         {user?.role && (
           <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-[var(--color-bg-muted)] border border-[var(--color-border)] text-[11px] text-[var(--color-text-muted)] font-semibold uppercase">
@@ -103,6 +104,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             <span>{user.role}</span>
           </div>
         )}
+        <NotificationDropdown />
       </div>
     </header>
   )
