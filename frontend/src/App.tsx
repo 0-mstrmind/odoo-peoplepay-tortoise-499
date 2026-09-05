@@ -1,121 +1,67 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
+import { SignedIn, SignedOut, SignInButton, UserButton, useUser } from '@clerk/clerk-react'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+function AuthHeader() {
+  const { user } = useUser()
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 2rem', background: '#1a1a24', borderRadius: '8px', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', color: '#fff' }}>PeoplePay360</h2>
+        <span style={{ fontSize: '0.85rem', background: '#334155', color: '#94a3b8', padding: '2px 8px', borderRadius: '4px' }}>HR & Payroll</span>
+      </div>
 
-      <div className="ticks"></div>
+      <div>
+        <SignedOut>
+          <SignInButton mode="modal">
+            <button style={{ padding: '8px 16px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+              Sign In with Clerk
+            </button>
+          </SignInButton>
+        </SignedOut>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
+        <SignedIn>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>
+              Welcome, <strong>{user?.firstName || user?.emailAddresses[0]?.emailAddress}</strong>
+            </span>
+            <UserButton afterSignOutUrl="/" />
+          </div>
+        </SignedIn>
+      </div>
+    </header>
+  )
+}
+
+function App() {
+  return (
+    <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+      <AuthHeader />
+
+      <SignedIn>
+        <div style={{ padding: '2rem', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#f8fafc' }}>
+          <h3>PeoplePay360 ERP Control Center</h3>
+          <p>Authentication handled by Clerk & User RBAC permissions managed in PostgreSQL database.</p>
           <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
+            <li><strong>Authentication:</strong> Active via Clerk</li>
+            <li><strong>Role-Based Access Control (RBAC):</strong> Integrated</li>
+            <li><strong>Module Map:</strong> Employee → Contract → Working Schedule → Attendance/Time Off → Payroll → Payslip</li>
           </ul>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      </SignedIn>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <SignedOut>
+        <div style={{ padding: '3rem', textAlign: 'center', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', color: '#94a3b8' }}>
+          <h3>Welcome to PeoplePay360</h3>
+          <p>Please sign in using Clerk to access your HR, Attendance, and Payroll workspace.</p>
+          <SignInButton mode="modal">
+            <button style={{ padding: '10px 20px', marginTop: '1rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}>
+              Get Started
+            </button>
+          </SignInButton>
+        </div>
+      </SignedOut>
+    </div>
   )
 }
 

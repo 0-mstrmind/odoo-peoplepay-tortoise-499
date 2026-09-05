@@ -55,10 +55,11 @@ model Company {
 /// Role values: employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
 model User {
   id           String    @id @default(uuid()) @db.Uuid
-  companyId    String    @map("company_id") @db.Uuid
+  clerkUserId  String?   @unique @map("clerk_user_id") @db.VarChar(255)
+  companyId    String?   @map("company_id") @db.Uuid
   email        String    @db.VarChar(255)
-  passwordHash String    @map("password_hash") @db.VarChar(255)
-  role         String    @db.VarChar(50) // employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
+  passwordHash String?   @map("password_hash") @db.VarChar(255)
+  role         String    @default("employee") @db.VarChar(50) // employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
   isActive     Boolean   @default(true) @map("is_active")
   lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
   employeeId   String?   @map("employee_id") @db.Uuid
@@ -67,7 +68,7 @@ model User {
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
 
   // Relations
-  company                 Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                 Company?            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   linkedEmployee          Employee?           @relation("UserLinkedEmployee", fields: [employeeId], references: [id])
   employeeProfile         Employee?           @relation("EmployeeUserAccount")
   contractsCreated        Contract[]          @relation("ContractCreatedBy")

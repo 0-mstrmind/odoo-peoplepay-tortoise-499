@@ -4,7 +4,7 @@ import { StatusCodes } from "http-status-codes";
 import ApiError from "../../shared/utils/ApiError.js";
 import { verifyAccessToken, verifyRefreshToken } from "../../shared/utils/Token.js";
 
-// Middleware to authenticate access tokens - used for protected routes
+// Legacy middleware to authenticate access tokens
 export const authMiddleware = (req: Request, _res: Response, next: NextFunction): void => {
   let token = req.cookies?.accessToken || req.headers?.authorization;
 
@@ -24,9 +24,11 @@ export const authMiddleware = (req: Request, _res: Response, next: NextFunction)
     }
 
     req.user = {
+      id: payload.userId,
       userId: payload.userId,
       email: payload.email,
       role: payload.role,
+      isActive: true,
     };
     next();
   } catch {
@@ -34,7 +36,7 @@ export const authMiddleware = (req: Request, _res: Response, next: NextFunction)
   }
 };
 
-// Middleware to authenticate refresh tokens - used for token refresh endpoint
+// Legacy middleware to authenticate refresh tokens
 export const refreshTokenMiddleware = (
   req: Request,
   _res: Response,
@@ -58,15 +60,17 @@ export const refreshTokenMiddleware = (
     }
 
     req.user = {
+      id: payload.userId,
       userId: payload.userId,
       email: payload.email,
       role: payload.role,
+      isActive: true,
     };
 
     req.refreshToken = token;
 
     next();
-  } catch (error) {
+  } catch {
     next(new ApiError(StatusCodes.UNAUTHORIZED, "Invalid refresh token"));
   }
 };

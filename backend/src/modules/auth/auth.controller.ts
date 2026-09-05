@@ -3,47 +3,36 @@ import { StatusCodes } from "http-status-codes";
 
 import sendResponse from "../../shared/utils/ApiResponse.js";
 import CatchAsync from "../../shared/utils/CatchAsync.js";
-import { loginService, logoutService, meService, refreshTokensService, registerService } from "./auth.service.js";
+import {
+  getMeService,
+  listUsersService,
+  updateUserRoleService,
+  updateUserStatusService,
+} from "./auth.service.js";
 
-// Register a new user
-export const register = CatchAsync(async (req: Request, res: Response) => {
-  const { accessToken, refreshToken, user } = await registerService(req.body);
-
-  sendResponse(res, StatusCodes.CREATED, "User registered successfully", {
-    user,
-    accessToken,
-    refreshToken,
-  });
+export const getMe = CatchAsync(async (req: Request, res: Response) => {
+  const user = await getMeService(req.user!.id);
+  sendResponse(res, StatusCodes.OK, "User profile fetched successfully", { user });
 });
 
-// Login an existing user
-export const login = CatchAsync(async (req: Request, res: Response) => {
-  const { accessToken, refreshToken, user } = await loginService(req.body);
-
-  sendResponse(res, StatusCodes.OK, "Login successful", { user, accessToken, refreshToken });
+export const listUsers = CatchAsync(async (req: Request, res: Response) => {
+  const companyId = req.user?.role === "admin" ? undefined : req.user?.companyId || undefined;
+  const users = await listUsersService(companyId);
+  sendResponse(res, StatusCodes.OK, "Users retrieved successfully", { users });
 });
 
-// Get the profile of the currently authenticated user
-export const me = CatchAsync(async (req: Request, res: Response) => {
-  const user = await meService(req.user.userId);
-  sendResponse(res, StatusCodes.OK, "User profile fetched", { user });
+export const updateUserRole = CatchAsync(async (req: Request, res: Response) => {
+  const targetId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { role } = req.body;
+  const companyId = req.user?.role === "admin" ? undefined : req.user?.companyId || undefined;
+  const updatedUser = await updateUserRoleService(targetId, role, companyId);
+  sendResponse(res, StatusCodes.OK, "User role updated successfully", { user: updatedUser });
 });
 
-// Logout the user by clearing the authentication cookie
-export const logout = CatchAsync(async (req: Request, res: Response) => {
-  await logoutService(req.user.userId);
-
-  sendResponse(res, StatusCodes.OK, "Logout successful");
-});
-
-// Refresh access token using the refresh token
-export const refreshToken = CatchAsync(async (req: Request, res: Response) => {
-  const refreshToken = req.refreshToken;
-  const userId = req.user.userId;
-
-  const { accessToken } = await refreshTokensService(userId, refreshToken);
-
-  sendResponse(res, StatusCodes.OK, "Access token refreshed", {
-    accessToken,
-  });
+export const updateUserStatus = CatchAsync(async (req: Request, res: Response) => {
+  const targetId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { isActive } = req.body;
+  const companyId = req.user?.role === "admin" ? undefined : req.user?.companyId || undefined;
+  const updatedUser = await updateUserStatusService(targetId, isActive, companyId);
+  sendResponse(res, StatusCodes.OK, "User status updated successfully", { user: updatedUser });
 });
