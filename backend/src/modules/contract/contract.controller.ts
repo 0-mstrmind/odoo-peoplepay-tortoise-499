@@ -13,7 +13,8 @@ export const createContractHandler = CatchAsync(async (req: Request, res: Respon
 
 export const getContractsHandler = CatchAsync(async (req: Request, res: Response) => {
   const employeeId = req.query.employeeId as string | undefined;
-  const contracts = await contractService.getContracts(req.user!.companyId!, employeeId);
+  const status = req.query.status as string | undefined;
+  const contracts = await contractService.getContracts(req.user!.companyId!, employeeId, status);
   sendResponse(res, StatusCodes.OK, "Contracts retrieved successfully", { items: contracts, contracts });
 });
 

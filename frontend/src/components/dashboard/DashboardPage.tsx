@@ -34,6 +34,7 @@ import {
   useApproveTimeOffRequest,
   useRefuseTimeOffRequest,
 } from '@/hooks/use-timeoff'
+import { useContracts, useUpdateContract } from '@/hooks/use-contracts'
 
 interface DashboardPageProps {
   onNavigateToEmployees?: () => void
@@ -113,6 +114,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     } catch (err: any) {
       const errMsg = err?.response?.data?.message || err?.message || 'Failed to refuse leave request'
       setActionFeedback(`Error: ${errMsg}`)
+    }
+    setTimeout(() => setActionFeedback(null), 3500)
+  }
+
+  // Contracts Hooks for Admin Approvals
+  const { data: allContracts = [], isLoading: isContractsLoading } = useContracts()
+  const updateContractMutation = useUpdateContract()
+  const [approvingContractId, setApprovingContractId] = useState<string | null>(null)
+  const pendingContracts = allContracts.filter((c: any) => c.status === 'draft')
+
+  const handleApproveContract = async (id: string, ref: string) => {
+    try {
+      setApprovingContractId(id)
+      await updateContractMutation.mutateAsync({
+        id,
+        data: { status: 'active' },
+      })
+      setActionFeedback(`Contract ${ref} approved and activated successfully!`)
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to approve contract'
+      setActionFeedback(`Error: ${errMsg}`)
+    } finally {
+      setApprovingContractId(null)
     }
     setTimeout(() => setActionFeedback(null), 3500)
   }
@@ -879,8 +903,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               <div>
                 <span className="text-xs text-[var(--color-text-muted)] font-medium">Pending Approvals</span>
                 <h3 className="text-xl font-extrabold text-[var(--color-text-heading)] mb-0">
-                  {pendingCount}
+                  {pendingCount + pendingContracts.length}
                 </h3>
+                {pendingContracts.length > 0 && (
+                  <span className="text-[10px] text-amber-600 font-semibold block">
+                    {pendingContracts.length} contract{pendingContracts.length === 1 ? '' : 's'} to approve
+                  </span>
+                )}
               </div>
             </div>
 
@@ -910,9 +939,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left: Time Off Approvals Feed (8 cols) */}
-            <div className="lg:col-span-8 pp-card space-y-4">
-              <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+            {/* Left: Approvals Feed (8 cols) */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Card 1: Time Off Requests & Approvals */}
+              <div className="pp-card space-y-4">
+                <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-[var(--color-primary)]" />
                   <h2 className="text-base font-bold text-[var(--color-text-heading)] mb-0">
@@ -1007,6 +1038,100 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Card 2: Employment Contracts Awaiting Admin Approval */}
+            {(isAdmin || role === 'admin' || role === 'super_admin' || role === 'hr_payroll_manager') && (
+              <div className="pp-card space-y-4">
+                <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-[var(--color-primary)]" />
+                    <h2 className="text-base font-bold text-[var(--color-text-heading)] mb-0">
+                      Employment Contracts Awaiting Approval
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {pendingContracts.length > 0 && (
+                      <span className="pp-badge pp-badge-warning text-[10px] font-bold">
+                        {pendingContracts.length} Pending
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => navigate('/contracts?tab=pending')}
+                      className="text-xs text-[var(--color-primary)] hover:underline font-semibold cursor-pointer"
+                    >
+                      Manage in Contracts &rarr;
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {isContractsLoading ? (
+                    <div className="p-4 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                      <span>Loading pending contracts...</span>
+                    </div>
+                  ) : pendingContracts.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-[var(--color-text-muted)] italic">
+                      No contracts currently awaiting approval. All employee contracts are active.
+                    </div>
+                  ) : (
+                    pendingContracts.map((c: any) => {
+                      const empName = c.employee ? `${c.employee.firstName} ${c.employee.lastName}` : 'N/A'
+                      const job = c.jobPosition?.title || 'N/A'
+                      const dept = c.department?.name || 'N/A'
+                      const wageStr = `₹${Number(c.wage || 0).toLocaleString()}`
+
+                      return (
+                        <div
+                          key={c.id}
+                          className="p-3.5 rounded-[6px] bg-[var(--color-bg-muted)] border border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-[var(--color-text-heading)]">
+                                {empName}
+                              </span>
+                              <span className="font-mono text-xs text-[var(--color-primary)] font-semibold">
+                                ({c.contractReference})
+                              </span>
+                              <span className="pp-badge pp-badge-warning text-[10px] font-bold">
+                                Pending Approval
+                              </span>
+                            </div>
+                            <div className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-3 flex-wrap">
+                              <span>{job} &bull; {dept}</span>
+                              <span className="font-mono font-bold text-[var(--color-text-heading)]">
+                                {wageStr}/mo
+                              </span>
+                              <span>Start: {c.startDate?.split('T')[0] || c.startDate}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                            <button
+                              type="button"
+                              disabled={approvingContractId === c.id}
+                              onClick={() => handleApproveContract(c.id, c.contractReference)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-[4px] bg-[#00C853] text-white hover:bg-[#00B048] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                              title="Approve and activate this contract"
+                            >
+                              {approvingContractId === c.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              )}
+                              <span>Approve</span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
             {/* Right: Department Headcount Breakdown (4 cols) */}
             <div className="lg:col-span-4 pp-card space-y-4">

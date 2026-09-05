@@ -101,12 +101,13 @@ export const createContract = async (companyId: string, userId: string, data: an
   });
 };
 
-export const getContracts = async (companyId: string, employeeId?: string) => {
+export const getContracts = async (companyId: string, employeeId?: string, status?: string) => {
   return prisma.contract.findMany({
     where: {
       companyId,
       deletedAt: null,
       ...(employeeId && { employeeId }),
+      ...(status && { status }),
     },
     orderBy: { startDate: "desc" },
     include: {

@@ -378,6 +378,27 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </span>
                 )}
               </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/contracts?tab=pending')}
+                title="Admin Contract Approvals Portal"
+                className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                  isContracts && search.includes('tab=pending')
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <FileText className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
+                  {!isCollapsed && <span className="truncate">Contract Approvals</span>}
+                </div>
+                {!isCollapsed && (
+                  <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded">
+                    Review
+                  </span>
+                )}
+              </button>
             </nav>
           </div>
         )}

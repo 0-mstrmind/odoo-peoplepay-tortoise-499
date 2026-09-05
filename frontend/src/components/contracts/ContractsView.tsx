@@ -71,6 +71,11 @@ export const ContractsView: React.FC = () => {
       empName.toLowerCase().includes(search.toLowerCase()) ||
       ref.toLowerCase().includes(search.toLowerCase()) ||
       dept.toLowerCase().includes(search.toLowerCase())
+
+    if (activeTab === 'pending') {
+      return matchesSearch && c.status === 'draft'
+    }
+
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -119,6 +124,24 @@ export const ContractsView: React.FC = () => {
         >
           All Contracts
         </button>
+
+        <button
+          type="button"
+          onClick={() => setSearchParams({ tab: 'pending' })}
+          className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'pending'
+              ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+              : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+          }`}
+        >
+          <span>Pending Approval</span>
+          {draftContractsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+              {draftContractsCount}
+            </span>
+          )}
+        </button>
+
         {isPayrollUser && (
           <button
             type="button"
@@ -145,9 +168,24 @@ export const ContractsView: React.FC = () => {
         </button>
       </div>
 
-      {/* Tab 1: Contracts List */}
-      {activeTab === 'contracts' && (
+      {/* Tab 1: Contracts List (All Contracts & Pending Approval) */}
+      {(activeTab === 'contracts' || activeTab === 'pending') && (
         <div className="space-y-4">
+          {draftContractsCount > 0 && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="font-semibold text-amber-900 dark:text-amber-200">
+                  {draftContractsCount} contract{draftContractsCount === 1 ? '' : 's'} submitted by HR Manager{draftContractsCount === 1 ? '' : 's'} pending admin approval.
+                </span>
+              </div>
+              {canActivate && (
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                  Click &quot;Approve&quot; in the table to activate.
+                </span>
+              )}
+            </div>
+          )}
           {/* Metrics summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="pp-card p-4 flex items-center gap-3">
@@ -201,8 +239,8 @@ export const ContractsView: React.FC = () => {
                 className="pp-input text-xs py-1.5"
               >
                 <option value="all">All Statuses</option>
+                <option value="draft">Pending Approval (Draft)</option>
                 <option value="active">Active</option>
-                <option value="draft">Draft</option>
                 <option value="expired">Expired</option>
                 <option value="terminated">Terminated</option>
               </select>
@@ -230,7 +268,7 @@ export const ContractsView: React.FC = () => {
                     <th className="py-2.5 px-4">Working Schedule</th>
                     <th className="py-2.5 px-4">Monthly Wage</th>
                     <th className="py-2.5 px-4">Status</th>
-                    {canActivate && <th className="py-2.5 px-4 text-right">Actions</th>}
+                    <th className="py-2.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
@@ -261,36 +299,45 @@ export const ContractsView: React.FC = () => {
                         <td className="py-3 px-4">
                           <span
                             className={`pp-badge uppercase text-[10px] font-bold ${
-                              c.status === 'active' ? 'pp-badge-success' : 'pp-badge-warning'
+                              c.status === 'active'
+                                ? 'pp-badge-success'
+                                : c.status === 'draft'
+                                ? 'pp-badge-warning'
+                                : 'pp-badge-neutral'
                             }`}
                           >
-                            {c.status === 'draft' ? 'Draft (Pending)' : c.status}
+                            {c.status === 'draft' ? 'Pending Approval' : c.status}
                           </span>
                         </td>
-                        {canActivate && (
-                          <td className="py-3 px-4 text-right">
-                            {c.status === 'draft' ? (
+                        <td className="py-3 px-4 text-right">
+                          {c.status === 'draft' ? (
+                            canActivate ? (
                               <button
                                 type="button"
                                 disabled={activatingId === c.id}
                                 onClick={() => handleActivateContract(c.id, c.contractReference)}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded bg-[#00C853]/15 text-[#00A844] hover:bg-[#00C853]/25 dark:bg-[#00C853]/20 dark:text-[#00E676] dark:hover:bg-[#00C853]/30 transition-colors disabled:opacity-50 cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-[4px] bg-[#00C853] text-white hover:bg-[#00B048] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                                 title="Approve and activate contract"
                               >
                                 {activatingId === c.id ? (
                                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                 ) : (
-                                  <Check className="w-3.5 h-3.5" />
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
                                 )}
-                                <span>Activate</span>
+                                <span>Approve</span>
                               </button>
                             ) : (
-                              <span className="text-[11px] text-[var(--color-text-muted)] font-medium">
-                                Approved
+                              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium italic">
+                                Awaiting Admin Review
                               </span>
-                            )}
-                          </td>
-                        )}
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Approved</span>
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     )
                   })}
