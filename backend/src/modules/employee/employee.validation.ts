@@ -64,6 +64,7 @@ export const queryEmployeeSchema = z.object({
   jobPositionId: z.string().uuid().optional(),
   status: EmployeeStatusEnum.optional(),
   employeeType: EmployeeTypeEnum.optional(),
+  withoutUser: z.union([z.boolean(), z.string().transform((v) => v === "true")]).optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(50),
 });

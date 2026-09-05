@@ -9,7 +9,7 @@ const INITIAL_USERS: UserItem[] = [
     name: 'Aarav Mehta',
     employeeName: 'Aarav Mehta',
     email: 'aarav@company.com',
-    role: 'Payroll User',
+    role: 'HR Payroll User',
     status: 'active',
   },
   {
@@ -17,7 +17,7 @@ const INITIAL_USERS: UserItem[] = [
     name: 'Maya Shah',
     employeeName: 'Maya Shah',
     email: 'maya@company.com',
-    role: 'Time Off Admin',
+    role: 'HR Manager',
     status: 'active',
   },
   {
@@ -25,7 +25,7 @@ const INITIAL_USERS: UserItem[] = [
     name: 'Rohan Patel',
     employeeName: 'Rohan Patel',
     email: 'rohan@company.com',
-    role: 'Time Off User',
+    role: 'Employee',
     status: 'active',
   },
   {
@@ -33,46 +33,86 @@ const INITIAL_USERS: UserItem[] = [
     name: 'Nisha Rao',
     employeeName: 'Nisha Rao',
     email: 'nisha@company.com',
-    role: 'Payroll Admin',
+    role: 'HR Payroll Manager',
     status: 'active',
   },
 ]
 
+// Role formatting helper
+function formatRoleName(roleRaw: string): string {
+  if (!roleRaw) return 'Employee'
+  const normalized = roleRaw.toUpperCase().trim()
+  switch (normalized) {
+    case 'ADMIN':
+      return 'Admin'
+    case 'HR_MANAGER':
+      return 'HR Manager'
+    case 'HR_PAYROLL_USER':
+      return 'HR Payroll User'
+    case 'HR_PAYROLL_MANAGER':
+    case 'HR_PAYROLL_ADMIN':
+    case 'PAYROLL_ADMIN':
+      return 'HR Payroll Manager'
+    case 'EMPLOYEE':
+      return 'Employee'
+    default:
+      return roleRaw.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())
+  }
+}
+
 export const UserManagementView: React.FC = () => {
   const [users, setUsers] = useState<UserItem[]>(INITIAL_USERS)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  // 300ms Debounce effect on search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery)
+    }, 300)
+
+    return () => clearTimeout(handler)
+  }, [searchQuery])
+
+  // Fetch users from backend GET /api/v1/users
+  const fetchUsers = async () => {
+    setLoading(true)
+    try {
+      const params: any = {}
+      if (debouncedSearch) params.search = debouncedSearch
+      if (roleFilter && roleFilter !== 'all') params.role = roleFilter
+
+      const response = await apiClient.get('/v1/users', { params })
+      const resData = response.data?.data
+      const items = resData?.data || resData || []
+
+      if (Array.isArray(items)) {
+        const mapped: UserItem[] = items.map((u: any) => ({
+          id: u.id,
+          name: u.employeeName || u.email.split('@')[0],
+          employeeName: u.employeeName || u.email.split('@')[0],
+          email: u.email,
+          role: formatRoleName(u.role),
+          status: u.isActive ? 'active' : 'inactive',
+          employeeId: u.employeeId,
+          clerkUserId: u.clerkUserId,
+        }))
+        setUsers(mapped)
+      }
+    } catch {
+      // Keep sample data if offline/error
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await apiClient.get('/v1/auth/users')
-        const data = response.data?.data || response.data
-        if (Array.isArray(data) && data.length > 0) {
-          const mapped: UserItem[] = data.map((u: any) => {
-            const empName = u.linkedEmployee
-              ? `${u.linkedEmployee.firstName} ${u.linkedEmployee.lastName}`
-              : u.email.split('@')[0]
-            return {
-              id: u.id,
-              name: empName,
-              employeeName: empName,
-              email: u.email,
-              role: u.role ? u.role.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) : 'Employee',
-              status: u.isActive ? 'active' : 'inactive',
-              employeeId: u.employeeId,
-            }
-          })
-          setUsers(mapped)
-        }
-      } catch {
-        // Fallback to sample data if endpoint not reachable
-      }
-    }
     fetchUsers()
-  }, [])
+  }, [debouncedSearch, roleFilter])
 
   const handleCreateNew = () => {
     setEditingUser(null)
@@ -84,29 +124,9 @@ export const UserManagementView: React.FC = () => {
     setIsModalOpen(true)
   }
 
-  const handleUserSaved = (savedUser: UserItem) => {
-    setUsers((prev) => {
-      const idx = prev.findIndex((u) => u.id === savedUser.id)
-      if (idx >= 0) {
-        const next = [...prev]
-        next[idx] = savedUser
-        return next
-      }
-      return [savedUser, ...prev]
-    })
+  const handleUserSaved = () => {
+    fetchUsers()
   }
-
-  const filteredUsers = users.filter((u) => {
-    const matchesSearch =
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.role.toLowerCase().includes(searchQuery.toLowerCase())
-
-    const matchesRole =
-      roleFilter === 'all' || u.role.toLowerCase().includes(roleFilter.toLowerCase())
-
-    return matchesSearch && matchesRole
-  })
 
   return (
     <div className="pp-card w-full shadow-sm">
@@ -114,13 +134,13 @@ export const UserManagementView: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 pb-4 border-b border-[var(--color-border)]">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-[var(--color-text-heading)]">User Management</h2>
+            <h2 className="text-xl font-bold text-[var(--color-text-heading)] mb-0">User Management</h2>
             <span className="pp-badge pp-badge-neutral text-[10px] inline-flex items-center gap-1">
               <Shield className="w-3 h-3 text-[var(--color-primary)]" />
               <span>ADMIN ONLY</span>
             </span>
           </div>
-          <p className="text-xs text-[var(--color-text-muted)] mt-1">
+          <p className="text-xs text-[var(--color-text-muted)] mt-1 mb-0">
             Administrators create user accounts and assign access. Employees use Login to enter the HR and Payroll application.
           </p>
         </div>
@@ -129,10 +149,10 @@ export const UserManagementView: React.FC = () => {
         <div>
           <button
             onClick={handleCreateNew}
-            className="pp-btn-primary text-xs font-semibold py-2 px-3.5 inline-flex items-center gap-1.5"
+            className="pp-btn-primary text-xs font-semibold py-2 px-3.5 inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <UserPlus className="w-3.5 h-3.5" />
-            <span>New User</span>
+            <span>+ New User</span>
           </button>
         </div>
       </div>
@@ -155,13 +175,14 @@ export const UserManagementView: React.FC = () => {
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="pp-input text-xs"
+            className="pp-input text-xs font-medium"
           >
             <option value="all">Role Filter (All)</option>
-            <option value="admin">Admin</option>
-            <option value="payroll">Payroll</option>
-            <option value="time off">Time Off</option>
-            <option value="employee">Employee</option>
+            <option value="EMPLOYEE">Employee</option>
+            <option value="HR_MANAGER">HR Manager</option>
+            <option value="HR_PAYROLL_USER">HR Payroll User</option>
+            <option value="HR_PAYROLL_MANAGER">HR Payroll Manager</option>
+            <option value="ADMIN">Admin</option>
           </select>
         </div>
       </div>
@@ -179,18 +200,24 @@ export const UserManagementView: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.length === 0 ? (
+            {loading ? (
               <tr>
-                <td colSpan={5} className="py-6 text-center text-xs text-[var(--color-text-muted)] italic">
+                <td colSpan={5} className="py-8 text-center text-xs text-[var(--color-text-muted)] animate-pulse">
+                  Loading user accounts...
+                </td>
+              </tr>
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-xs text-[var(--color-text-muted)] italic">
                   No matching user accounts found.
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((user) => (
+              users.map((user) => (
                 <tr
                   key={user.id}
                   onClick={() => handleEditUser(user)}
-                  className="cursor-pointer transition-colors"
+                  className="cursor-pointer transition-colors hover:bg-[var(--color-bg-muted)]"
                 >
                   <td className="font-semibold text-[var(--color-primary)]">
                     {user.name}
@@ -200,14 +227,14 @@ export const UserManagementView: React.FC = () => {
                     {user.email}
                   </td>
                   <td>
-                    <span className="pp-badge pp-badge-neutral font-normal">
+                    <span className="pp-badge pp-badge-neutral font-medium">
                       {user.role}
                     </span>
                   </td>
                   <td className="text-right">
                     <span
                       className={`pp-badge ${
-                        user.status === 'active' ? 'pp-badge-success' : 'pp-badge-neutral'
+                        user.status === 'active' ? 'pp-badge-success font-bold' : 'pp-badge-neutral'
                       }`}
                     >
                       {user.status === 'active' ? 'Active' : 'Inactive'}

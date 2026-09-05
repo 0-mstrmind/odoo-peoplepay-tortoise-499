@@ -14,6 +14,7 @@ import {
 } from "../modules/timeoff/timeoff.route.js";
 import attendanceRoutes from "../modules/attendance/attendance.route.js";
 import { payrunRouter, payslipRouter } from "../modules/payroll/payroll.route.js";
+import userRouter from "../modules/user/user.route.js";
 
 /* <NEATNODE_IMPORTS> */
 // Reserved for NeatNode file generation. Do not remove or modify.
@@ -22,6 +23,7 @@ const router = Router();
 
 router.use("/auth", authRoutes);
 router.use("/employees", employeeRoutes);
+router.use("/users", userRouter);
 router.use("/contracts", contractRoutes);
 router.use("/salary-structures", structureRouter);
 router.use("/salary-rules", ruleRouter);
