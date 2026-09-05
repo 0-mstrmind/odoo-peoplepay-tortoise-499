@@ -141,6 +141,9 @@ export function useCreateTimeOffRequest() {
       startDate: string
       endDate: string
       reason?: string
+      halfDay?: boolean
+      halfDayPeriod?: 'am' | 'pm'
+      isManualHoliday?: boolean
     }) => {
       const response = await apiClient.post('/time-off-requests', payload)
       return response.data

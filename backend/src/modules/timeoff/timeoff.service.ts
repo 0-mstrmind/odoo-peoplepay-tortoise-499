@@ -530,7 +530,7 @@ export const createRequestService = async (
   const startDay = new Date(startDate);
   startDay.setHours(0, 0, 0, 0);
 
-  if (startDay < today) {
+  if (startDay < today && !input.isManualHoliday) {
     throw new ApiError(
       StatusCodes.BAD_REQUEST,
       "Time off start date cannot be in the past. Please select today or a future date."
@@ -566,6 +566,97 @@ export const createRequestService = async (
     input.halfDay,
     input.employeeId,
   );
+
+  // 3. Manual Holiday Grant by HR/Admin (bypasses balance limits regardless of whether holidays are consumed)
+  if (input.isManualHoliday) {
+    let resolvedAllocationId: string | null = null;
+
+    if (timeOffType.requiresAllocation) {
+      const existingAlloc = await prisma.timeOffAllocation.findFirst({
+        where: {
+          employeeId: input.employeeId,
+          timeOffTypeId: input.timeOffTypeId,
+          companyId,
+          status: "approved",
+          deletedAt: null,
+        },
+        orderBy: { validTo: "desc" },
+      });
+
+      if (existingAlloc) {
+        resolvedAllocationId = existingAlloc.id;
+        const currentRemaining = Number(existingAlloc.remaining);
+        const currentAllocated = Number(existingAlloc.allocated);
+        const currentTaken = Number(existingAlloc.taken);
+
+        if (currentRemaining < duration) {
+          // If holidays are consumed, expand the allocation to cover this manual holiday grant
+          const additionalNeeded = duration - currentRemaining;
+          await prisma.timeOffAllocation.update({
+            where: { id: existingAlloc.id },
+            data: {
+              allocated: currentAllocated + additionalNeeded,
+              taken: currentTaken + duration,
+              remaining: 0,
+            },
+          });
+        } else {
+          await prisma.timeOffAllocation.update({
+            where: { id: existingAlloc.id },
+            data: {
+              taken: currentTaken + duration,
+              remaining: currentRemaining - duration,
+            },
+          });
+        }
+      } else {
+        // Auto-create an approved allocation for this manual holiday
+        const newAlloc = await prisma.timeOffAllocation.create({
+          data: {
+            companyId,
+            employeeId: input.employeeId,
+            timeOffTypeId: input.timeOffTypeId,
+            allocated: duration,
+            taken: duration,
+            remaining: 0,
+            validFrom: startDate,
+            validTo: new Date(startDate.getFullYear(), 11, 31),
+            status: "approved",
+            approvedBy: currentUserId || null,
+            approvedAt: new Date(),
+            notes: input.reason || "Manual Holiday Grant by HR",
+          },
+        });
+        resolvedAllocationId = newAlloc.id;
+      }
+    }
+
+    const manualReq = await prisma.timeOffRequest.create({
+      data: {
+        companyId,
+        employeeId: input.employeeId,
+        timeOffTypeId: input.timeOffTypeId,
+        allocationId: resolvedAllocationId,
+        startDate,
+        endDate,
+        duration,
+        halfDay: input.halfDay || false,
+        halfDayPeriod: input.halfDayPeriod || null,
+        reason: input.reason || "Manual holiday granted by HR",
+        status: "approved",
+        approvedBy: currentUserId || null,
+        approvedAt: new Date(),
+      },
+      include: {
+        employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
+        timeOffType: { select: { id: true, name: true } },
+        allocation: true,
+      },
+    });
+
+    invalidateDashboardCache(companyId).catch(() => {});
+    return manualReq;
+  }
 
   let resolvedAllocationId: string | null = null;
 

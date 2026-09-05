@@ -33,6 +33,7 @@ export const TimeOffView: React.FC = () => {
   const user = useAuthUser()
   const role = (user?.role || '').toLowerCase()
   const isStandardEmployee = role === 'employee'
+  const isHrOrAdmin = ['admin', 'super_admin', 'hr_manager', 'hr_payroll_manager'].includes(role)
   const canApprove = role ? role !== 'employee' : true
 
   // Logged-in employee profile
@@ -60,13 +61,23 @@ export const TimeOffView: React.FC = () => {
   const [rejectingItem, setRejectingItem] = useState<TimeOffRequestItem | null>(null)
   const [refusalReason, setRefusalReason] = useState<string>('')
 
-  // Request Time Off Modal State
+  // Request Time Off Modal State (Employees)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [newTypeId, setNewTypeId] = useState('')
   const [newStartDate, setNewStartDate] = useState(new Date().toISOString().split('T')[0])
   const [newEndDate, setNewEndDate] = useState(new Date().toISOString().split('T')[0])
   const [newReason, setNewReason] = useState('')
+
+  // Manual Holiday Modal State (HR / Admin)
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false)
+  const [manualEmployeeId, setManualEmployeeId] = useState('')
+  const [manualTypeId, setManualTypeId] = useState('')
+  const [manualStartDate, setManualStartDate] = useState(new Date().toISOString().split('T')[0])
+  const [manualEndDate, setManualEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [manualHalfDay, setManualHalfDay] = useState(false)
+  const [manualHalfDayPeriod, setManualHalfDayPeriod] = useState<'am' | 'pm'>('am')
+  const [manualReason, setManualReason] = useState('')
 
   // API Queries - all company leave requests
   const {
@@ -209,6 +220,56 @@ export const TimeOffView: React.FC = () => {
     }
   }
 
+  const handleOpenManualHolidayModal = () => {
+    if (employeesList.length > 0 && !manualEmployeeId) {
+      setManualEmployeeId(employeesList[0].id)
+    }
+    if (leaveTypes.length > 0 && !manualTypeId) {
+      setManualTypeId(leaveTypes[0].id)
+    }
+    setIsManualModalOpen(true)
+  }
+
+  const handleGrantManualHoliday = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    const empId = manualEmployeeId || employeesList[0]?.id
+    const typeId = manualTypeId || leaveTypes[0]?.id
+
+    if (!empId || !typeId || !manualStartDate || !manualEndDate) {
+      toast.error('Please select an employee, leave type, and valid dates.')
+      return
+    }
+
+    if (manualEndDate < manualStartDate) {
+      toast.error('End date cannot be prior to start date.')
+      return
+    }
+
+    try {
+      await createMutation.mutateAsync({
+        employeeId: empId,
+        timeOffTypeId: typeId,
+        startDate: manualStartDate,
+        endDate: manualEndDate,
+        halfDay: manualHalfDay,
+        halfDayPeriod: manualHalfDay ? manualHalfDayPeriod : undefined,
+        reason: manualReason.trim() || 'Manual holiday granted by HR',
+        isManualHoliday: true,
+      })
+
+      const targetEmp = employeesList.find((e: any) => e.id === empId)
+      const empName = targetEmp ? `${targetEmp.firstName} ${targetEmp.lastName}` : 'employee'
+      toast.success(`Manual holiday successfully granted for ${empName}! (Allocations automatically adjusted)`)
+      setIsManualModalOpen(false)
+      setManualReason('')
+      setManualHalfDay(false)
+      refetch()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to grant manual holiday')
+    }
+  }
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '--'
     return dateStr.split('T')[0]
@@ -242,14 +303,29 @@ export const TimeOffView: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${isRefetching ? 'animate-spin' : ''}`} />
           </button>
 
-          <button
-            type="button"
-            onClick={handleOpenCreateModal}
-            className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Request Time Off</span>
-          </button>
+          {/* Standard Employee: Request Personal Leave */}
+          {isStandardEmployee && (
+            <button
+              type="button"
+              onClick={handleOpenCreateModal}
+              className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Request Time Off</span>
+            </button>
+          )}
+
+          {/* HR Manager & Admin: Cannot request personal leave; Can grant manual holiday */}
+          {isHrOrAdmin && (
+            <button
+              type="button"
+              onClick={handleOpenManualHolidayModal}
+              className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Grant Manual Holiday</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -856,6 +932,212 @@ export const TimeOffView: React.FC = () => {
                 >
                   {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   <span>{createMutation.isPending ? 'Submitting...' : 'Submit Request'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 10. Grant Manual Holiday Modal (HR & Admin) */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+          <div className="pp-card w-full max-w-lg bg-[var(--color-bg-base)] border border-[var(--color-border)] shadow-xl rounded-[8px] p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-[rgba(113,72,103,0.1)] flex items-center justify-center text-[var(--color-primary)]">
+                  <Calendar className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--color-text-heading)] mb-0">
+                    Grant Manual Holiday
+                  </h3>
+                  <p className="text-[11px] text-[var(--color-text-muted)] mb-0">
+                    Directly grant an approved holiday even if leave balance is fully consumed.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManualModalOpen(false)}
+                className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] rounded cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-2.5 rounded-[6px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-xs flex items-start gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-500" />
+              <span>
+                <strong>Zero-balance override active:</strong> If this employee has 0 remaining days for the selected leave type, the system automatically expands the quota and immediately approves the holiday.
+              </span>
+            </div>
+
+            <form onSubmit={handleGrantManualHoliday} className="space-y-3.5">
+              {/* Employee Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                  Select Employee <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={manualEmployeeId}
+                  onChange={(e) => setManualEmployeeId(e.target.value)}
+                  className="pp-input text-xs w-full"
+                  required
+                >
+                  {employeesList.map((emp: any) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                    </option>
+                  ))}
+                  {employeesList.length === 0 && (
+                    <option value="">No employees found</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Leave Type Selector */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                  Leave / Holiday Type <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={manualTypeId || (leaveTypes[0]?.id ?? '')}
+                  onChange={(e) => setManualTypeId(e.target.value)}
+                  className="pp-input text-xs w-full"
+                  required
+                >
+                  {leaveTypes.map((type: any) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} {type.unit ? `(${type.unit})` : ''}
+                    </option>
+                  ))}
+                  {leaveTypes.length === 0 && (
+                    <option value="">No leave types configured</option>
+                  )}
+                </select>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                    Start Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={manualStartDate}
+                    onChange={(e) => {
+                      setManualStartDate(e.target.value)
+                      if (manualEndDate < e.target.value) {
+                        setManualEndDate(e.target.value)
+                      }
+                    }}
+                    className="pp-input text-xs w-full"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                    End Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    min={manualStartDate}
+                    value={manualEndDate}
+                    onChange={(e) => setManualEndDate(e.target.value)}
+                    className="pp-input text-xs w-full"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Half-Day Option */}
+              <div className="p-3 bg-[var(--color-bg-muted)] rounded-[6px] space-y-2 border border-[var(--color-border)]">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="manualHalfDay" className="text-xs font-semibold text-[var(--color-text-heading)] cursor-pointer flex items-center gap-2">
+                    <input
+                      id="manualHalfDay"
+                      type="checkbox"
+                      checked={manualHalfDay}
+                      onChange={(e) => setManualHalfDay(e.target.checked)}
+                      className="rounded border-[var(--color-border)] text-[var(--color-primary)] focus:ring-[var(--color-primary)] cursor-pointer"
+                    />
+                    <span>Grant as Half Day (0.5 Day)</span>
+                  </label>
+                  {manualHalfDay && (
+                    <span className="text-[10px] font-bold text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)] px-1.5 py-0.5 rounded">
+                      0.5 Day
+                    </span>
+                  )}
+                </div>
+
+                {manualHalfDay && (
+                  <div className="flex items-center gap-4 pt-1 pl-5">
+                    <label className="text-xs flex items-center gap-1.5 cursor-pointer text-[var(--color-text-heading)]">
+                      <input
+                        type="radio"
+                        name="manualPeriod"
+                        value="am"
+                        checked={manualHalfDayPeriod === 'am'}
+                        onChange={() => setManualHalfDayPeriod('am')}
+                        className="text-[var(--color-primary)]"
+                      />
+                      <span>AM (First Half)</span>
+                    </label>
+                    <label className="text-xs flex items-center gap-1.5 cursor-pointer text-[var(--color-text-heading)]">
+                      <input
+                        type="radio"
+                        name="manualPeriod"
+                        value="pm"
+                        checked={manualHalfDayPeriod === 'pm'}
+                        onChange={() => setManualHalfDayPeriod('pm')}
+                        className="text-[var(--color-primary)]"
+                      />
+                      <span>PM (Second Half)</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* Reason / Notes */}
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                  Reason / Notes
+                </label>
+                <textarea
+                  value={manualReason}
+                  onChange={(e) => setManualReason(e.target.value)}
+                  placeholder="e.g. Special management exemption, compensatory holiday, festival grant..."
+                  className="pp-input text-xs w-full h-20 resize-none"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-border)]">
+                <button
+                  type="button"
+                  onClick={() => setIsManualModalOpen(false)}
+                  className="pp-btn-secondary text-xs py-2 px-3.5 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  className="pp-btn-primary text-xs py-2 px-4 cursor-pointer flex items-center gap-1.5"
+                >
+                  {createMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Granting Holiday...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Grant Holiday</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

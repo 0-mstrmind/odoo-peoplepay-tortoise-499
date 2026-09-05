@@ -43,6 +43,7 @@ export const createRequestSchema = z.object({
   halfDay: z.boolean().default(false),
   halfDayPeriod: z.enum(["am", "pm"]).optional(),
   reason: z.string().optional(),
+  isManualHoliday: z.boolean().optional().default(false),
 });
 
 export const updateRequestSchema = z.object({

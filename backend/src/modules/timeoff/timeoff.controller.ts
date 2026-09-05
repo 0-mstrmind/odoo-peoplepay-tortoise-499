@@ -149,6 +149,24 @@ export const createTimeOffRequest = CatchAsync(async (req: Request, res: Respons
       throw new ApiError(StatusCodes.FORBIDDEN, "No employee record associated with this user account");
     }
     req.body.employeeId = userEmployeeId;
+    req.body.isManualHoliday = false;
+  }
+
+  const isHrOrAdmin = ["admin", "super_admin", "hr_manager", "hr_payroll_manager"].includes(userRole || "");
+
+  // HR Managers cannot submit personal time off requests
+  if ((userRole === "hr_manager" || userRole === "hr_payroll_manager") && !req.body.isManualHoliday) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "HR managers cannot submit time off requests.");
+  }
+
+  // If manual holiday is specified, ensure user is HR or Admin, and target employee is provided
+  if (req.body.isManualHoliday) {
+    if (!isHrOrAdmin) {
+      throw new ApiError(StatusCodes.FORBIDDEN, "Only HR managers and Administrators can grant manual holidays.");
+    }
+    if (!req.body.employeeId) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Employee ID is required to grant a manual holiday.");
+    }
   }
 
   const result = await createRequestService(req.body, userId, req.user?.companyId);
