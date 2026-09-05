@@ -10,6 +10,7 @@ import {
   createAttendanceSchema,
   updateAttendanceSchema,
   queryAttendanceSchema,
+  todayAttendanceSummarySchema,
 } from "./attendance.validation.js";
 import {
   checkInService,
@@ -18,6 +19,7 @@ import {
   approveAttendanceRequestService,
   refuseAttendanceRequestService,
   listAttendancesService,
+  getTodayAttendanceSummaryService,
   getAttendanceByIdService,
   createAttendanceService,
   updateAttendanceService,
@@ -210,8 +212,17 @@ export const refuseAttendanceRequest = CatchAsync(async (req: Request, res: Resp
  */
 export const getAttendances = CatchAsync(async (req: Request, res: Response) => {
   const query = queryAttendanceSchema.parse(req.query);
-  const result = await listAttendancesService(query, req.user?.companyId);
+  const result = await listAttendancesService(query, req.user, req.user?.companyId);
   sendResponse(res, StatusCodes.OK, "Attendances fetched successfully", result);
+});
+
+/**
+ * 6B. Get Today Attendance Summary (Present vs Absent Breakdown)
+ */
+export const getTodayAttendanceSummary = CatchAsync(async (req: Request, res: Response) => {
+  const query = todayAttendanceSummarySchema.parse(req.query);
+  const result = await getTodayAttendanceSummaryService(query, req.user, req.user?.companyId);
+  sendResponse(res, StatusCodes.OK, "Today's attendance summary fetched successfully", result);
 });
 
 /**

@@ -12,6 +12,14 @@ export const loginService = async (email: string, password: string) => {
       email: { equals: normalizedEmail, mode: "insensitive" },
       deletedAt: null,
     },
+    include: {
+      linkedEmployee: {
+        select: { id: true, firstName: true, lastName: true, employeeCode: true, departmentId: true },
+      },
+      employeeProfile: {
+        select: { id: true, firstName: true, lastName: true, employeeCode: true, departmentId: true },
+      },
+    },
   });
 
   if (!user) {
@@ -43,13 +51,19 @@ export const loginService = async (email: string, password: string) => {
     data: { lastLoginAt: new Date() },
   });
 
+  const emp = user.linkedEmployee || user.employeeProfile;
+  const name = emp ? `${emp.firstName} ${emp.lastName}` : user.email.split("@")[0];
+
   return {
     accessToken,
     user: {
       id: user.id,
       email: user.email,
+      name,
       role: user.role,
       companyId: user.companyId,
+      employeeId: user.employeeId || emp?.id || null,
+      departmentId: emp?.departmentId || null,
     },
   };
 };

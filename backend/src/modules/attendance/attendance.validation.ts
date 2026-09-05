@@ -62,9 +62,17 @@ export const updateAttendanceSchema = z.object({
 
 export const queryAttendanceSchema = z.object({
   employeeId: z.string().uuid().optional(),
+  departmentId: z.string().uuid().optional(),
+  managerId: z.string().uuid().optional(),
+  hrAllotted: z
+    .string()
+    .optional()
+    .transform((val) => (val === "true" ? true : val === "false" ? false : undefined)),
+  date: z.string().regex(dateRegex, "Date must be YYYY-MM-DD format").optional(),
   startDate: z.string().regex(dateRegex).optional(),
   endDate: z.string().regex(dateRegex).optional(),
   status: z.string().optional(),
+  search: z.string().optional(),
   isCorrected: z
     .string()
     .optional()
@@ -79,6 +87,17 @@ export const queryAttendanceSchema = z.object({
     .transform((val) => (val ? Math.min(100, Math.max(1, parseInt(val, 10))) : 50)),
 });
 
+export const todayAttendanceSummarySchema = z.object({
+  departmentId: z.string().uuid().optional(),
+  managerId: z.string().uuid().optional(),
+  hrAllotted: z
+    .string()
+    .optional()
+    .transform((val) => (val === "true" ? true : val === "false" ? false : undefined)),
+  date: z.string().regex(dateRegex, "Date must be YYYY-MM-DD format").optional(),
+  search: z.string().optional(),
+});
+
 export type CheckInInput = z.infer<typeof checkInSchema>;
 export type CheckOutInput = z.infer<typeof checkOutSchema>;
 export type CreateAttendanceRequestInput = z.infer<typeof createAttendanceRequestSchema>;
@@ -86,3 +105,5 @@ export type ReviewAttendanceRequestInput = z.infer<typeof reviewAttendanceReques
 export type CreateAttendanceInput = z.infer<typeof createAttendanceSchema>;
 export type UpdateAttendanceInput = z.infer<typeof updateAttendanceSchema>;
 export type QueryAttendanceInput = z.infer<typeof queryAttendanceSchema>;
+export type TodayAttendanceSummaryInput = z.infer<typeof todayAttendanceSummarySchema>;
+
