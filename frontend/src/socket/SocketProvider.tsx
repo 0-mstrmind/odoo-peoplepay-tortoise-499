@@ -261,7 +261,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const sendCheck = useCallback((message = 'Manual ping from UI') => {
     if (socket && isConnected) {
-      socket.emit('client:check', { message }, (res) => {
+      socket.emit('client:check', { message }, (res: any) => {
         toast.success('WebSocket Connection Healthy', {
           description: typeof res === 'object' && res !== null ? 'Echo received from backend server' : 'Connected',
         })
