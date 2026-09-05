@@ -354,7 +354,7 @@ model TimeOffAllocation {
   remaining     Decimal   @db.Decimal(7, 2)
   validFrom     DateTime? @map("valid_from") @db.Date
   validTo       DateTime? @map("valid_to") @db.Date
-  status        String    @default("draft") @db.VarChar(30) // draft | pending_approval | approved | refused | expired
+  status        String    @default("pending") @db.VarChar(30) // pending | approved | refused | draft | expired
   approvedBy    String?   @map("approved_by") @db.Uuid
   approvedAt    DateTime? @map("approved_at") @db.Timestamptz
   notes         String?   @db.Text
@@ -385,7 +385,7 @@ model TimeOffRequest {
   duration      Decimal   @db.Decimal(7, 2)
   halfDay       Boolean   @default(false) @map("half_day")
   halfDayPeriod String?   @map("half_day_period") @db.VarChar(10)
-  status        String    @default("draft") @db.VarChar(30) // draft | pending | approved | refused | cancelled
+  status        String    @default("pending") @db.VarChar(30) // pending | approved | refused | draft | cancelled
   reason        String?   @db.Text
   approvedBy    String?   @map("approved_by") @db.Uuid
   approvedAt    DateTime? @map("approved_at") @db.Timestamptz

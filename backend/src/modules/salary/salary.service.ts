@@ -454,8 +454,51 @@ export const computePayslipEngine = async (
     throw new ApiError(StatusCodes.BAD_REQUEST, "Salary structure has no active rules configured");
   }
 
+  // Calculate period calendar days and time-off leave days
+  const periodStart = new Date(period.periodStart);
+  const periodEnd = new Date(period.periodEnd);
+  const totalPeriodDays =
+    Math.floor(Math.abs(periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+  const approvedRequests = await prisma.timeOffRequest.findMany({
+    where: {
+      employeeId,
+      status: "approved",
+      deletedAt: null,
+      AND: [{ startDate: { lte: periodEnd } }, { endDate: { gte: periodStart } }],
+    },
+    include: {
+      timeOffType: true,
+    },
+  });
+
+  let leaveDays = 0;
+  let unpaidLeaveDays = 0;
+
+  for (const req of approvedRequests) {
+    const reqStart = new Date(req.startDate);
+    const reqEnd = new Date(req.endDate);
+
+    const overlapStart = reqStart < periodStart ? periodStart : reqStart;
+    const overlapEnd = reqEnd > periodEnd ? periodEnd : reqEnd;
+    const overlapDays =
+      Math.floor(Math.abs(overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    leaveDays += overlapDays;
+    if (req.timeOffType.payrollIntegration) {
+      unpaidLeaveDays += overlapDays;
+    }
+  }
+
+  const workedDays = Math.max(0, totalPeriodDays - unpaidLeaveDays);
+
   // Initialize computation context
-  const context: Record<string, number> = {};
+  const context: Record<string, number> = {
+    TOTAL_DAYS: totalPeriodDays,
+    WORKED_DAYS: workedDays,
+    LEAVE_DAYS: leaveDays,
+    UNPAID_LEAVE_DAYS: unpaidLeaveDays,
+  };
   const computedLines: {
     salaryRuleId: string;
     ruleCode: string;
@@ -563,6 +606,9 @@ export const computePayslipEngine = async (
       gross,
       totalDeductions,
       net,
+      workedDays,
+      leaveDays,
+      unpaidLeaveDays,
     },
     lines: computedLines,
     context,

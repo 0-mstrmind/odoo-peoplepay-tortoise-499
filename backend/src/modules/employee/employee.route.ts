@@ -23,6 +23,7 @@ import {
 } from "./employee.controller.js";
 import { clerkAuthMiddleware } from "../../core/middlewares/clerk.middleware.js";
 import { requireRole } from "../../core/middlewares/rbac.middleware.js";
+import { getEmployeeLeaveBalances } from "../timeoff/timeoff.controller.js";
 
 const router = Router();
 
@@ -49,6 +50,7 @@ router.patch("/:id/role", clerkAuthMiddleware, requireRole("admin"), updateEmplo
 router.get("/:id/contracts", clerkAuthMiddleware, getEmployeeContracts);
 router.get("/:id/attendances", clerkAuthMiddleware, getEmployeeAttendances);
 router.get("/:id/time-off", clerkAuthMiddleware, getEmployeeTimeOff);
+router.get("/:id/leave-balances", clerkAuthMiddleware, getEmployeeLeaveBalances);
 router.get("/:id/payslips", clerkAuthMiddleware, getEmployeePayslips);
 
 // 6. Bank Account management
