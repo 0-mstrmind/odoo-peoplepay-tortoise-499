@@ -288,6 +288,19 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <button
                   type="button"
+                  title="Open Admin User Access & Management Portal"
+                  onClick={() => {
+                    setOpenDropdown(null)
+                    onNavigate?.('User Management')
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-primary)] hover:bg-[rgba(113,72,103,0.08)] font-semibold cursor-pointer flex items-center justify-between border-b border-[var(--color-border)]"
+                >
+                  <span>User Management Portal</span>
+                  <span className="text-[10px] uppercase font-bold bg-[var(--color-primary-light)] px-1.5 py-0.5 rounded">Admin</span>
+                </button>
+
+                <button
+                  type="button"
                   title="Open Authentication & Tenant Registration Page"
                   onClick={() => {
                     setOpenDropdown(null)
