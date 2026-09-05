@@ -111,6 +111,11 @@ export const listEmployeesService = async (
     where.employeeType = employeeType;
   }
 
+  if (query.withoutUser) {
+    where.userId = null;
+    where.usersWithEmployeeLink = { none: {} };
+  }
+
   if (search && search.trim()) {
     const s = search.trim();
     where.OR = [

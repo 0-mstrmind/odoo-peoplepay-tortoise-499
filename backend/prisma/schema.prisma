@@ -52,17 +52,17 @@ model Company {
 }
 
 /// User account for system access.
-/// Role values: employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
+/// Role values: EMPLOYEE | HR_MANAGER | HR_PAYROLL_USER | HR_PAYROLL_MANAGER | ADMIN
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   clerkUserId  String?   @unique @map("clerk_user_id") @db.VarChar(255)
   companyId    String?   @map("company_id") @db.Uuid
-  email        String    @db.VarChar(255)
+  email        String    @unique @db.VarChar(255)
   passwordHash String?   @map("password_hash") @db.VarChar(255)
-  role         String    @default("employee") @db.VarChar(50) // employee | hr_manager | hr_payroll_user | hr_payroll_manager | admin
+  role         String    @default("EMPLOYEE") @db.VarChar(50) // EMPLOYEE | HR_MANAGER | HR_PAYROLL_USER | HR_PAYROLL_MANAGER | ADMIN
   isActive     Boolean   @default(true) @map("is_active")
   lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz
-  employeeId   String?   @map("employee_id") @db.Uuid
+  employeeId   String?   @unique @map("employee_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
