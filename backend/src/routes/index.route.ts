@@ -11,6 +11,7 @@ import {
   timeOffRequestRouter,
   timeOffTypeRouter,
 } from "../modules/timeoff/timeoff.route.js";
+import attendanceRoutes from "../modules/attendance/attendance.route.js";
 
 /* <NEATNODE_IMPORTS> */
 // Reserved for NeatNode file generation. Do not remove or modify.
@@ -27,6 +28,7 @@ router.use("/dashboard", dashboardRoutes);
 router.use("/time-off-types", timeOffTypeRouter);
 router.use("/time-off-allocations", timeOffAllocationRouter);
 router.use("/time-off-requests", timeOffRequestRouter);
+router.use("/attendances", attendanceRoutes);
 
 /* <NEATNODE_ROUTES> */
 // Reserved for NeatNode file generation. Do not remove or modify.
