@@ -1,9 +1,11 @@
-import mongoose from "mongoose";
-
-import { env } from "./env.js";
+import { prisma } from "./prisma.js";
 import { logger } from "./logger.js";
 
 export const connectDB = async (): Promise<void> => {
-  await mongoose.connect(env.MONGODB_URI);
-  logger.info("MongoDB connected");
+  try {
+    await prisma.$connect();
+    logger.info("PostgreSQL (Prisma) connected");
+  } catch (error) {
+    logger.warn("PostgreSQL database connection issue:", error);
+  }
 };
