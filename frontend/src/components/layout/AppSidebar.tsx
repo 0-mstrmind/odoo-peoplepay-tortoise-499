@@ -381,10 +381,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
               <button
                 type="button"
-                onClick={() => navigate('/contracts?tab=pending')}
+                onClick={() => navigate('/contracts?status=draft')}
                 title="Admin Contract Approvals Portal"
                 className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isContracts && search.includes('tab=pending')
+                  isContracts && (search.includes('status=draft') || search.includes('tab=pending'))
                     ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                     : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                 }`}

@@ -1057,7 +1057,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     )}
                     <button
                       type="button"
-                      onClick={() => navigate('/contracts?tab=pending')}
+                      onClick={() => navigate('/contracts?status=draft')}
                       className="text-xs text-[var(--color-primary)] hover:underline font-semibold cursor-pointer"
                     >
                       Manage in Contracts &rarr;

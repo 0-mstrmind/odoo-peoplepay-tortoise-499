@@ -38,9 +38,27 @@ export const ContractsView: React.FC = () => {
   const canActivate = role === 'admin' || role === 'super_admin' || role === 'hr_payroll_manager'
 
   const [searchParams, setSearchParams] = useSearchParams()
-  const activeTab = searchParams.get('tab') || 'contracts'
+  const tabParam = searchParams.get('tab')
+  const statusParam = searchParams.get('status')
+  const activeTab = !tabParam || tabParam === 'pending' ? 'contracts' : tabParam
+
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    if (statusParam) return statusParam
+    if (tabParam === 'pending') return 'draft'
+    return 'all'
+  })
+
+  React.useEffect(() => {
+    const s = searchParams.get('status')
+    const t = searchParams.get('tab')
+    if (s) {
+      setStatusFilter(s)
+    } else if (t === 'pending') {
+      setStatusFilter('draft')
+    }
+  }, [searchParams])
+
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isCreateStructureModalOpen, setIsCreateStructureModalOpen] = useState(false)
   const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false)
@@ -82,27 +100,23 @@ export const ContractsView: React.FC = () => {
     }
   }
 
-  const { data: contracts = [], isLoading: isLoadingContracts } = useContracts({
-    status: statusFilter !== 'all' ? statusFilter : undefined,
-    search: search ? search : undefined,
-  })
+  const { data: contracts = [], isLoading: isLoadingContracts } = useContracts()
 
   const { data: salaryStructures = [], isLoading: isLoadingStructures } = useSalaryStructures()
   const { data: workingSchedules = [], isLoading: isLoadingSchedules } = useWorkingSchedules()
 
-  // Filtered contracts on client side if search is typed
+  // Filtered contracts on client side
   const filteredContracts = contracts.filter((c) => {
     const ref = c.contractReference || ''
     const empName = c.employee ? `${c.employee.firstName} ${c.employee.lastName}` : ''
     const dept = c.department?.name || ''
+    const job = c.jobPosition?.title || ''
     const matchesSearch =
+      !search ||
       empName.toLowerCase().includes(search.toLowerCase()) ||
       ref.toLowerCase().includes(search.toLowerCase()) ||
-      dept.toLowerCase().includes(search.toLowerCase())
-
-    if (activeTab === 'pending') {
-      return matchesSearch && c.status === 'draft'
-    }
+      dept.toLowerCase().includes(search.toLowerCase()) ||
+      job.toLowerCase().includes(search.toLowerCase())
 
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter
     return matchesSearch && matchesStatus
@@ -129,21 +143,27 @@ export const ContractsView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setIsCreateModalOpen(true)}
-          className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Contract</span>
-        </button>
+        {/* Create Contract button is ONLY displayed on All Contracts tab */}
+        {activeTab === 'contracts' && (
+          <button
+            type="button"
+            onClick={() => setIsCreateModalOpen(true)}
+            className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Contract</span>
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="border-b border-[var(--color-border)] flex items-center gap-2">
         <button
           type="button"
-          onClick={() => setSearchParams({})}
+          onClick={() => {
+            setSearchParams({})
+            setStatusFilter('all')
+          }}
           className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer ${
             activeTab === 'contracts'
               ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
@@ -151,23 +171,6 @@ export const ContractsView: React.FC = () => {
           }`}
         >
           All Contracts
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSearchParams({ tab: 'pending' })}
-          className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
-            activeTab === 'pending'
-              ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
-              : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
-          }`}
-        >
-          <span>Pending Approval</span>
-          {draftContractsCount > 0 && (
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
-              {draftContractsCount}
-            </span>
-          )}
         </button>
 
         {isPayrollUser && (
@@ -196,27 +199,55 @@ export const ContractsView: React.FC = () => {
         </button>
       </div>
 
-      {/* Tab 1: Contracts List (All Contracts & Pending Approval) */}
-      {(activeTab === 'contracts' || activeTab === 'pending') && (
+      {/* Tab 1: Contracts List (All Contracts & Pending Approval inside) */}
+      {activeTab === 'contracts' && (
         <div className="space-y-4">
           {draftContractsCount > 0 && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span className="font-semibold text-amber-900 dark:text-amber-200">
-                  {draftContractsCount} contract{draftContractsCount === 1 ? '' : 's'} submitted by HR Manager{draftContractsCount === 1 ? '' : 's'} pending admin approval.
+                  {draftContractsCount} contract{draftContractsCount === 1 ? '' : 's'} pending approval.
                 </span>
               </div>
-              {canActivate && (
-                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                  Click &quot;Approve&quot; in the table to activate.
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {statusFilter !== 'draft' ? (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('draft')}
+                    className="text-xs font-bold text-amber-800 dark:text-amber-300 underline hover:no-underline cursor-pointer"
+                  >
+                    Filter Pending Approval ({draftContractsCount})
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter('all')}
+                    className="text-xs font-bold text-amber-800 dark:text-amber-300 underline hover:no-underline cursor-pointer"
+                  >
+                    Show All Contracts
+                  </button>
+                )}
+                {canActivate && (
+                  <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                    Click &quot;Approve&quot; below to activate.
+                  </span>
+                )}
+              </div>
             </div>
           )}
+
           {/* Metrics summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="pp-card p-4 flex items-center gap-3">
+            <div
+              onClick={() => setStatusFilter(statusFilter === 'active' ? 'all' : 'active')}
+              className={`pp-card p-4 flex items-center gap-3 cursor-pointer transition-all ${
+                statusFilter === 'active'
+                  ? 'ring-2 ring-[#00C853] bg-[#00C853]/10'
+                  : 'hover:border-[#00C853]/50'
+              }`}
+              title="Click to filter Active contracts"
+            >
               <div className="w-10 h-10 rounded-lg bg-[rgba(0,200,83,0.12)] text-[#00C853] flex items-center justify-center font-bold">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
@@ -226,12 +257,20 @@ export const ContractsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="pp-card p-4 flex items-center gap-3">
+            <div
+              onClick={() => setStatusFilter(statusFilter === 'draft' ? 'all' : 'draft')}
+              className={`pp-card p-4 flex items-center gap-3 cursor-pointer transition-all ${
+                statusFilter === 'draft'
+                  ? 'ring-2 ring-amber-500 bg-amber-500/10'
+                  : 'hover:border-amber-400/50'
+              }`}
+              title="Click to filter Pending Approval contracts"
+            >
               <div className="w-10 h-10 rounded-lg bg-[rgba(255,170,0,0.12)] text-[#FFAA00] flex items-center justify-center font-bold">
                 <Clock className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-[11px] text-[var(--color-text-muted)] font-medium">Draft Contracts</p>
+                <p className="text-[11px] text-[var(--color-text-muted)] font-medium">Pending Approval</p>
                 <p className="text-lg font-extrabold text-[var(--color-text-heading)]">{draftContractsCount}</p>
               </div>
             </div>
@@ -247,20 +286,71 @@ export const ContractsView: React.FC = () => {
             </div>
           </div>
 
-          {/* Search & Filters */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
-              <input
-                type="text"
-                placeholder="Search contracts by employee or ref..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pp-input pl-9 text-xs w-full"
-              />
+          {/* Quick Filter Pills & Search */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            {/* Quick Filter Pills inside All Contracts */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-[6px] transition-colors cursor-pointer whitespace-nowrap ${
+                  statusFilter === 'all'
+                    ? 'bg-[var(--color-primary)] text-white shadow-xs'
+                    : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+                }`}
+              >
+                All ({contracts.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('draft')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  statusFilter === 'draft'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] hover:text-amber-600'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Pending Approval</span>
+                {draftContractsCount > 0 && (
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                      statusFilter === 'draft' ? 'bg-white text-amber-700' : 'bg-amber-500 text-white'
+                    }`}
+                  >
+                    {draftContractsCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                  statusFilter === 'active'
+                    ? 'bg-[#00C853] text-white shadow-xs'
+                    : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] hover:text-[#00C853]'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Active ({activeContractsCount})</span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-auto">
+            {/* Search input & Select */}
+            <div className="flex items-center gap-2">
+              <div className="relative w-full sm:w-60">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
+                <input
+                  type="text"
+                  placeholder="Search contracts..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pp-input pl-9 text-xs w-full"
+                />
+              </div>
+
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
