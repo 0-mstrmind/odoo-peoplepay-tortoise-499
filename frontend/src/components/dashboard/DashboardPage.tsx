@@ -4,6 +4,7 @@ import {
   ShieldCheck,
   CheckCircle2,
   Clock,
+  Calendar,
   ArrowRight,
   UserPlus,
   Zap,
@@ -257,8 +258,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </span>
                   </div>
                   <div className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-3">
-                    <span>📅 {req.dates}</span>
-                    <span>⏳ {req.duration}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                      {req.dates}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                      {req.duration}
+                    </span>
                   </div>
                 </div>
 

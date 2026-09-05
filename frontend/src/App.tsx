@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Toaster, toast } from 'sonner'
-import { Users, ShieldCheck, LogOut, Lock, LayoutDashboard } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import './App.css'
-import { Navbar } from './components/layout/Navbar'
+import { AppSidebar } from './components/layout/AppSidebar'
+import { AppHeader } from './components/layout/AppHeader'
 import { DashboardPage } from './components/dashboard/DashboardPage'
 import { EmployeesPage } from './components/employees/EmployeesPage'
 import { UserManagementView } from './components/auth/UserManagementView'
@@ -15,8 +16,9 @@ function App() {
   const user = useAuthUser()
   const logout = useAuthStore((s) => s.logout)
 
-  const [activeNav, setActiveNav] = useState('Dashboard')
-  const [currentView, setCurrentView] = useState<'dashboard' | 'employees' | 'user-management' | 'auth'>('dashboard')
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [currentView, setCurrentView] = useState<string>('dashboard')
+  const [activeSubItem, setActiveSubItem] = useState<string | undefined>(undefined)
 
   // Auto-redirect admin to User Management upon login or session start
   useEffect(() => {
@@ -24,13 +26,11 @@ function App() {
       const isAdmin = user.role === 'admin' || user.role === 'super_admin'
       if (isAdmin && currentView === 'auth') {
         setCurrentView('user-management')
-        setActiveNav('User Management')
         toast.success(`Welcome back, ${user.name || user.email}!`, {
           description: 'Navigated to Admin User Management Portal.',
         })
       } else if (!isAdmin && currentView === 'auth') {
         setCurrentView('dashboard')
-        setActiveNav('Dashboard')
       }
     } else {
       setCurrentView('auth')
@@ -48,6 +48,18 @@ function App() {
     return () => window.removeEventListener('pp:unauthorized', handleUnauthorized)
   }, [logout])
 
+  // Keyboard shortcut (Ctrl+B / Cmd+B) to toggle sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        setIsSidebarCollapsed((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
   // 1. ROUTE PROTECTION: If user is not logged in -> Show Login Page
   if (!isAuthed || !user || currentView === 'auth') {
     return (
@@ -56,7 +68,13 @@ function App() {
           <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setCurrentView(user.role === 'admin' || user.role === 'super_admin' ? 'user-management' : 'dashboard')}
+              onClick={() =>
+                setCurrentView(
+                  user.role === 'admin' || user.role === 'super_admin'
+                    ? 'user-management'
+                    : 'dashboard'
+                )
+              }
               className="pp-btn-secondary text-xs px-3 py-1.5 shadow-xs cursor-pointer"
             >
               Go to Workspace &rarr;
@@ -69,11 +87,9 @@ function App() {
             const currentUser = useAuthStore.getState().user
             if (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') {
               setCurrentView('user-management')
-              setActiveNav('User Management')
               toast.success('Admin login successful! Accessing User Management.')
             } else {
               setCurrentView('dashboard')
-              setActiveNav('Dashboard')
               toast.success('Signed in successfully!')
             }
           }}
@@ -84,37 +100,23 @@ function App() {
   }
 
   // 2. Navigation Handler
-  const handleNavigate = (item: string) => {
-    const mainItem = item.split(' / ')[0]
-    setActiveNav(mainItem)
+  const handleNavigate = (view: string, subItem?: string) => {
+    setCurrentView(view)
+    setActiveSubItem(subItem)
 
-    if (item === 'Sign Out') {
-      logout()
-      setCurrentView('auth')
-      toast.info('Signed out successfully')
-      return
-    }
-    if (item === 'Auth / Setup' || item === 'Sign In / Register') {
-      setCurrentView('auth')
-      return
-    }
-    if (item === 'User Management' || mainItem === 'User Management') {
-      setCurrentView('user-management')
-      return
-    }
-    if (mainItem === 'Dashboard') {
-      setCurrentView('dashboard')
-      return
-    }
-    if (mainItem === 'Employees') {
-      setCurrentView('employees')
+    if (view === 'user-management' && user.role !== 'admin' && user.role !== 'super_admin') {
+      toast.error('Access Restricted', {
+        description: 'User Management portal is restricted to Administrators only.',
+      })
       return
     }
 
-    toast.info(`Navigated to ${item}`, {
-      description: 'Module views are linked to PeoplePay360 ERP.',
-      duration: 2500,
-    })
+    if (subItem) {
+      toast.info(`Navigated to ${view} / ${subItem}`, {
+        description: 'PeoplePay360 Multi-Tenant HR & Payroll Module.',
+        duration: 2000,
+      })
+    }
   }
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin'
@@ -125,7 +127,12 @@ function App() {
       case 'dashboard':
         return (
           <ProtectedRoute onAccessDeniedReturn={() => setCurrentView('dashboard')}>
-            <DashboardPage onNavigateToEmployees={() => { setCurrentView('employees'); setActiveNav('Employees'); }} />
+            <DashboardPage
+              onNavigateToEmployees={() => {
+                setCurrentView('employees')
+                setActiveSubItem('All Employees')
+              }}
+            />
           </ProtectedRoute>
         )
       case 'user-management':
@@ -136,11 +143,16 @@ function App() {
             <div className="w-12 h-12 rounded-full bg-[var(--color-danger-bg)] text-[var(--color-danger)] flex items-center justify-center mx-auto">
               <Lock className="w-6 h-6" />
             </div>
-            <h2 className="text-lg font-bold text-[var(--color-text-heading)]">Admin Access Restricted</h2>
+            <h2 className="text-lg font-bold text-[var(--color-text-heading)]">
+              Admin Access Restricted
+            </h2>
             <p className="text-xs text-[var(--color-text-muted)]">
               The User Management Portal requires Administrator role permissions.
             </p>
-            <button onClick={() => setCurrentView('employees')} className="pp-btn-primary text-xs py-2 px-4">
+            <button
+              onClick={() => setCurrentView('employees')}
+              className="pp-btn-primary text-xs py-2 px-4"
+            >
               Return to Employee Master
             </button>
           </div>
@@ -148,7 +160,10 @@ function App() {
       case 'employees':
       default:
         return (
-          <ProtectedRoute allowedRoles={['admin', 'super_admin', 'hr_manager', 'payroll_manager']} onAccessDeniedReturn={() => setCurrentView('dashboard')}>
+          <ProtectedRoute
+            allowedRoles={['admin', 'super_admin', 'hr_manager', 'payroll_manager']}
+            onAccessDeniedReturn={() => setCurrentView('dashboard')}
+          >
             <EmployeesPage />
           </ProtectedRoute>
         )
@@ -156,10 +171,13 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[var(--color-bg-base)]">
-      {/* Top Navbar */}
-      <Navbar
-        activeItem={activeNav}
+    <div className="min-h-screen bg-[var(--color-bg-base)] flex flex-col">
+      {/* Shadcn UI Sidebar Navigation */}
+      <AppSidebar
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+        currentView={currentView}
+        activeSubItem={activeSubItem}
         onNavigate={handleNavigate}
         user={user}
         onSignOut={() => {
@@ -170,83 +188,25 @@ function App() {
         onOpenAuth={() => setCurrentView('auth')}
       />
 
-      {/* Module Switcher Bar */}
-      <div className="bg-[var(--color-bg-surface)] border-b border-[var(--color-border)] py-2.5 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                setCurrentView('dashboard')
-                setActiveNav('Dashboard')
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold cursor-pointer transition-colors ${
-                currentView === 'dashboard'
-                  ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                  : 'bg-[var(--color-bg-base)] text-[var(--color-text-body)] border border-[var(--color-border)] hover:bg-[var(--color-bg-muted)]'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>Dashboard</span>
-            </button>
+      {/* Main Content Area offset by Sidebar width */}
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 ease-in-out ${
+          isSidebarCollapsed ? 'pl-16' : 'pl-64'
+        }`}
+      >
+        {/* Top Header Bar */}
+        <AppHeader
+          onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
+          currentView={currentView}
+          activeSubItem={activeSubItem}
+          user={user}
+        />
 
-            <button
-              onClick={() => {
-                setCurrentView('employees')
-                setActiveNav('Employees')
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold cursor-pointer transition-colors ${
-                currentView === 'employees'
-                  ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                  : 'bg-[var(--color-bg-base)] text-[var(--color-text-body)] border border-[var(--color-border)] hover:bg-[var(--color-bg-muted)]'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Employee Master</span>
-            </button>
-
-            <button
-              onClick={() => {
-                if (isAdmin) {
-                  setCurrentView('user-management')
-                  setActiveNav('User Management')
-                } else {
-                  toast.error('Access Restricted', {
-                    description: 'User Management portal is restricted to Administrators only.',
-                  })
-                }
-              }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold cursor-pointer transition-colors ${
-                currentView === 'user-management'
-                  ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                  : 'bg-[var(--color-bg-base)] text-[var(--color-text-body)] border border-[var(--color-border)] hover:bg-[var(--color-bg-muted)]'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>User Management {isAdmin ? '(Admin)' : '🔒'}</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline">
-              Tenant: <strong className="text-[var(--color-text-heading)]">{user.email}</strong>
-            </span>
-            <button
-              onClick={() => {
-                logout()
-                setCurrentView('auth')
-              }}
-              className="text-xs font-medium text-[var(--color-danger)] hover:underline cursor-pointer inline-flex items-center gap-1"
-            >
-              <LogOut className="w-3 h-3" />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </div>
+        {/* View Workspace Container */}
+        <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
+          {renderCurrentView()}
+        </main>
       </div>
-
-      <main className="flex-1 max-w-6xl mx-auto w-full p-4 sm:p-6 lg:p-8">
-        {renderCurrentView()}
-      </main>
 
       <Toaster position="top-right" richColors />
     </div>

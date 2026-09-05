@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { ClipboardList, KeyRound, Users } from 'lucide-react'
 import { LoginView } from './LoginView'
 import { UserManagementView } from './UserManagementView'
 import { useAuthStore } from '@/store/auth.store'
@@ -32,33 +33,36 @@ export const AuthFlowContainer: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2 bg-[#0e1017] p-1.5 rounded-xl border border-[#242838]">
           <button
             onClick={() => setViewMode('wireframe')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
               viewMode === 'wireframe'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            📋 Side-by-Side Wireframe
+            <ClipboardList className="w-3.5 h-3.5" />
+            <span>Side-by-Side Wireframe</span>
           </button>
           <button
             onClick={() => setViewMode('login')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
               viewMode === 'login'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            🔑 Live Login Portal
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>Live Login Portal</span>
           </button>
           <button
             onClick={() => setViewMode('admin')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5 ${
               viewMode === 'admin'
                 ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
                 : 'text-gray-400 hover:text-white'
             }`}
           >
-            👥 Live User Management
+            <Users className="w-3.5 h-3.5" />
+            <span>Live User Management</span>
           </button>
         </div>
       </div>
