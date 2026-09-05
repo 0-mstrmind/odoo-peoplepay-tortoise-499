@@ -13,6 +13,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({
 }) => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,50 +47,34 @@ export const LoginCard: React.FC<LoginCardProps> = ({
         }
         if (onLoginSuccess) onLoginSuccess()
       } else {
-        setError('Invalid response received from authentication server.')
+        setError('Invalid login response')
       }
     } catch (err: any) {
-      const msg =
-        err.response?.data?.message ||
-        err.message ||
-        'Authentication failed. Please verify your credentials.'
-      setError(msg)
+      if (!err.response) {
+        setError('Cannot connect to API server. Ensure backend dev server is running on port 3000.')
+      } else {
+        setError(err.response?.data?.message || 'Invalid email or password')
+      }
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="pp-card w-full max-w-md mx-auto shadow-md">
-      {/* Header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[var(--color-primary)]"></span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)]">
-            HR Portal Access
-          </span>
-        </div>
-        <h2 className="text-2xl font-bold text-[var(--color-text-heading)]">Sign In</h2>
-        <p className="text-sm text-[var(--color-text-muted)] mt-1">
-          Enter your work email and password to access your HR & Payroll workspace.
-        </p>
-      </div>
+    <div className="pp-card w-full max-w-sm mx-auto shadow-sm">
+      <h2 className="text-xl font-bold text-[var(--color-text-heading)] mb-4">Sign In</h2>
 
-      {/* Error Message */}
       {error && (
-        <div className="mb-4 p-3 rounded bg-[var(--color-danger-bg)] border border-[var(--color-danger)] text-xs text-[#a00020] flex items-center justify-between">
+        <div className="mb-4 p-2.5 rounded bg-[var(--color-danger-bg)] text-xs text-[#a00020] flex items-center justify-between font-medium">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="font-bold ml-2 text-sm">
-            ×
-          </button>
+          <button onClick={() => setError(null)} className="ml-2 font-bold text-sm">×</button>
         </div>
       )}
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         <div>
           <label className="block text-xs font-medium text-[var(--color-text-heading)] mb-1">
-            Work Email Address
+            Email
           </label>
           <input
             type="email"
@@ -102,49 +87,57 @@ export const LoginCard: React.FC<LoginCardProps> = ({
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-medium text-[var(--color-text-heading)]">
-              Password
-            </label>
-            <a
-              href="#forgot"
-              onClick={(e) => {
-                e.preventDefault()
-                alert('Please contact your administrator to reset your password.')
-              }}
-              className="text-xs font-medium text-[var(--color-primary)] hover:underline"
+          <label className="block text-xs font-medium text-[var(--color-text-heading)] mb-1">
+            Password
+          </label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="pp-input pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] p-1 rounded focus:outline-none"
+              title={showPassword ? 'Hide password' : 'Show password'}
             >
-              Forgot password?
-            </a>
+              {showPassword ? (
+                // Eye Off Icon
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.88 9.88a3 3 0 104.24 4.24M10.73 5.08A10.43 10.43 0 0112 5c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 01-4.24-4.24M3 3l18 18" />
+                </svg>
+              ) : (
+                // Eye Icon
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              )}
+            </button>
           </div>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••••••"
-            className="pp-input"
-          />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="pp-btn-primary w-full py-2.5 text-sm font-medium mt-2"
+          className="pp-btn-primary w-full py-2 text-sm font-medium mt-1"
         >
-          {loading ? 'Authenticating...' : 'Sign In'}
+          {loading ? 'Signing In...' : 'Sign In'}
         </button>
       </form>
 
-      {/* Switch to Company Creation */}
-      <div className="mt-6 pt-4 border-t border-[var(--color-border)] text-center text-xs text-[var(--color-text-muted)]">
-        Don't have an active company workspace?{' '}
+      <div className="mt-4 pt-3 border-t border-[var(--color-border)] text-center text-xs text-[var(--color-text-muted)]">
+        Need a new company workspace?{' '}
         <button
           type="button"
           onClick={onSwitchToCreateCompany}
           className="font-semibold text-[var(--color-primary)] hover:underline cursor-pointer ml-1"
         >
-          Register New Company
+          Register Company
         </button>
       </div>
     </div>
