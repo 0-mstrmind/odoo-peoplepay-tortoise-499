@@ -12,10 +12,11 @@ import { PayoutHistoryView } from './components/payroll/PayoutHistoryView'
 import { UserManagementView } from './components/auth/UserManagementView'
 import { AuthPage } from './components/auth/AuthPage'
 import { ProtectedRoute, PublicRoute } from './components/auth/ProtectedRoute'
+import { SocketProvider } from './socket/SocketProvider'
 
 function App() {
   return (
-    <>
+    <SocketProvider>
       <Routes>
         {/* Public Authentication Route */}
         <Route
@@ -126,7 +127,7 @@ function App() {
       </Routes>
 
       <Toaster position="top-right" richColors />
-    </>
+    </SocketProvider>
   )
 }
 

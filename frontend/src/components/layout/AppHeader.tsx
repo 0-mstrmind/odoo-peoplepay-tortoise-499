@@ -1,7 +1,8 @@
 import React from 'react'
 import { useLocation } from 'react-router-dom'
-import { PanelLeft, PanelLeftClose, ChevronRight, Building2, Bell, ShieldCheck } from 'lucide-react'
+import { PanelLeft, PanelLeftClose, ChevronRight, Building2, ShieldCheck } from 'lucide-react'
 import type { AuthUser } from '@/store/auth.store'
+import { NotificationDropdown } from './NotificationDropdown'
 
 export interface AppHeaderProps {
   isSidebarCollapsed?: boolean
@@ -108,14 +109,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
         )}
 
-        <button
-          type="button"
-          className="p-1.5 rounded-[6px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors cursor-pointer relative"
-          title="Notifications & System Logs"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-[#00C853] ring-2 ring-[var(--color-bg-base)]" />
-        </button>
+        <NotificationDropdown />
       </div>
     </header>
   )
