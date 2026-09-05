@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Bell, Building2, User } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import type { AuthUser } from '@/store/auth.store'
 
 export interface NavbarProps {
@@ -7,7 +8,6 @@ export interface NavbarProps {
   onNavigate?: (item: string) => void
   user?: AuthUser | null
   onSignOut?: () => void
-  onOpenAuth?: () => void
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -15,8 +15,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   user,
   onSignOut,
-  onOpenAuth,
 }) => {
+  const navigate = useNavigate()
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement>(null)
 
@@ -37,7 +37,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleItemClick = (parentName: string, subItem?: string) => {
     setOpenDropdown(null)
-    onNavigate?.(subItem ? `${parentName} / ${subItem}` : parentName)
+    if (onNavigate) {
+      onNavigate(subItem ? `${parentName} / ${subItem}` : parentName)
+    } else {
+      const lower = parentName.toLowerCase()
+      if (lower.includes('dash')) navigate('/dashboard')
+      else if (lower.includes('emp')) navigate('/employees')
+      else if (lower.includes('contract')) navigate('/contracts')
+      else if (lower.includes('attend')) navigate('/attendance')
+      else if (lower.includes('time')) navigate('/time-off')
+      else if (lower.includes('payroll')) navigate('/payroll')
+      else if (lower.includes('user')) navigate('/user-management')
+    }
   }
 
   return (
@@ -300,30 +311,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  title="Open Admin User Access & Management Portal"
-                  onClick={() => {
-                    setOpenDropdown(null)
-                    onNavigate?.('User Management')
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-primary)] hover:bg-[rgba(113,72,103,0.08)] font-semibold cursor-pointer flex items-center justify-between border-b border-[var(--color-border)]"
-                >
-                  <span>User Management Portal</span>
-                  <span className="text-[10px] uppercase font-bold bg-[var(--color-primary-light)] px-1.5 py-0.5 rounded">Admin</span>
-                </button>
-
-                <button
-                  type="button"
-                  title="Open Authentication & Tenant Registration Page"
-                  onClick={() => {
-                    setOpenDropdown(null)
-                    onOpenAuth?.()
-                  }}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  {user ? 'Auth & Company Setup' : 'Sign In / Register'}
-                </button>
+                {(user?.role === 'admin' || user?.role === 'super_admin') && (
+                  <button
+                    type="button"
+                    title="Open Admin User Access & Management Portal"
+                    onClick={() => {
+                      setOpenDropdown(null)
+                      if (onNavigate) {
+                        onNavigate('User Management')
+                      } else {
+                        navigate('/user-management')
+                      }
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-primary)] hover:bg-[rgba(113,72,103,0.08)] font-semibold cursor-pointer flex items-center justify-between border-b border-[var(--color-border)]"
+                  >
+                    <span>User Management Portal</span>
+                    <span className="text-[10px] uppercase font-bold bg-[var(--color-primary-light)] px-1.5 py-0.5 rounded">Admin</span>
+                  </button>
+                )}
 
                 {user && (
                   <button

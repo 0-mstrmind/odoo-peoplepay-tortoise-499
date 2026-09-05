@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Users,
   ShieldCheck,
@@ -63,6 +64,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToEmployees,
   onNavigateToUserManagement,
 }) => {
+  const navigate = useNavigate()
   const user = useAuthUser()
   const companyId = useCompanyId()
   const { data: overviewData } = useDashboardOverview()
@@ -545,10 +547,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </p>
           </div>
 
-          {!isEmployee && onNavigateToEmployees && (
+          {!isEmployee && (
             <button
               type="button"
-              onClick={onNavigateToEmployees}
+              onClick={onNavigateToEmployees || (() => navigate('/employees'))}
               className="pp-btn-secondary text-xs py-2 px-4 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start md:self-auto"
             >
               <span>Open Employee Master</span>

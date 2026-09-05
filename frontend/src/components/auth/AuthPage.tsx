@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { LoginCard } from './LoginCard'
 import { CompanyCreationCard } from './CompanyCreationCard'
 
@@ -8,6 +9,17 @@ interface AuthPageProps {
 
 export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete }) => {
   const [mode, setMode] = useState<'login' | 'create-company'>('login')
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const handleSuccess = () => {
+    if (onAuthComplete) {
+      onAuthComplete()
+    } else {
+      const origin = (location.state as any)?.from?.pathname || '/dashboard'
+      navigate(origin, { replace: true })
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-body)] flex flex-col justify-between p-4 font-sans">
@@ -51,12 +63,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete }) => {
         {mode === 'login' ? (
           <LoginCard
             onSwitchToCreateCompany={() => setMode('create-company')}
-            onLoginSuccess={onAuthComplete}
+            onLoginSuccess={handleSuccess}
           />
         ) : (
           <CompanyCreationCard
             onSwitchToLogin={() => setMode('login')}
-            onSuccess={onAuthComplete}
+            onSuccess={handleSuccess}
           />
         )}
       </main>

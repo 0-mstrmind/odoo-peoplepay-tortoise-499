@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   Users,
@@ -7,7 +8,6 @@ import {
   Calendar,
   CreditCard,
   ShieldCheck,
-  KeyRound,
   ChevronDown,
   Building2,
   LogOut,
@@ -25,23 +25,20 @@ import {
 export interface AppSidebarProps {
   isCollapsed: boolean
   onToggleCollapse?: () => void
-  currentView: string
-  activeSubItem?: string
-  onNavigate: (view: string, subItem?: string) => void
   user: AuthUser | null
   onSignOut: () => void
-  onOpenAuth: () => void
 }
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
   isCollapsed,
-  currentView,
-  activeSubItem,
-  onNavigate,
   user,
   onSignOut,
-  onOpenAuth,
 }) => {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const pathname = location.pathname
+  const search = location.search
+
   const [openSubMenus, setOpenSubMenus] = useState<Record<string, boolean>>({
     employees: true,
     contracts: false,
@@ -62,6 +59,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const showTimeOff = canAccessTimeOff(role)
   const showPayroll = canAccessPayroll(role)
   const showUserMgmt = canAccessUserManagement(role)
+
+  const isDashboard = pathname === '/dashboard' || pathname === '/'
+  const isEmployees = pathname.startsWith('/employees')
+  const isContracts = pathname.startsWith('/contracts')
+  const isAttendance = pathname.startsWith('/attendance')
+  const isTimeOff = pathname.startsWith('/time-off')
+  const isPayroll = pathname.startsWith('/payroll')
+  const isUserMgmt = pathname.startsWith('/user-management')
 
   return (
     <aside
@@ -104,10 +109,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <nav className="space-y-0.5">
             <button
               type="button"
-              onClick={() => onNavigate('dashboard')}
-              title="HR & Payroll Executive Operational Dashboard"
+              onClick={() => navigate('/dashboard')}
+              title="HR & Payroll Operational Dashboard"
               className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                currentView === 'dashboard'
+                isDashboard
                   ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                   : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
               }`}
@@ -133,10 +138,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   <div className="flex items-center">
                     <button
                       type="button"
-                      onClick={() => onNavigate('employees')}
+                      onClick={() => navigate('/employees')}
                       title="Employee Master Directory"
                       className={`flex-1 flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                        currentView === 'employees' && !activeSubItem
+                        isEmployees && !search.includes('tab=')
                           ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                           : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                       }`}
@@ -164,9 +169,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     <div className="ml-6 pl-2.5 border-l border-[var(--color-border)] my-1 space-y-0.5">
                       <button
                         type="button"
-                        onClick={() => onNavigate('employees', 'All Employees')}
+                        onClick={() => navigate('/employees')}
                         className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          activeSubItem === 'All Employees'
+                          isEmployees && !search.includes('tab=')
                             ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
                             : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                         }`}
@@ -175,9 +180,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onNavigate('employees', 'Departments')}
+                        onClick={() => navigate('/employees?tab=departments')}
                         className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          activeSubItem === 'Departments'
+                          search.includes('tab=departments')
                             ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
                             : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                         }`}
@@ -186,9 +191,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onNavigate('employees', 'Job Positions')}
+                        onClick={() => navigate('/employees?tab=positions')}
                         className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          activeSubItem === 'Job Positions'
+                          search.includes('tab=positions')
                             ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
                             : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                         }`}
@@ -206,10 +211,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   <div className="flex items-center">
                     <button
                       type="button"
-                      onClick={() => onNavigate('contracts')}
+                      onClick={() => navigate('/contracts')}
                       title="Contracts Administration"
                       className={`flex-1 flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                        currentView === 'contracts'
+                        isContracts && !search.includes('tab=')
                           ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                           : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                       }`}
@@ -236,24 +241,36 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     <div className="ml-6 pl-2.5 border-l border-[var(--color-border)] my-1 space-y-0.5">
                       <button
                         type="button"
-                        onClick={() => onNavigate('contracts', 'All Contracts')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded-[4px] text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] cursor-pointer"
+                        onClick={() => navigate('/contracts')}
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
+                          isContracts && !search.includes('tab=')
+                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
+                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                        }`}
                       >
                         All Contracts
                       </button>
                       {showPayroll && (
                         <button
                           type="button"
-                          onClick={() => onNavigate('contracts', 'Salary Structures')}
-                          className="w-full text-left px-2 py-1.5 text-xs rounded-[4px] text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] cursor-pointer"
+                          onClick={() => navigate('/contracts?tab=structures')}
+                          className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
+                            search.includes('tab=structures')
+                              ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
+                              : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                          }`}
                         >
                           Salary Structures
                         </button>
                       )}
                       <button
                         type="button"
-                        onClick={() => onNavigate('contracts', 'Working Schedules')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded-[4px] text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] cursor-pointer"
+                        onClick={() => navigate('/contracts?tab=schedules')}
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
+                          search.includes('tab=schedules')
+                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
+                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                        }`}
                       >
                         Working Schedules
                       </button>
@@ -266,10 +283,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               {showAttendance && (
                 <button
                   type="button"
-                  onClick={() => onNavigate('attendance')}
+                  onClick={() => navigate('/attendance')}
                   title={role === 'employee' ? 'My Attendance & Check-In' : 'Attendance Log & Time Tracking'}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                    currentView === 'attendance'
+                    isAttendance
                       ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                       : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                   }`}
@@ -285,10 +302,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   <div className="flex items-center">
                     <button
                       type="button"
-                      onClick={() => onNavigate('timeoff')}
+                      onClick={() => navigate('/time-off')}
                       title={role === 'employee' ? 'My Leave Requests' : 'Time Off & Leave Management'}
                       className={`flex-1 flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                        currentView === 'timeoff'
+                        isTimeOff && !search.includes('tab=')
                           ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                           : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                       }`}
@@ -315,16 +332,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                     <div className="ml-6 pl-2.5 border-l border-[var(--color-border)] my-1 space-y-0.5">
                       <button
                         type="button"
-                        onClick={() => onNavigate('timeoff', 'Time Off Requests')}
-                        className="w-full text-left px-2 py-1.5 text-xs rounded-[4px] text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] cursor-pointer"
+                        onClick={() => navigate('/time-off')}
+                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
+                          isTimeOff && !search.includes('tab=')
+                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
+                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                        }`}
                       >
                         Time Off Requests
                       </button>
                       {role !== 'employee' && (
                         <button
                           type="button"
-                          onClick={() => onNavigate('timeoff', 'Leave Allocations')}
-                          className="w-full text-left px-2 py-1.5 text-xs rounded-[4px] text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] cursor-pointer"
+                          onClick={() => navigate('/time-off?tab=allocations')}
+                          className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
+                            search.includes('tab=allocations')
+                              ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
+                              : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                          }`}
                         >
                           Leave Allocations
                         </button>
@@ -338,10 +363,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               {showPayroll && (
                 <button
                   type="button"
-                  onClick={() => onNavigate('payroll')}
+                  onClick={() => navigate('/payroll')}
                   title="Payroll Engine & Payslips"
                   className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                    currentView === 'payroll'
+                    isPayroll
                       ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                       : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                   }`}
@@ -354,22 +379,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </div>
         )}
 
-        {/* Section 3: Administration */}
-        <div>
-          {!isCollapsed && (
-            <h4 className="px-2.5 mb-1.5 text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-              Administration
-            </h4>
-          )}
-          <nav className="space-y-0.5">
-            {/* User Management (Admin Only) */}
-            {showUserMgmt && (
+        {/* Section 3: Administration (Admin Only) */}
+        {showUserMgmt && (
+          <div>
+            {!isCollapsed && (
+              <h4 className="px-2.5 mb-1.5 text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                Administration
+              </h4>
+            )}
+            <nav className="space-y-0.5">
               <button
                 type="button"
-                onClick={() => onNavigate('user-management')}
+                onClick={() => navigate('/user-management')}
                 title="Admin User Access & Management Portal"
                 className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  currentView === 'user-management'
+                  isUserMgmt
                     ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                     : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                 }`}
@@ -384,20 +408,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   </span>
                 )}
               </button>
-            )}
-
-            {/* Auth & Setup */}
-            <button
-              type="button"
-              onClick={onOpenAuth}
-              title="Auth & Tenant Registration Portal"
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] rounded-[6px] transition-colors cursor-pointer"
-            >
-              <KeyRound className="w-4 h-4 shrink-0" />
-              {!isCollapsed && <span>Auth & Setup</span>}
-            </button>
-          </nav>
-        </div>
+            </nav>
+          </div>
+        )}
       </div>
 
       {/* User Footer Card */}
@@ -413,7 +426,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   {user?.name || user?.email || 'System User'}
                 </span>
                 <span className="text-[10px] text-[var(--color-text-muted)] truncate capitalize font-medium">
-                  {user?.role?.replace('_', ' ') || 'Employee'}
+                  {user?.role?.replace(/_/g, ' ') || 'Employee'}
                 </span>
               </div>
             </div>
