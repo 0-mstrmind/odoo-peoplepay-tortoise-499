@@ -148,10 +148,57 @@ export const listAllocationsService = async (
   const companyId = await resolveCompanyId(callerCompanyId);
   const where: any = { companyId, deletedAt: null };
 
-  if (userRole?.toLowerCase() === "employee" && userEmployeeId) {
-    where.employeeId = userEmployeeId;
-  } else if (query.employeeId) {
-    where.employeeId = query.employeeId;
+  const targetEmployeeId =
+    userRole?.toLowerCase() === "employee" && userEmployeeId
+      ? userEmployeeId
+      : query.employeeId;
+
+  if (targetEmployeeId) {
+    where.employeeId = targetEmployeeId;
+
+    // Self-healing: if this employee has no allocations, auto-provision default quotas
+    const existingCount = await prisma.timeOffAllocation.count({
+      where: { employeeId: targetEmployeeId, companyId, deletedAt: null },
+    });
+
+    if (existingCount === 0) {
+      const activeLeaveTypes = await prisma.timeOffType.findMany({
+        where: { companyId, requiresAllocation: true, isActive: true, deletedAt: null },
+      });
+
+      if (activeLeaveTypes.length > 0) {
+        const currentYear = new Date().getFullYear();
+        const validFrom = new Date(`${currentYear}-01-01`);
+        const validTo = new Date(`${currentYear}-12-31`);
+        const DEFAULT_QUOTAS: Record<string, number> = {
+          CL: 12,
+          SL: 10,
+          PL: 15,
+          COMP: 5,
+          MAT_PAT: 90,
+        };
+
+        for (const lt of activeLeaveTypes) {
+          const code = (lt.code || "").toUpperCase();
+          const quota = DEFAULT_QUOTAS[code] || 12;
+
+          await prisma.timeOffAllocation.create({
+            data: {
+              companyId,
+              employeeId: targetEmployeeId,
+              timeOffTypeId: lt.id,
+              allocated: quota,
+              taken: 0,
+              remaining: quota,
+              status: "approved",
+              validFrom,
+              validTo,
+              notes: `Default annual quota auto-initialized (${currentYear})`,
+            },
+          });
+        }
+      }
+    }
   }
 
   if (query.timeOffTypeId) where.timeOffTypeId = query.timeOffTypeId;

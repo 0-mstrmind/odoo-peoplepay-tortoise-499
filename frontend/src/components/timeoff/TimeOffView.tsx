@@ -12,6 +12,11 @@ import {
   X,
   Loader2,
   Zap,
+  Users,
+  UserCheck,
+  Gift,
+  ListFilter,
+  LayoutGrid,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthUser } from '@/store/auth.store'
@@ -105,7 +110,23 @@ export const TimeOffView: React.FC = () => {
     search: searchQuery,
   })
 
-  const { data: allocations = [], isLoading: isLoadingAllocations } = useTimeOffAllocations()
+  // Allocation Inspector State (HR / Admin)
+  const [selectedAllocEmployeeId, setSelectedAllocEmployeeId] = useState<string>('')
+  const [allocViewMode, setAllocViewMode] = useState<'cards' | 'directory'>('cards')
+
+  const currentInspectedEmpId = isStandardEmployee
+    ? myEmployee?.id
+    : (selectedAllocEmployeeId || myEmployee?.id || employeesList[0]?.id)
+
+  const currentInspectedEmp = employeesList.find((e: any) => e.id === currentInspectedEmpId) || myEmployee
+
+  // Fetch allocations for inspected employee (cards view)
+  const { data: employeeAllocations = [], isLoading: isLoadingAllocations } = useTimeOffAllocations(
+    currentInspectedEmpId || undefined
+  )
+
+  // Fetch all company allocations (for company directory overview table)
+  const { data: allCompanyAllocations = [] } = useTimeOffAllocations()
   const { data: leaveTypes = [] } = useTimeOffTypes()
   const { data: departments = [] } = useDepartmentsMaster()
 
@@ -235,8 +256,10 @@ export const TimeOffView: React.FC = () => {
     }
   }
 
-  const handleOpenManualHolidayModal = () => {
-    if (employeesList.length > 0 && !manualEmployeeId) {
+  const handleOpenManualHolidayModal = (empId?: string) => {
+    if (empId) {
+      setManualEmployeeId(empId)
+    } else if (employeesList.length > 0 && !manualEmployeeId) {
       setManualEmployeeId(employeesList[0].id)
     }
     if (leaveTypes.length > 0 && !manualTypeId) {
@@ -366,7 +389,7 @@ export const TimeOffView: React.FC = () => {
           {isHrOrAdmin && (
             <button
               type="button"
-              onClick={handleOpenManualHolidayModal}
+              onClick={() => handleOpenManualHolidayModal()}
               className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
@@ -397,47 +420,305 @@ export const TimeOffView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Active Leave Balances / Allocations Cards */}
-      {isLoadingAllocations ? (
-        <div className="py-4 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
-          <span>Loading leave allocations...</span>
-        </div>
-      ) : allocations.length > 0 ? (
+      {/* 2. Leave Balances Section */}
+      {isStandardEmployee ? (
         <div>
-          <h2 className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
-            Active Leave Allocations
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {allocations.map((alloc: any) => {
-              const typeName = alloc.timeOffType?.name || 'Leave'
-              const allocated = Number(alloc.allocated) || 0
-              const remaining = Number(alloc.remaining) || 0
-              const percent = allocated > 0 ? Math.min(100, Math.round((remaining / allocated) * 100)) : 0
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider flex items-center gap-1.5">
+              <UserCheck className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+              <span>My Leave Balances & Quotas</span>
+            </h2>
+            <span className="text-[11px] text-[var(--color-text-muted)]">
+              Personal allocations for {new Date().getFullYear()}
+            </span>
+          </div>
 
-              return (
-                <div key={alloc.id} className="pp-card p-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[var(--color-text-heading)]">{typeName}</span>
-                    <span className="pp-badge pp-badge-neutral text-[10px]">
-                      {remaining} / {allocated} Days Left
+          {isLoadingAllocations ? (
+            <div className="py-6 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+              <span>Loading personal leave balances...</span>
+            </div>
+          ) : employeeAllocations.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {employeeAllocations.map((alloc: any) => {
+                const typeName = alloc.timeOffType?.name || 'Leave'
+                const allocated = Number(alloc.allocated) || 0
+                const remaining = Number(alloc.remaining) || 0
+                const taken = Number(alloc.taken) || (allocated - remaining)
+                const percent = allocated > 0 ? Math.min(100, Math.round((remaining / allocated) * 100)) : 0
+                const isDepleted = remaining <= 0
+
+                return (
+                  <div key={alloc.id} className="pp-card p-3.5 border border-[var(--color-border)] shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[var(--color-text-heading)] truncate">{typeName}</span>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                        isDepleted ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : 'pp-badge pp-badge-neutral'
+                      }`}>
+                        {remaining} / {allocated} Days Left
+                      </span>
+                    </div>
+                    <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full transition-all ${isDepleted ? 'bg-rose-500' : 'bg-[var(--color-primary)]'}`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)] pt-0.5">
+                      <span>{taken} {taken === 1 ? 'day' : 'days'} taken</span>
+                      <span className="text-[10px] font-medium">{percent}% available</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="pp-card p-4 text-center text-xs text-[var(--color-text-muted)]">
+              No leave allocations configured for your account. Please contact HR.
+            </div>
+          )}
+        </div>
+      ) : (
+        /* HR / Admin: Interactive Employee Leave Quota Inspector */
+        <div className="pp-card p-3.5 border border-[var(--color-border)] bg-[var(--color-bg-surface)] shadow-2xs space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] flex items-center justify-center font-bold">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-extrabold text-[var(--color-text-heading)] uppercase tracking-wider flex items-center gap-1.5">
+                  Employee Leave Balances & Quotas
+                </h2>
+                <p className="text-[11px] text-[var(--color-text-muted)]">
+                  Every employee has their own individual leave quota. Inspect individual employee balances or view the company directory.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-[var(--color-bg-muted)] border border-[var(--color-border)] rounded-md p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAllocViewMode('cards')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${
+                    allocViewMode === 'cards'
+                      ? 'bg-[var(--color-bg-base)] text-[var(--color-text-heading)] shadow-xs font-semibold'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Employee Cards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAllocViewMode('directory')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-[4px] font-medium transition-all cursor-pointer ${
+                    allocViewMode === 'directory'
+                      ? 'bg-[var(--color-bg-base)] text-[var(--color-text-heading)] shadow-xs font-semibold'
+                      : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+                  }`}
+                >
+                  <ListFilter className="w-3.5 h-3.5" />
+                  <span>Company Directory</span>
+                </button>
+              </div>
+
+              {/* Employee Selector (in Cards Mode) */}
+              {allocViewMode === 'cards' && (
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={currentInspectedEmpId || ''}
+                    onChange={(e) => setSelectedAllocEmployeeId(e.target.value)}
+                    className="pp-input text-xs py-1.5 px-2.5 rounded-[6px] border border-[var(--color-border)] font-medium bg-[var(--color-bg-base)]"
+                  >
+                    {employeesList.map((emp: any) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                        {myEmployee?.id === emp.id ? ' [My Profile]' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Cards Mode */}
+          {allocViewMode === 'cards' ? (
+            <div className="space-y-3">
+              {currentInspectedEmp && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs px-0.5 text-[var(--color-text-muted)]">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span>
+                      Viewing quota for: <strong className="text-[var(--color-text-heading)]">{currentInspectedEmp.firstName} {currentInspectedEmp.lastName}</strong> ({currentInspectedEmp.employeeCode || currentInspectedEmp.email})
+                      {currentInspectedEmp.department?.name ? ` • ${currentInspectedEmp.department.name}` : ''}
+                      {myEmployee?.id === currentInspectedEmp.id ? (
+                        <span className="ml-1.5 px-1.5 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded text-[9px] font-bold">
+                          Your Account
+                        </span>
+                      ) : null}
                     </span>
                   </div>
-                  <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden mt-2">
-                    <div
-                      className="bg-[var(--color-primary)] h-full transition-all"
-                      style={{ width: `${percent}%` }}
-                    />
-                  </div>
-                  <p className="text-[10px] text-[var(--color-text-muted)] pt-1">
-                    {alloc.taken || (allocated - remaining)} days taken
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualHolidayModal(currentInspectedEmp.id)}
+                    className="text-[var(--color-primary)] hover:underline font-semibold flex items-center gap-1 text-xs cursor-pointer self-start sm:self-auto"
+                  >
+                    <Gift className="w-3.5 h-3.5" />
+                    <span>+ Grant Manual Holiday</span>
+                  </button>
                 </div>
-              )
-            })}
-          </div>
+              )}
+
+              {isLoadingAllocations ? (
+                <div className="py-6 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                  <span>Loading leave balances...</span>
+                </div>
+              ) : employeeAllocations.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {employeeAllocations.map((alloc: any) => {
+                    const typeName = alloc.timeOffType?.name || 'Leave'
+                    const allocated = Number(alloc.allocated) || 0
+                    const remaining = Number(alloc.remaining) || 0
+                    const taken = Number(alloc.taken) || (allocated - remaining)
+                    const percent = allocated > 0 ? Math.min(100, Math.round((remaining / allocated) * 100)) : 0
+                    const isDepleted = remaining <= 0
+
+                    return (
+                      <div key={alloc.id} className="pp-card p-3.5 border border-[var(--color-border)] shadow-2xs space-y-2 bg-[var(--color-bg-base)]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[var(--color-text-heading)] truncate">{typeName}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                            isDepleted ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' : 'pp-badge pp-badge-neutral'
+                          }`}>
+                            {remaining} / {allocated} Days Left
+                          </span>
+                        </div>
+                        <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all ${isDepleted ? 'bg-rose-500' : 'bg-[var(--color-primary)]'}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] text-[var(--color-text-muted)] pt-0.5">
+                          <span>{taken} {taken === 1 ? 'day' : 'days'} taken</span>
+                          <span className="text-[10px] font-medium">{percent}% available</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="py-4 text-center text-xs text-[var(--color-text-muted)]">
+                  No active allocations found for this employee.
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Directory Table Mode */
+            <div className="overflow-x-auto rounded-lg border border-[var(--color-border)]">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead className="bg-[var(--color-bg-muted)]/80 text-[var(--color-text-muted)] uppercase tracking-wider text-[10px] font-semibold border-b border-[var(--color-border)]">
+                  <tr>
+                    <th className="py-2.5 px-3">Employee</th>
+                    <th className="py-2.5 px-3">Casual Leave</th>
+                    <th className="py-2.5 px-3">Sick Leave</th>
+                    <th className="py-2.5 px-3">Paid / Earned Leave</th>
+                    <th className="py-2.5 px-3">Total Taken</th>
+                    <th className="py-2.5 px-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)] bg-[var(--color-bg-base)]">
+                  {employeesList.map((emp: any) => {
+                    const empAllocs = allCompanyAllocations.filter((a: any) => a.employeeId === emp.id)
+                    const clAlloc = empAllocs.find((a: any) => (a.timeOffType?.code || '').toUpperCase() === 'CL' || a.timeOffType?.name?.toLowerCase().includes('casual'))
+                    const slAlloc = empAllocs.find((a: any) => (a.timeOffType?.code || '').toUpperCase() === 'SL' || a.timeOffType?.name?.toLowerCase().includes('sick'))
+                    const plAlloc = empAllocs.find((a: any) => (a.timeOffType?.code || '').toUpperCase() === 'PL' || a.timeOffType?.name?.toLowerCase().includes('paid') || a.timeOffType?.name?.toLowerCase().includes('earned'))
+                    const totalTaken = empAllocs.reduce((sum: number, a: any) => sum + (Number(a.taken) || 0), 0)
+
+                    return (
+                      <tr key={emp.id} className="hover:bg-[var(--color-bg-muted)]/40 transition-colors">
+                        <td className="py-2 px-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 rounded-full bg-[var(--color-primary)]/10 text-[var(--color-primary)] flex items-center justify-center font-bold text-[10px] shrink-0">
+                              {emp.firstName?.[0]}{emp.lastName?.[0]}
+                            </div>
+                            <div>
+                              <div className="font-semibold text-[var(--color-text-heading)] flex items-center gap-1.5">
+                                <span>{emp.firstName} {emp.lastName}</span>
+                                {myEmployee?.id === emp.id && (
+                                  <span className="text-[9px] px-1.5 py-0.2 bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 rounded font-bold">You</span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-[var(--color-text-muted)]">{emp.employeeCode || emp.email}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2 px-3">
+                          {clAlloc ? (
+                            <span className="font-medium text-[var(--color-text-heading)]">
+                              {clAlloc.remaining} / {clAlloc.allocated} <span className="text-[10px] text-[var(--color-text-muted)]">left</span>
+                            </span>
+                          ) : (
+                            <span className="text-[var(--color-text-muted)]">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          {slAlloc ? (
+                            <span className={`font-medium ${Number(slAlloc.remaining) === 0 ? 'text-rose-600 font-bold' : 'text-[var(--color-text-heading)]'}`}>
+                              {slAlloc.remaining} / {slAlloc.allocated} <span className="text-[10px] text-[var(--color-text-muted)]">left</span>
+                            </span>
+                          ) : (
+                            <span className="text-[var(--color-text-muted)]">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          {plAlloc ? (
+                            <span className="font-medium text-[var(--color-text-heading)]">
+                              {plAlloc.remaining} / {plAlloc.allocated} <span className="text-[10px] text-[var(--color-text-muted)]">left</span>
+                            </span>
+                          ) : (
+                            <span className="text-[var(--color-text-muted)]">—</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3 font-semibold text-[var(--color-text-heading)]">
+                          {totalTaken} {totalTaken === 1 ? 'day' : 'days'}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedAllocEmployeeId(emp.id)
+                                setAllocViewMode('cards')
+                              }}
+                              className="px-2 py-1 text-[11px] rounded font-medium text-[var(--color-primary)] hover:bg-[var(--color-primary)]/10 transition-colors cursor-pointer"
+                            >
+                              Inspect
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenManualHolidayModal(emp.id)}
+                              className="px-2 py-1 text-[11px] rounded font-medium text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors cursor-pointer"
+                              title="Grant manual holiday"
+                            >
+                              + Holiday
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
-      ) : null}
+      )}
 
       {/* 3. Filter Bar */}
       <div className="pp-card p-3.5 border border-[var(--color-border)] shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">

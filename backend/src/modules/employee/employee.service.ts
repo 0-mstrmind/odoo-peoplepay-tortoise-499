@@ -472,6 +472,45 @@ export const createEmployeeService = async (
       });
     }
 
+    // Auto-provision initial leave allocations for the new employee
+    const activeLeaveTypes = await tx.timeOffType.findMany({
+      where: { companyId, requiresAllocation: true, isActive: true, deletedAt: null },
+    });
+
+    if (activeLeaveTypes.length > 0) {
+      const currentYear = new Date().getFullYear();
+      const validFrom = new Date(`${currentYear}-01-01`);
+      const validTo = new Date(`${currentYear}-12-31`);
+
+      const DEFAULT_QUOTAS: Record<string, number> = {
+        CL: 12,
+        SL: 10,
+        PL: 15,
+        COMP: 5,
+        MAT_PAT: 90,
+      };
+
+      for (const lt of activeLeaveTypes) {
+        const code = (lt.code || "").toUpperCase();
+        const quota = DEFAULT_QUOTAS[code] || 12;
+
+        await tx.timeOffAllocation.create({
+          data: {
+            companyId,
+            employeeId: employee.id,
+            timeOffTypeId: lt.id,
+            allocated: quota,
+            taken: 0,
+            remaining: quota,
+            status: "approved",
+            validFrom,
+            validTo,
+            notes: `Default annual quota initialized upon employee onboarding (${currentYear})`,
+          },
+        });
+      }
+    }
+
     return employee;
   }, { timeout: 30000, maxWait: 15000 });
 };
