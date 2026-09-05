@@ -6,9 +6,16 @@ import CatchAsync from "../../shared/utils/CatchAsync.js";
 import {
   getMeService,
   listUsersService,
+  loginService,
   updateUserRoleService,
   updateUserStatusService,
 } from "./auth.service.js";
+
+export const login = CatchAsync(async (req: Request, res: Response) => {
+  const { email, password } = req.body;
+  const result = await loginService(email, password);
+  sendResponse(res, StatusCodes.OK, "Login successful", result);
+});
 
 export const getMe = CatchAsync(async (req: Request, res: Response) => {
   const user = await getMeService(req.user!.id);

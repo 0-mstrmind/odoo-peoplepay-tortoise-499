@@ -5,6 +5,7 @@ import { createClerkClient, verifyToken } from "@clerk/express";
 import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { verifyAccessToken } from "../../shared/utils/Token.js";
 
 const clerkClient = env.CLERK_SECRET_KEY
   ? createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.CLERK_PUBLISHABLE_KEY })
@@ -33,7 +34,7 @@ const getDefaultCompanyId = async (): Promise<string> => {
   return company.id;
 };
 
-/// Middleware to authenticate requests via Clerk token & load local PeoplePay360 database user
+/// Unified Auth Middleware supporting Clerk JWT, local JWT tokens, and x-clerk-user-id / x-user-role headers
 export const clerkAuthMiddleware = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
     let token = req.headers.authorization;
@@ -41,8 +42,38 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
       token = token.split(" ")[1];
     }
 
+    // 1. Check if token is a local JWT token (from REST login)
+    if (token) {
+      try {
+        const payload = verifyAccessToken(token);
+        if (payload && payload.userId) {
+          const dbUser = await prisma.user.findFirst({
+            where: { id: payload.userId, deletedAt: null },
+          });
+
+          if (dbUser && dbUser.isActive) {
+            const companyId = dbUser.companyId || (await getDefaultCompanyId());
+            req.user = {
+              id: dbUser.id,
+              clerkUserId: dbUser.clerkUserId,
+              email: dbUser.email,
+              role: dbUser.role,
+              companyId,
+              employeeId: dbUser.employeeId,
+              isActive: dbUser.isActive,
+            };
+            next();
+            return;
+          }
+        }
+      } catch {
+        // Token is not a local JWT, proceed to Clerk verification
+      }
+    }
+
     let clerkUserId: string | null = null;
 
+    // 2. Verify Clerk Token
     if (token && env.CLERK_SECRET_KEY) {
       try {
         const verified = await verifyToken(token, {
@@ -50,11 +81,11 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
         });
         clerkUserId = verified.sub;
       } catch {
-        // Token verification fallback or decode
+        // Verification failed
       }
     }
 
-    // Fallback or dev header for testing
+    // 3. Fallback Header for testing/dev (x-clerk-user-id or x-user-id)
     if (!clerkUserId && req.headers["x-clerk-user-id"]) {
       clerkUserId = req.headers["x-clerk-user-id"] as string;
     }
@@ -66,7 +97,7 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
     // Dev mode convenience: allow testing roles directly via x-user-role header
     if (!clerkUserId && env.NODE_ENV === "development" && req.headers["x-user-role"]) {
       const devRole = (req.headers["x-user-role"] as string).toLowerCase();
-      const devEmail = req.headers["x-user-email"] as string || `dev_${devRole}@peoplepay360.com`;
+      const devEmail = (req.headers["x-user-email"] as string) || `dev_${devRole}@peoplepay360.com`;
 
       let devUser = await prisma.user.findFirst({
         where: { email: devEmail, deletedAt: null },
@@ -109,15 +140,36 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
       return;
     }
 
+    if (!clerkUserId && req.headers["x-user-email"]) {
+      const emailHeader = req.headers["x-user-email"] as string;
+      const userByEmail = await prisma.user.findFirst({
+        where: { email: emailHeader, deletedAt: null },
+      });
+      if (userByEmail && userByEmail.isActive) {
+        const companyId = userByEmail.companyId || (await getDefaultCompanyId());
+        req.user = {
+          id: userByEmail.id,
+          clerkUserId: userByEmail.clerkUserId,
+          email: userByEmail.email,
+          role: userByEmail.role,
+          companyId,
+          employeeId: userByEmail.employeeId,
+          isActive: userByEmail.isActive,
+        };
+        next();
+        return;
+      }
+    }
+
     if (!clerkUserId) {
-      next(new ApiError(StatusCodes.UNAUTHORIZED, "Clerk authentication token missing or invalid"));
+      next(new ApiError(StatusCodes.UNAUTHORIZED, "Authentication token missing or invalid"));
       return;
     }
 
     // Retrieve corresponding PeoplePay360 database user
     let dbUser = await prisma.user.findFirst({
       where: {
-        OR: [{ clerkUserId }, { id: clerkUserId }],
+        OR: [{ clerkUserId }, { id: clerkUserId }, { email: clerkUserId }],
         deletedAt: null,
       },
     });
@@ -143,7 +195,6 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
               data: { clerkUserId, lastLoginAt: new Date(), companyId: dbUser.companyId || defaultCompanyId },
             });
           } else {
-            // If this is the very first user in the system, grant admin role
             const userCount = await prisma.user.count({ where: { deletedAt: null } });
             const initialRole = userCount === 0 ? "admin" : "employee";
 
@@ -160,7 +211,7 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
           }
         }
       } catch {
-        // Error fetching Clerk user profile
+        // Clerk user fetch failed
       }
     }
 

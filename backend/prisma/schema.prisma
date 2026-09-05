@@ -408,7 +408,7 @@ model TimeOffRequest {
 /// e.g. "Regular Salary" contains: BASIC -> HRA -> TRANSPORT -> GROSS -> TAX -> NET
 model SalaryStructure {
   id          String    @id @default(uuid()) @db.Uuid
-  companyId   String    @map("company_id") @db.Uuid
+  companyId   String?   @map("company_id") @db.Uuid
   name        String    @db.VarChar(150)
   code        String?   @db.VarChar(30)
   description String?   @db.Text
@@ -419,7 +419,7 @@ model SalaryStructure {
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
 
   // Relations
-  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   creator        User?           @relation("SalaryStructureCreatedBy", fields: [createdBy], references: [id])
   structureRules StructureRule[]
   contracts      Contract[]
@@ -431,39 +431,28 @@ model SalaryStructure {
 
 /// A Salary Rule defines ONE component of the payslip.
 /// computation_method: fixed | percentage | formula
-/// category: basic | allowance | gross | deduction | net | employer_contribution
-///
-/// HOW COMPUTATION WORKS:
-///   fixed       -> amount = fixed_amount
-///   percentage  -> amount = (fixed_amount / 100) * value of rule with code = percentage_of_rule_code
-///   formula     -> amount = evaluate formula string (e.g. "BASIC * 0.12 + 500")
-///
-/// Example:
-///   BASIC  -> fixed        -> 30000
-///   HRA    -> percentage   -> 20% of BASIC  -> percentage_of_rule_code = "BASIC", fixed_amount = 20
-///   GROSS  -> formula      -> formula = "BASIC + HRA + TRANSPORT"
-///   TAX    -> percentage   -> 10% of GROSS  -> percentage_of_rule_code = "GROSS", fixed_amount = 10
-///   NET    -> formula      -> formula = "GROSS - TAX"
+/// category: basic | allowance | gross | deduction | net
 model SalaryRule {
-  id                    String    @id @default(uuid()) @db.Uuid
-  companyId             String    @map("company_id") @db.Uuid
-  name                  String    @db.VarChar(150)
-  code                  String    @db.VarChar(30)
-  category              String    @db.VarChar(30) // basic | allowance | gross | deduction | net | employer_contribution
-  sequence              Int?
-  computationMethod     String    @map("computation_method") @db.VarChar(20) // fixed | percentage | formula
-  fixedAmount           Decimal   @default(0) @map("fixed_amount") @db.Decimal(15, 2)
-  percentageOfRuleCode String?   @map("percentage_of_rule_code") @db.VarChar(30)
-  formula               String?   @db.Text
-  appearsOnPayslip      Boolean   @default(true) @map("appears_on_payslip")
-  description           String?   @db.Text
-  isActive              Boolean   @default(true) @map("is_active")
-  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
-  deletedAt             DateTime? @map("deleted_at") @db.Timestamptz
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String?   @map("company_id") @db.Uuid
+  name              String    @db.VarChar(150)
+  code              String    @unique @db.VarChar(30)
+  category          String    @db.VarChar(30) // basic | allowance | gross | deduction | net
+  sequence          Int       @default(1)
+  computationMethod String    @map("computation_method") @db.VarChar(20) // fixed | percentage | formula
+  amount            Decimal?  @db.Decimal(15, 2)
+  percentageValue   Decimal?  @map("percentage_value") @db.Decimal(7, 4)
+  basedOnCode       String?   @map("based_on_code") @db.VarChar(30)
+  formula           String?   @db.Text
+  appearsOnPayslip  Boolean   @default(true) @map("appears_on_payslip")
+  description       String?   @db.Text
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt         DateTime? @map("deleted_at") @db.Timestamptz
 
   // Relations
-  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company        Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   structureRules StructureRule[]
   payslipLines   PayslipLine[]
 
@@ -473,7 +462,7 @@ model SalaryRule {
 /// Junction table linking salary rules to structures with ordering.
 model StructureRule {
   id          String   @id @default(uuid()) @db.Uuid
-  companyId   String   @map("company_id") @db.Uuid
+  companyId   String?  @map("company_id") @db.Uuid
   structureId String   @map("structure_id") @db.Uuid
   ruleId      String   @map("rule_id") @db.Uuid
   sequence    Int
@@ -482,10 +471,11 @@ model StructureRule {
   updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 
   // Relations
-  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   structure SalaryStructure @relation(fields: [structureId], references: [id], onDelete: Cascade)
   rule      SalaryRule      @relation(fields: [ruleId], references: [id], onDelete: Cascade)
 
+  @@unique([structureId, ruleId])
   @@map("structure_rules")
 }
 

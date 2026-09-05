@@ -1,7 +1,54 @@
 import { StatusCodes } from "http-status-codes";
+import bcrypt from "bcryptjs";
 
 import { prisma } from "../../core/config/prisma.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { createAccessToken } from "../../shared/utils/Token.js";
+
+export const loginService = async (email: string, password: string) => {
+  const user = await prisma.user.findFirst({
+    where: { email, deletedAt: null },
+  });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid email or password");
+  }
+
+  if (!user.isActive) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "User account is inactive");
+  }
+
+  if (!user.passwordHash) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Password authentication not set for this account");
+  }
+
+  const isValid = await bcrypt.compare(password, user.passwordHash);
+  if (!isValid) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid email or password");
+  }
+
+  const accessToken = createAccessToken({
+    userId: user.id,
+    email: user.email,
+    role: user.role,
+    type: "access",
+  });
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
+
+  return {
+    accessToken,
+    user: {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId,
+    },
+  };
+};
 
 export const getMeService = async (userId: string) => {
   const user = await prisma.user.findFirst({
