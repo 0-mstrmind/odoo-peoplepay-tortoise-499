@@ -1,8 +1,9 @@
 import React from 'react'
-import { PanelLeft, ChevronRight, Building2, Bell, ShieldCheck } from 'lucide-react'
+import { PanelLeft, PanelLeftClose, ChevronRight, Building2, Bell, ShieldCheck } from 'lucide-react'
 import type { AuthUser } from '@/store/auth.store'
 
 export interface AppHeaderProps {
+  isSidebarCollapsed?: boolean
   onToggleSidebar: () => void
   currentView: string
   activeSubItem?: string
@@ -10,6 +11,7 @@ export interface AppHeaderProps {
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
+  isSidebarCollapsed = false,
   onToggleSidebar,
   currentView,
   activeSubItem,
@@ -32,10 +34,14 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <button
           type="button"
           onClick={onToggleSidebar}
-          title="Toggle Navigation Sidebar"
+          title={isSidebarCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)'}
           className="p-1.5 rounded-[6px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors cursor-pointer"
         >
-          <PanelLeft className="w-4 h-4" />
+          {isSidebarCollapsed ? (
+            <PanelLeft className="w-4 h-4 text-[var(--color-primary)]" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4" />
+          )}
         </button>
 
         <div className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] font-medium">

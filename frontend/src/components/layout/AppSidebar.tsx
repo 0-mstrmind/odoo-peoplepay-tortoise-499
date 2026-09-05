@@ -10,8 +10,6 @@ import {
   KeyRound,
   ChevronDown,
   Building2,
-  PanelLeftClose,
-  PanelLeft,
   LogOut,
 } from 'lucide-react'
 import type { AuthUser } from '@/store/auth.store'
@@ -26,7 +24,7 @@ import {
 
 export interface AppSidebarProps {
   isCollapsed: boolean
-  onToggleCollapse: () => void
+  onToggleCollapse?: () => void
   currentView: string
   activeSubItem?: string
   onNavigate: (view: string, subItem?: string) => void
@@ -37,7 +35,6 @@ export interface AppSidebarProps {
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
   isCollapsed,
-  onToggleCollapse,
   currentView,
   activeSubItem,
   onNavigate,
@@ -73,7 +70,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       }`}
     >
       {/* Brand Header */}
-      <div className="h-14 px-3.5 border-b border-[var(--color-border)] flex items-center justify-between shrink-0">
+      <div className="h-14 px-3.5 border-b border-[var(--color-border)] flex items-center shrink-0">
         {!isCollapsed ? (
           <div className="flex items-center gap-2.5 overflow-hidden">
             <div className="w-8 h-8 rounded-lg bg-[var(--color-primary)] text-white flex items-center justify-center font-bold shadow-xs shrink-0">
@@ -93,17 +90,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <Building2 className="w-4 h-4" />
           </div>
         )}
-
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
-          className={`p-1.5 rounded-[4px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors cursor-pointer ${
-            isCollapsed ? 'hidden sm:block' : ''
-          }`}
-        >
-          {isCollapsed ? <PanelLeft className="w-4 h-4" /> : <PanelLeftClose className="w-4 h-4" />}
-        </button>
       </div>
 
       {/* Navigation Sections */}

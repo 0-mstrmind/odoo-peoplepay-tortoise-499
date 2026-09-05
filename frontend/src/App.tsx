@@ -229,6 +229,7 @@ function App() {
       >
         {/* Top Header Bar */}
         <AppHeader
+          isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
           currentView={currentView}
           activeSubItem={activeSubItem}
