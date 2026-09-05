@@ -159,7 +159,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         )
       } else {
         await checkOutMutation.mutateAsync({ attendanceId: todayAttendance?.id })
-        setCheckInState('completed_today')
+        if (!isEmployee) {
+          setCheckInState('completed_today')
+        }
         setActionFeedback(
           isEmployee
             ? 'Punch Out request submitted successfully — Pending HR approval.'
