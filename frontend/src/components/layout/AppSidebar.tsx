@@ -179,28 +179,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       >
                         All Employees
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/employees?tab=departments')}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          search.includes('tab=departments')
-                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                        }`}
-                      >
-                        Departments
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/employees?tab=positions')}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          search.includes('tab=positions')
-                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                        }`}
-                      >
-                        Job Positions
-                      </button>
                     </div>
                   )}
                 </div>
@@ -314,20 +292,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 </button>
               )}
 
-              {/* Payout History */}
-              <button
-                type="button"
-                onClick={() => navigate('/payouts')}
-                title={role === 'employee' ? 'My Payout & Payslip History' : 'Payout History & Remuneration'}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isPayouts
-                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                }`}
-              >
-                <CreditCard className="w-4 h-4 shrink-0" />
-                {!isCollapsed && <span>{role === 'employee' ? 'My Payout History' : 'Payout History'}</span>}
-              </button>
+
+              {/* Payout History — Employee only */}
+              {role === 'employee' && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/payouts')}
+                  title="My Payout & Payslip History"
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                    isPayouts
+                      ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                      : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 shrink-0" />
+                  {!isCollapsed && <span>My Payout History</span>}
+                </button>
+              )}
 
               {/* Payroll */}
               {showPayroll && (

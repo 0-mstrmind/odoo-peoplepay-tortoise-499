@@ -726,14 +726,18 @@ export const listPayslipsService = async (
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
-  const where: any = { companyId, deletedAt: null };
+  const where: any = { deletedAt: null };
 
   if (query.payrunId) where.payrunId = query.payrunId;
   if (query.employeeId) where.employeeId = query.employeeId;
   if (query.status) where.status = query.status;
 
+  if (companyId && !query.employeeId) {
+    where.companyId = companyId;
+  }
+
   const page = query.page || 1;
-  const limit = query.limit || 50;
+  const limit = query.limit || 1000;
   const skip = (page - 1) * limit;
 
   const [items, total] = await Promise.all([
@@ -741,9 +745,19 @@ export const listPayslipsService = async (
       where,
       include: {
         employee: {
-          select: { id: true, firstName: true, lastName: true, employeeCode: true, email: true },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            employeeCode: true,
+            email: true,
+            department: { select: { id: true, name: true } },
+            jobPosition: { select: { id: true, title: true } },
+          },
         },
         payrun: { select: { id: true, name: true, periodLabel: true } },
+        contract: { select: { id: true, contractReference: true, wage: true } },
+        payslipLines: { orderBy: { sequence: "asc" } },
       },
       orderBy: { createdAt: "desc" },
       skip,

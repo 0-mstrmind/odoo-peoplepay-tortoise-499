@@ -263,7 +263,7 @@ export const EmployeesPage: React.FC = () => {
       <NewEmployeeModal
         isOpen={isNewModalOpen}
         onClose={() => setIsNewModalOpen(false)}
-        onAddEmployee={() => {}}
+        onSuccess={() => setIsNewModalOpen(false)}
       />
 
       {/* Employee Detail Drawer */}

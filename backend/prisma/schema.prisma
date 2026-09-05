@@ -21,7 +21,6 @@ model Company {
   phone            String?   @db.VarChar(30)
   email            String?   @db.VarChar(150)
   isActive         Boolean   @default(true) @map("is_active")
-  subscriptionPlan String    @default("free") @map("subscription_plan") @db.VarChar(30)
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz

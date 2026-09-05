@@ -100,6 +100,8 @@ export interface PayslipLine {
   rate?: number | string | null
 }
 
+export type PayslipItem = Payslip
+
 export interface Payslip {
   id: string
   companyId?: string
@@ -124,6 +126,10 @@ export interface Payslip {
   paidAt?: string | null
   createdAt?: string
   updatedAt?: string
+  contract?: {
+    id: string
+    wage?: number | string
+  } | null
   employee?: {
     id: string
     firstName: string
@@ -276,8 +282,11 @@ export function usePayslips(params?: { payrunId?: string; employeeId?: string; p
   return useQuery({
     queryKey: ['payslips', params],
     queryFn: async () => {
-      const { data } = await apiClient.get<{ success: boolean; items: Payslip[]; pagination: any }>('/payslips', { params })
-      return data?.items || []
+      const { data } = await apiClient.get<any>('/payslips', { params })
+      if (Array.isArray(data?.items)) return data.items
+      if (Array.isArray(data?.data)) return data.data
+      if (Array.isArray(data?.data?.items)) return data.data.items
+      return []
     },
   })
 }
@@ -286,8 +295,9 @@ export function usePayslip(id?: string | null) {
   return useQuery({
     queryKey: queryKeys.payroll.payslip(id ?? ''),
     queryFn: async () => {
-      const { data } = await apiClient.get<{ success: boolean; payslip: Payslip }>(`/payslips/${id}`)
-      return data?.payslip
+      if (!id) return null
+      const { data } = await apiClient.get<any>(`/payslips/${id}`)
+      return data?.data || data?.payslip || data?.item || data
     },
     enabled: !!id,
   })

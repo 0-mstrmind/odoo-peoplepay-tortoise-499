@@ -10,6 +10,9 @@ export const createCompanyService = async (input: {
   industry?: string;
   country?: string;
   currency?: string;
+  timezone?: string;
+  address?: string;
+  phone?: string;
   adminEmail: string;
   adminPassword?: string;
   adminName?: string;
@@ -35,6 +38,9 @@ export const createCompanyService = async (input: {
         industry: input.industry || "Information Technology",
         country: input.country || "India",
         currency: input.currency || "INR",
+        timezone: input.timezone || "Asia/Kolkata",
+        address: input.address || null,
+        phone: input.phone || null,
         email: input.adminEmail,
       },
     });
@@ -77,8 +83,13 @@ export const createCompanyService = async (input: {
         id: company.id,
         name: company.name,
         slug: company.slug,
-        currency: company.currency,
+        industry: company.industry,
         country: company.country,
+        currency: company.currency,
+        timezone: company.timezone,
+        address: company.address,
+        phone: company.phone,
+        email: company.email,
       },
       adminUser: {
         id: adminUser.id,
@@ -88,5 +99,61 @@ export const createCompanyService = async (input: {
       },
       accessToken,
     };
+  });
+};
+
+export const getCompanyService = async (companyId: string) => {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+  });
+  if (!company || company.deletedAt) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Company not found");
+  }
+  return company;
+};
+
+export const updateCompanyService = async (
+  companyId: string,
+  input: {
+    name?: string;
+    industry?: string;
+    country?: string;
+    currency?: string;
+    timezone?: string;
+    address?: string;
+    phone?: string;
+    email?: string;
+    logoUrl?: string;
+  }
+) => {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+  });
+  if (!company || company.deletedAt) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Company not found");
+  }
+
+  return prisma.company.update({
+    where: { id: companyId },
+    data: input,
+  });
+};
+
+export const getCompaniesListService = async () => {
+  return prisma.company.findMany({
+    where: { deletedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      industry: true,
+      country: true,
+      currency: true,
+      email: true,
+      phone: true,
+      isActive: true,
+      createdAt: true,
+    },
   });
 };
