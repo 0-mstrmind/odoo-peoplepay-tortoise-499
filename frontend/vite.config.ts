@@ -14,10 +14,11 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, 'src'),
       'html2canvas': path.resolve(import.meta.dirname, 'node_modules/html2canvas/dist/html2canvas.esm.js'),
       'jspdf': path.resolve(import.meta.dirname, 'node_modules/jspdf/dist/jspdf.es.min.js'),
+      'socket.io-client': path.resolve(import.meta.dirname, 'node_modules/socket.io-client/build/esm/index.js'),
     },
   },
   optimizeDeps: {
-    include: ['html2canvas', 'jspdf'],
+    include: ['html2canvas', 'jspdf', 'socket.io-client'],
   },
   server: {
     host: true,
