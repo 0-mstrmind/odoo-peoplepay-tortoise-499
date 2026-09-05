@@ -5,112 +5,105 @@ import {
   FileCheck,
   Check,
   X,
+  Loader2,
 } from 'lucide-react'
 import { useAuthUser } from '@/store/auth.store'
-
-interface LeaveRequestItem {
-  id: string
-  employeeName: string
-  leaveType: string
-  dateFrom: string
-  dateTo: string
-  days: number
-  reason: string
-  status: 'pending' | 'approved' | 'refused'
-}
-
-const INITIAL_REQUESTS: LeaveRequestItem[] = [
-  {
-    id: 'req-1',
-    employeeName: 'Aarav Mehta',
-    leaveType: 'Casual Leave',
-    dateFrom: '2026-09-10',
-    dateTo: '2026-09-12',
-    days: 3,
-    reason: 'Family function in Ahmedabad',
-    status: 'pending',
-  },
-  {
-    id: 'req-2',
-    employeeName: 'Maya Shah',
-    leaveType: 'Sick Leave',
-    dateFrom: '2026-09-08',
-    dateTo: '2026-09-08',
-    days: 1,
-    reason: 'Medical appointment',
-    status: 'pending',
-  },
-  {
-    id: 'req-3',
-    employeeName: 'Rohan Patel',
-    leaveType: 'Paid Time Off',
-    dateFrom: '2026-08-20',
-    dateTo: '2026-08-22',
-    days: 3,
-    reason: 'Vacation',
-    status: 'approved',
-  },
-  {
-    id: 'req-4',
-    employeeName: 'Nisha Rao',
-    leaveType: 'Unpaid Leave',
-    dateFrom: '2026-08-15',
-    dateTo: '2026-08-16',
-    days: 2,
-    reason: 'Personal emergency',
-    status: 'approved',
-  },
-]
+import {
+  useTimeOffRequests,
+  useTimeOffAllocations,
+  useTimeOffTypes,
+  useApproveTimeOffRequest,
+  useRefuseTimeOffRequest,
+  useCreateTimeOffRequest,
+} from '@/hooks/use-timeoff'
+import { useEmployees } from '@/hooks/use-api'
 
 export const TimeOffView: React.FC = () => {
   const user = useAuthUser()
   const role = user?.role
   const canApprove = role === 'admin' || role === 'super_admin' || role === 'hr_manager'
 
-  const [requests, setRequests] = useState<LeaveRequestItem[]>(INITIAL_REQUESTS)
+  const { data: requests = [], isLoading: isLoadingRequests } = useTimeOffRequests()
+  const { data: allocations = [], isLoading: isLoadingAllocations } = useTimeOffAllocations()
+  const { data: leaveTypes = [] } = useTimeOffTypes()
+  const { data: employeesResponse } = useEmployees()
+
+  const approveMutation = useApproveTimeOffRequest()
+  const refuseMutation = useRefuseTimeOffRequest()
+  const createMutation = useCreateTimeOffRequest()
+
+  const employeesList = (employeesResponse as any)?.data?.items || (employeesResponse as any)?.items || (Array.isArray(employeesResponse) ? employeesResponse : [])
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
 
   // New request form state
-  const [newType, setNewType] = useState('Paid Time Off')
-  const [newFrom, setNewFrom] = useState('2026-09-15')
-  const [newTo, setNewTo] = useState('2026-09-16')
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
+  const [selectedTypeId, setSelectedTypeId] = useState('')
+  const [newFrom, setNewFrom] = useState('')
+  const [newTo, setNewTo] = useState('')
   const [newReason, setNewReason] = useState('')
 
-  const handleApprove = (id: string, name: string) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r))
-    )
-    setFeedback(`Approved leave request for ${name}.`)
-    setTimeout(() => setFeedback(null), 3000)
-  }
-
-  const handleRefuse = (id: string, name: string) => {
-    setRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'refused' } : r))
-    )
-    setFeedback(`Refused leave request for ${name}.`)
-    setTimeout(() => setFeedback(null), 3000)
-  }
-
-  const handleSubmitRequest = (e: React.FormEvent) => {
-    e.preventDefault()
-    const newReq: LeaveRequestItem = {
-      id: `req-${Date.now()}`,
-      employeeName: user?.name || user?.email || 'Current User',
-      leaveType: newType,
-      dateFrom: newFrom,
-      dateTo: newTo,
-      days: 2,
-      reason: newReason || 'Personal leave request',
-      status: 'pending',
+  const handleApprove = async (id: string, name: string) => {
+    try {
+      await approveMutation.mutateAsync(id)
+      setFeedback(`Approved leave request for ${name}.`)
+      setTimeout(() => setFeedback(null), 3000)
+    } catch (err: any) {
+      setFeedback(err?.response?.data?.message || 'Failed to approve request.')
     }
-    setRequests([newReq, ...requests])
-    setIsModalOpen(false)
-    setNewReason('')
-    setFeedback('Leave request submitted successfully!')
-    setTimeout(() => setFeedback(null), 3000)
   }
+
+  const handleRefuse = async (id: string, name: string) => {
+    try {
+      await refuseMutation.mutateAsync({ requestId: id, refusalReason: 'Refused by manager' })
+      setFeedback(`Refused leave request for ${name}.`)
+      setTimeout(() => setFeedback(null), 3000)
+    } catch (err: any) {
+      setFeedback(err?.response?.data?.message || 'Failed to refuse request.')
+    }
+  }
+
+  const handleOpenModal = () => {
+    if (employeesList.length > 0 && !selectedEmployeeId) {
+      setSelectedEmployeeId(employeesList[0].id)
+    }
+    if (leaveTypes.length > 0 && !selectedTypeId) {
+      setSelectedTypeId(leaveTypes[0].id)
+    }
+    setIsModalOpen(true)
+  }
+
+  const handleSubmitRequest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const empId = selectedEmployeeId || (employeesList[0]?.id)
+    const typeId = selectedTypeId || (leaveTypes[0]?.id)
+
+    if (!empId || !typeId || !newFrom || !newTo) {
+      setFeedback('Please fill out all required fields.')
+      return
+    }
+
+    try {
+      await createMutation.mutateAsync({
+        employeeId: empId,
+        timeOffTypeId: typeId,
+        startDate: newFrom,
+        endDate: newTo,
+        reason: newReason,
+      })
+      setIsModalOpen(false)
+      setNewReason('')
+      setNewFrom('')
+      setNewTo('')
+      setFeedback('Leave request submitted successfully!')
+      setTimeout(() => setFeedback(null), 3000)
+    } catch (err: any) {
+      setFeedback(err?.response?.data?.message || 'Failed to submit leave request.')
+    }
+  }
+
+  const pendingRequests = requests.filter((r) => r.status === 'pending')
 
   return (
     <div className="space-y-6">
@@ -128,7 +121,7 @@ export const TimeOffView: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => setIsModalOpen(true)}
+          onClick={handleOpenModal}
           className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
@@ -142,40 +135,51 @@ export const TimeOffView: React.FC = () => {
         </div>
       )}
 
-      {/* Leave Balances */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="pp-card p-4 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[var(--color-text-heading)]">Paid Time Off (PTO)</span>
-            <span className="pp-badge pp-badge-neutral text-[10px]">18 / 24 Days Left</span>
-          </div>
-          <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden mt-2">
-            <div className="bg-[var(--color-primary)] h-full w-3/4"></div>
-          </div>
-          <p className="text-[10px] text-[var(--color-text-muted)] pt-1">6 days taken this year</p>
-        </div>
+      {/* Leave Balances / Allocations */}
+      <div>
+        <h2 className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+          Active Leave Allocations
+        </h2>
 
-        <div className="pp-card p-4 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[var(--color-text-heading)]">Sick Leave</span>
-            <span className="pp-badge pp-badge-neutral text-[10px]">7 / 10 Days Left</span>
+        {isLoadingAllocations ? (
+          <div className="py-6 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+            <span>Loading allocations...</span>
           </div>
-          <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden mt-2">
-            <div className="bg-[#00C853] h-full w-[70%]"></div>
+        ) : allocations.length === 0 ? (
+          <div className="pp-card p-4 text-center text-xs text-[var(--color-text-muted)]">
+            No active leave allocations found.
           </div>
-          <p className="text-[10px] text-[var(--color-text-muted)] pt-1">3 days taken this year</p>
-        </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {allocations.map((alloc) => {
+              const typeName = alloc.timeOffType?.name || 'Leave'
+              const allocated = Number(alloc.allocated) || 0
+              const remaining = Number(alloc.remaining) || 0
+              const percent = allocated > 0 ? Math.min(100, Math.round((remaining / allocated) * 100)) : 0
 
-        <div className="pp-card p-4 space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-[var(--color-text-heading)]">Casual Leave</span>
-            <span className="pp-badge pp-badge-neutral text-[10px]">4 / 6 Days Left</span>
+              return (
+                <div key={alloc.id} className="pp-card p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--color-text-heading)]">{typeName}</span>
+                    <span className="pp-badge pp-badge-neutral text-[10px]">
+                      {remaining} / {allocated} Days Left
+                    </span>
+                  </div>
+                  <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden mt-2">
+                    <div
+                      className="bg-[var(--color-primary)] h-full transition-all"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[var(--color-text-muted)] pt-1">
+                    {alloc.taken || (allocated - remaining)} days taken
+                  </p>
+                </div>
+              )
+            })}
           </div>
-          <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden mt-2">
-            <div className="bg-[#FFAA00] h-full w-[66%]"></div>
-          </div>
-          <p className="text-[10px] text-[var(--color-text-muted)] pt-1">2 days taken this year</p>
-        </div>
+        )}
       </div>
 
       {/* Pending Requests Table (Manager / Admin Approval Scope) */}
@@ -189,71 +193,85 @@ export const TimeOffView: React.FC = () => {
               </h3>
             </div>
             <span className="pp-badge pp-badge-warning text-xs font-bold">
-              {requests.filter((r) => r.status === 'pending').length} Pending
+              {pendingRequests.length} Pending
             </span>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                  <th className="py-2.5 px-4">Employee</th>
-                  <th className="py-2.5 px-4">Leave Type</th>
-                  <th className="py-2.5 px-4">Dates</th>
-                  <th className="py-2.5 px-4">Duration</th>
-                  <th className="py-2.5 px-4">Reason</th>
-                  <th className="py-2.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
-                {requests
-                  .filter((r) => r.status === 'pending')
-                  .map((r) => (
-                    <tr key={r.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
-                      <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
-                        {r.employeeName}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className="pp-badge pp-badge-neutral text-[11px]">{r.leaveType}</span>
-                      </td>
-                      <td className="py-3 px-4 font-mono text-[11px]">
-                        {r.dateFrom} &rarr; {r.dateTo}
-                      </td>
-                      <td className="py-3 px-4 font-bold">{r.days} Days</td>
-                      <td className="py-3 px-4 text-[var(--color-text-muted)] max-w-xs truncate">
-                        {r.reason}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(r.id, r.employeeName)}
-                            title="Approve leave"
-                            className="p-1 text-[#00C853] hover:bg-[#00C853]/10 rounded border border-[#00C853]/30 cursor-pointer"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRefuse(r.id, r.employeeName)}
-                            title="Refuse leave"
-                            className="p-1 text-[#FF1744] hover:bg-[#FF1744]/10 rounded border border-[#FF1744]/30 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+            {isLoadingRequests ? (
+              <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                <span>Loading pending requests...</span>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                    <th className="py-2.5 px-4">Employee</th>
+                    <th className="py-2.5 px-4">Leave Type</th>
+                    <th className="py-2.5 px-4">Dates</th>
+                    <th className="py-2.5 px-4">Duration</th>
+                    <th className="py-2.5 px-4">Reason</th>
+                    <th className="py-2.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
+                  {pendingRequests.map((r) => {
+                    const empName = r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : 'N/A'
+                    const leaveType = r.timeOffType?.name || 'Leave'
+                    const startDateStr = r.startDate?.split('T')[0] || r.startDate
+                    const endDateStr = r.endDate?.split('T')[0] || r.endDate
+
+                    return (
+                      <tr key={r.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
+                        <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
+                          {empName}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="pp-badge pp-badge-neutral text-[11px]">{leaveType}</span>
+                        </td>
+                        <td className="py-3 px-4 font-mono text-[11px]">
+                          {startDateStr} &rarr; {endDateStr}
+                        </td>
+                        <td className="py-3 px-4 font-bold">{r.duration || 1} Days</td>
+                        <td className="py-3 px-4 text-[var(--color-text-muted)] max-w-xs truncate">
+                          {r.reason || 'N/A'}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(r.id, empName)}
+                              disabled={approveMutation.isPending}
+                              title="Approve leave"
+                              className="p-1 text-[#00C853] hover:bg-[#00C853]/10 rounded border border-[#00C853]/30 cursor-pointer disabled:opacity-50"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRefuse(r.id, empName)}
+                              disabled={refuseMutation.isPending}
+                              title="Refuse leave"
+                              className="p-1 text-[#FF1744] hover:bg-[#FF1744]/10 rounded border border-[#FF1744]/30 cursor-pointer disabled:opacity-50"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {pendingRequests.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-xs text-[var(--color-text-muted)]">
+                        No pending leave requests requiring approval.
                       </td>
                     </tr>
-                  ))}
-                {requests.filter((r) => r.status === 'pending').length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-xs text-[var(--color-text-muted)]">
-                      No pending leave requests requiring approval.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
@@ -267,44 +285,62 @@ export const TimeOffView: React.FC = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                <th className="py-2.5 px-4">Employee</th>
-                <th className="py-2.5 px-4">Leave Type</th>
-                <th className="py-2.5 px-4">Dates</th>
-                <th className="py-2.5 px-4">Days</th>
-                <th className="py-2.5 px-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
-              {requests.map((r) => (
-                <tr key={r.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
-                  <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
-                    {r.employeeName}
-                  </td>
-                  <td className="py-3 px-4">{r.leaveType}</td>
-                  <td className="py-3 px-4 font-mono text-[11px]">
-                    {r.dateFrom} &rarr; {r.dateTo}
-                  </td>
-                  <td className="py-3 px-4 font-semibold">{r.days} Days</td>
-                  <td className="py-3 px-4">
-                    <span
-                      className={`pp-badge uppercase text-[10px] font-bold ${
-                        r.status === 'approved'
-                          ? 'pp-badge-success'
-                          : r.status === 'refused'
-                          ? 'pp-badge-danger'
-                          : 'pp-badge-warning'
-                      }`}
-                    >
-                      {r.status}
-                    </span>
-                  </td>
+          {isLoadingRequests ? (
+            <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+              <span>Loading leave history...</span>
+            </div>
+          ) : requests.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[var(--color-text-muted)]">
+              No leave requests found.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                  <th className="py-2.5 px-4">Employee</th>
+                  <th className="py-2.5 px-4">Leave Type</th>
+                  <th className="py-2.5 px-4">Dates</th>
+                  <th className="py-2.5 px-4">Days</th>
+                  <th className="py-2.5 px-4">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
+                {requests.map((r) => {
+                  const empName = r.employee ? `${r.employee.firstName} ${r.employee.lastName}` : 'N/A'
+                  const leaveType = r.timeOffType?.name || 'Leave'
+                  const startDateStr = r.startDate?.split('T')[0] || r.startDate
+                  const endDateStr = r.endDate?.split('T')[0] || r.endDate
+
+                  return (
+                    <tr key={r.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
+                      <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
+                        {empName}
+                      </td>
+                      <td className="py-3 px-4">{leaveType}</td>
+                      <td className="py-3 px-4 font-mono text-[11px]">
+                        {startDateStr} &rarr; {endDateStr}
+                      </td>
+                      <td className="py-3 px-4 font-semibold">{r.duration || 1} Days</td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`pp-badge uppercase text-[10px] font-bold ${
+                            r.status === 'approved'
+                              ? 'pp-badge-success'
+                              : r.status === 'refused' || r.status === 'cancelled'
+                              ? 'pp-badge-danger'
+                              : 'pp-badge-warning'
+                          }`}
+                        >
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -325,19 +361,44 @@ export const TimeOffView: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmitRequest} className="space-y-3">
+              {employeesList.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Employee
+                  </label>
+                  <select
+                    value={selectedEmployeeId}
+                    onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                    className="pp-input text-xs w-full"
+                    required
+                  >
+                    {employeesList.map((emp: any) => (
+                      <option key={emp.id} value={emp.id}>
+                        {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                   Leave Type
                 </label>
                 <select
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value)}
+                  value={selectedTypeId}
+                  onChange={(e) => setSelectedTypeId(e.target.value)}
                   className="pp-input text-xs w-full"
+                  required
                 >
-                  <option value="Paid Time Off">Paid Time Off (PTO)</option>
-                  <option value="Sick Leave">Sick Leave</option>
-                  <option value="Casual Leave">Casual Leave</option>
-                  <option value="Unpaid Leave">Unpaid Leave</option>
+                  {leaveTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                  {leaveTypes.length === 0 && (
+                    <option value="">No leave types configured</option>
+                  )}
                 </select>
               </div>
 
@@ -391,9 +452,11 @@ export const TimeOffView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="pp-btn-primary text-xs py-2 px-4 cursor-pointer"
+                  disabled={createMutation.isPending}
+                  className="pp-btn-primary text-xs py-2 px-4 cursor-pointer flex items-center gap-1.5"
                 >
-                  Submit Request
+                  {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Submit Request</span>
                 </button>
               </div>
             </form>

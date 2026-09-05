@@ -118,19 +118,27 @@ export const checkInService = async (
   const dateStr = input.attendanceDate || checkInTime.toISOString().split("T")[0];
   const attendanceDate = new Date(`${dateStr}T00:00:00.000Z`);
 
-  // Check if open check-in already exists on same date
-  const existingOpen = await prisma.attendance.findFirst({
+  // Check if an attendance record already exists for this employee on this date
+  const existingAttendance = await prisma.attendance.findFirst({
     where: {
       companyId,
       employeeId,
       attendanceDate,
-      checkOut: null,
       deletedAt: null,
     },
   });
 
-  if (existingOpen) {
-    throw new ApiError(StatusCodes.CONFLICT, "Employee is already checked in for this date without checking out");
+  if (existingAttendance) {
+    if (existingAttendance.checkOut) {
+      throw new ApiError(
+        StatusCodes.CONFLICT,
+        "You have already completed your punch out for today. Punching in again on the same day is not permitted."
+      );
+    }
+    throw new ApiError(
+      StatusCodes.CONFLICT,
+      "Employee is already checked in for this date without checking out"
+    );
   }
 
   return prisma.attendance.create({

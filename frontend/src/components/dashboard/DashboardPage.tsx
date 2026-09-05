@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Users,
@@ -15,50 +15,21 @@ import {
   AlertCircle,
   PlusCircle,
   CheckSquare,
+  Loader2,
 } from 'lucide-react'
 import { useAuthUser, useCompanyId, canAccessPayroll, canAccessUserManagement } from '@/store/auth.store'
 import { useDashboardOverview } from '@/hooks/use-api'
+import { useTodayAttendance, useCheckIn, useCheckOut } from '@/hooks/use-attendance'
+import {
+  useTimeOffRequests,
+  useApproveTimeOffRequest,
+  useRefuseTimeOffRequest,
+} from '@/hooks/use-timeoff'
 
 interface DashboardPageProps {
   onNavigateToEmployees?: () => void
   onNavigateToUserManagement?: () => void
 }
-
-interface PendingLeaveRequest {
-  id: string
-  employeeName: string
-  leaveType: string
-  dates: string
-  duration: string
-  status: 'pending' | 'approved' | 'refused'
-}
-
-const SAMPLE_PENDING_REQUESTS: PendingLeaveRequest[] = [
-  {
-    id: 'req-1',
-    employeeName: 'Aarav Mehta',
-    leaveType: 'Casual Leave',
-    dates: '10 Sep - 12 Sep 2026',
-    duration: '3 Days',
-    status: 'pending',
-  },
-  {
-    id: 'req-2',
-    employeeName: 'Maya Shah',
-    leaveType: 'Sick Leave',
-    dates: '08 Sep 2026',
-    duration: '1 Day',
-    status: 'pending',
-  },
-  {
-    id: 'req-3',
-    employeeName: 'Rohan Patel',
-    leaveType: 'Unpaid Leave',
-    dates: '15 Sep - 18 Sep 2026',
-    duration: '4 Days',
-    status: 'pending',
-  },
-]
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToEmployees,
@@ -69,9 +40,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const companyId = useCompanyId()
   const { data: overviewData } = useDashboardOverview()
 
-  const [leaveRequests, setLeaveRequests] = useState<PendingLeaveRequest[]>(SAMPLE_PENDING_REQUESTS)
+  // Backend Attendance Hooks
+  const { data: todayAttendance } = useTodayAttendance()
+  const checkInMutation = useCheckIn()
+  const checkOutMutation = useCheckOut()
+
+  // Backend Time Off Hooks
+  const { data: rawTimeOffRequests, isLoading: isLeaveLoading } = useTimeOffRequests()
+  const approveLeaveMutation = useApproveTimeOffRequest()
+  const refuseLeaveMutation = useRefuseTimeOffRequest()
+
   const [actionFeedback, setActionFeedback] = useState<string | null>(null)
-  const [checkInState, setCheckInState] = useState<'checked_out' | 'checked_in'>('checked_out')
+  const [checkInState, setCheckInState] = useState<'checked_out' | 'checked_in' | 'completed_today'>('checked_out')
 
   const role = user?.role
   const isEmployee = role === 'employee'
@@ -79,33 +59,64 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const isPayrollAccess = canAccessPayroll(role)
   const isAdmin = canAccessUserManagement(role)
 
-  const pendingCount = leaveRequests.filter((r) => r.status === 'pending').length
+  // Sync punch state with today's attendance record from backend
+  useEffect(() => {
+    if (todayAttendance) {
+      if (todayAttendance.checkOut) {
+        setCheckInState('completed_today')
+      } else if (todayAttendance.checkIn) {
+        setCheckInState('checked_in')
+      }
+    }
+  }, [todayAttendance])
 
-  const handleApproveLeave = (id: string, name: string) => {
-    setLeaveRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'approved' } : r))
-    )
-    setActionFeedback(`Approved leave request for ${name}. Balance updated.`)
-    setTimeout(() => setActionFeedback(null), 3500)
-  }
+  const pendingRequests = rawTimeOffRequests || []
+  const pendingCount = pendingRequests.filter((r) => r.status === 'pending').length
 
-  const handleRefuseLeave = (id: string, name: string) => {
-    setLeaveRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'refused' } : r))
-    )
-    setActionFeedback(`Refused leave request for ${name}.`)
-    setTimeout(() => setActionFeedback(null), 3500)
-  }
-
-  const handleToggleCheckIn = () => {
-    if (checkInState === 'checked_out') {
-      setCheckInState('checked_in')
-      setActionFeedback('Clocked In successfully at ' + new Date().toLocaleTimeString())
-    } else {
-      setCheckInState('checked_out')
-      setActionFeedback('Clocked Out successfully at ' + new Date().toLocaleTimeString())
+  const handleApproveLeave = async (id: string, name: string) => {
+    try {
+      await approveLeaveMutation.mutateAsync(id)
+      setActionFeedback(`Approved leave request for ${name}. Balance updated.`)
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to approve leave request'
+      setActionFeedback(`Error: ${errMsg}`)
     }
     setTimeout(() => setActionFeedback(null), 3500)
+  }
+
+  const handleRefuseLeave = async (id: string, name: string) => {
+    try {
+      await refuseLeaveMutation.mutateAsync({ requestId: id })
+      setActionFeedback(`Refused leave request for ${name}.`)
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to refuse leave request'
+      setActionFeedback(`Error: ${errMsg}`)
+    }
+    setTimeout(() => setActionFeedback(null), 3500)
+  }
+
+  const handleToggleCheckIn = async () => {
+    if (checkInState === 'completed_today') {
+      setActionFeedback('Shift already completed for today. Re-punching in on the same day is disabled.')
+      setTimeout(() => setActionFeedback(null), 3500)
+      return
+    }
+
+    try {
+      if (checkInState === 'checked_out') {
+        await checkInMutation.mutateAsync()
+        setCheckInState('checked_in')
+        setActionFeedback('Clocked In successfully at ' + new Date().toLocaleTimeString())
+      } else {
+        await checkOutMutation.mutateAsync({ attendanceId: todayAttendance?.id })
+        setCheckInState('completed_today')
+        setActionFeedback('Clocked Out successfully at ' + new Date().toLocaleTimeString() + '. Today\'s shift is completed.')
+      }
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Attendance request failed'
+      setActionFeedback(`Error: ${errMsg}`)
+    }
+    setTimeout(() => setActionFeedback(null), 4000)
   }
 
   return (
@@ -301,30 +312,65 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <div className="flex items-center gap-2">
                   <span
                     className={`w-2.5 h-2.5 rounded-full ${
-                      checkInState === 'checked_in' ? 'bg-[#00C853] animate-pulse' : 'bg-amber-500'
+                      checkInState === 'checked_in'
+                        ? 'bg-[#00C853] animate-pulse'
+                        : checkInState === 'completed_today'
+                        ? 'bg-gray-400'
+                        : 'bg-amber-500'
                     }`}
                   />
                   <span className="text-sm font-bold text-[var(--color-text-heading)] capitalize">
-                    Status: {checkInState === 'checked_in' ? 'Clocked In (Active)' : 'Clocked Out'}
+                    Status: {
+                      checkInState === 'checked_in'
+                        ? 'Clocked In (Active)'
+                        : checkInState === 'completed_today'
+                        ? 'Shift Completed Today (Punched Out)'
+                        : 'Clocked Out'
+                    }
                   </span>
                 </div>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Log your working hours to feed into monthly worked days calculation for payroll.
+                  {checkInState === 'completed_today'
+                    ? 'You have completed your punch out for today. Punch in re-entry is disabled until tomorrow.'
+                    : 'Log your working hours to feed into monthly worked days calculation for payroll.'}
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleToggleCheckIn}
-                className={`pp-btn text-xs py-2 px-5 font-bold rounded-[6px] inline-flex items-center gap-2 cursor-pointer ${
-                  checkInState === 'checked_in'
-                    ? 'bg-amber-600 hover:bg-amber-700 text-white'
-                    : 'bg-[#00C853] hover:bg-[#00a845] text-white'
-                }`}
-              >
-                <Clock className="w-4 h-4" />
-                <span>{checkInState === 'checked_in' ? 'Clock Out' : 'Clock In Now'}</span>
-              </button>
+              {checkInState === 'completed_today' ? (
+                <button
+                  type="button"
+                  disabled
+                  className="pp-btn text-xs py-2 px-5 font-bold rounded-[6px] inline-flex items-center gap-2 bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed opacity-80"
+                  title="Shift completed for today. Re-punching in on the same day is prohibited."
+                >
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  <span>Punched Out for Today</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleToggleCheckIn}
+                  disabled={checkInMutation.isPending || checkOutMutation.isPending}
+                  className={`pp-btn text-xs py-2 px-5 font-bold rounded-[6px] inline-flex items-center gap-2 cursor-pointer ${
+                    checkInState === 'checked_in'
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : 'bg-[#00C853] hover:bg-[#00a845] text-white'
+                  } ${checkInMutation.isPending || checkOutMutation.isPending ? 'opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  {checkInMutation.isPending || checkOutMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Clock className="w-4 h-4" />
+                  )}
+                  <span>
+                    {checkInMutation.isPending || checkOutMutation.isPending
+                      ? 'Processing...'
+                      : checkInState === 'checked_in'
+                      ? 'Clock Out'
+                      : 'Clock In Now'}
+                  </span>
+                </button>
+              )}
             </div>
 
             <div className="pt-2 text-xs text-[var(--color-text-muted)]">
@@ -409,65 +455,86 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
 
             <div className="space-y-3">
-              {leaveRequests.map((req) => (
-                <div
-                  key={req.id}
-                  className="p-3.5 rounded-[6px] bg-[var(--color-bg-muted)] border border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-[var(--color-text-heading)]">
-                        {req.employeeName}
-                      </span>
-                      <span className="pp-badge pp-badge-neutral text-[10px]">
-                        {req.leaveType}
-                      </span>
-                    </div>
-                    <div className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-3">
-                      <span className="inline-flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5 text-[var(--color-primary)]" />
-                        {req.dates}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-                        {req.duration}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Approve/Refuse Buttons for HR Manager & Admin */}
-                  <div className="flex items-center gap-2">
-                    {req.status === 'pending' ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => handleApproveLeave(req.id, req.employeeName)}
-                          className="pp-btn text-xs py-1.5 px-3 bg-[#00C853] hover:bg-[#00a845] text-white font-semibold rounded inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>Approve</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRefuseLeave(req.id, req.employeeName)}
-                          className="pp-btn text-xs py-1.5 px-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                          <span>Refuse</span>
-                        </button>
-                      </>
-                    ) : (
-                      <span
-                        className={`pp-badge ${
-                          req.status === 'approved' ? 'pp-badge-success' : 'pp-badge-danger'
-                        } text-xs uppercase font-bold`}
-                      >
-                        {req.status}
-                      </span>
-                    )}
-                  </div>
+              {isLeaveLoading ? (
+                <div className="p-4 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                  <span>Loading time off requests...</span>
                 </div>
-              ))}
+              ) : pendingRequests.length === 0 ? (
+                <div className="p-4 text-center text-xs text-[var(--color-text-muted)] italic">
+                  No time off requests found.
+                </div>
+              ) : (
+                pendingRequests.map((req) => {
+                  const empName = req.employee ? `${req.employee.firstName} ${req.employee.lastName}` : 'Employee'
+                  const leaveType = req.timeOffType?.name || 'Leave'
+                  const startDateStr = new Date(req.startDate).toISOString().split('T')[0]
+                  const endDateStr = new Date(req.endDate).toISOString().split('T')[0]
+                  const datesStr = startDateStr === endDateStr ? startDateStr : `${startDateStr} to ${endDateStr}`
+
+                  return (
+                    <div
+                      key={req.id}
+                      className="p-3.5 rounded-[6px] bg-[var(--color-bg-muted)] border border-[var(--color-border)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-[var(--color-text-heading)]">
+                            {empName}
+                          </span>
+                          <span className="pp-badge pp-badge-neutral text-[10px]">
+                            {leaveType}
+                          </span>
+                        </div>
+                        <div className="text-xs text-[var(--color-text-muted)] mt-1 flex items-center gap-3">
+                          <span className="inline-flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                            {datesStr}
+                          </span>
+                          <span className="inline-flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+                            {req.duration} Day(s)
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Approve/Refuse Buttons for HR Manager & Admin */}
+                      <div className="flex items-center gap-2">
+                        {req.status === 'pending' ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApproveLeave(req.id, empName)}
+                              disabled={approveLeaveMutation.isPending || refuseLeaveMutation.isPending}
+                              className="pp-btn text-xs py-1.5 px-3 bg-[#00C853] hover:bg-[#00a845] text-white font-semibold rounded inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRefuseLeave(req.id, empName)}
+                              disabled={approveLeaveMutation.isPending || refuseLeaveMutation.isPending}
+                              className="pp-btn text-xs py-1.5 px-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                              <span>Refuse</span>
+                            </button>
+                          </>
+                        ) : (
+                          <span
+                            className={`pp-badge ${
+                              req.status === 'approved' ? 'pp-badge-success' : 'pp-badge-danger'
+                            } text-xs uppercase font-bold`}
+                          >
+                            {req.status}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              )}
             </div>
           </div>
 
