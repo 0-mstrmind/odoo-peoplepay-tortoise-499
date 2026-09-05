@@ -22,10 +22,34 @@ export { resolveCompanyId };
 
 export const listTimeOffTypesService = async (callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);
-  return prisma.timeOffType.findMany({
+  let types = await prisma.timeOffType.findMany({
     where: { companyId, deletedAt: null },
     orderBy: { createdAt: "asc" },
   });
+
+  if (types.length === 0) {
+    const defaultTypes = [
+      { name: "Casual Leave", code: "CL", unit: "days", requiresAllocation: true, approvalRequired: true, color: "#714867", isActive: true },
+      { name: "Sick Leave", code: "SL", unit: "days", requiresAllocation: true, approvalRequired: true, color: "#00C853", isActive: true },
+      { name: "Paid Time Off", code: "PL", unit: "days", requiresAllocation: true, approvalRequired: true, color: "#FFAA00", isActive: true },
+      { name: "Unpaid Leave", code: "UPL", unit: "days", requiresAllocation: false, approvalRequired: true, color: "#FF1744", isActive: true },
+      { name: "Compensatory Off", code: "COMP", unit: "days", requiresAllocation: true, approvalRequired: true, color: "#29B6F6", isActive: true },
+      { name: "Maternity / Paternity Leave", code: "MAT_PAT", unit: "days", requiresAllocation: true, approvalRequired: true, color: "#AB47BC", isActive: true },
+    ];
+
+    for (const dt of defaultTypes) {
+      await prisma.timeOffType.create({
+        data: { companyId, ...dt },
+      });
+    }
+
+    types = await prisma.timeOffType.findMany({
+      where: { companyId, deletedAt: null },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  return types;
 };
 
 export const getTimeOffTypeByIdService = async (id: string, callerCompanyId?: string | null) => {
@@ -114,11 +138,21 @@ export const deleteTimeOffTypeService = async (id: string, callerCompanyId?: str
 // 2. TIME OFF ALLOCATIONS SERVICES
 // ==========================================
 
-export const listAllocationsService = async (query: QueryAllocationInput, callerCompanyId?: string | null) => {
+export const listAllocationsService = async (
+  query: QueryAllocationInput,
+  callerCompanyId?: string | null,
+  userRole?: string,
+  userEmployeeId?: string | null,
+) => {
   const companyId = await resolveCompanyId(callerCompanyId);
   const where: any = { companyId, deletedAt: null };
 
-  if (query.employeeId) where.employeeId = query.employeeId;
+  if (userRole?.toLowerCase() === "employee" && userEmployeeId) {
+    where.employeeId = userEmployeeId;
+  } else if (query.employeeId) {
+    where.employeeId = query.employeeId;
+  }
+
   if (query.timeOffTypeId) where.timeOffTypeId = query.timeOffTypeId;
   if (query.status) where.status = query.status;
 
@@ -372,22 +406,74 @@ const checkForOverlappingRequests = async (
   }
 };
 
-export const listRequestsService = async (query: QueryRequestInput, callerCompanyId?: string | null) => {
+export const listRequestsService = async (
+  query: QueryRequestInput,
+  currentUser?: { id?: string; employeeId?: string | null; role?: string },
+  callerCompanyId?: string | null,
+) => {
   const companyId = await resolveCompanyId(callerCompanyId);
   const where: any = { companyId, deletedAt: null };
 
   if (query.employeeId) where.employeeId = query.employeeId;
-  if (query.status) where.status = query.status;
-  if (query.timeOffTypeId) where.timeOffTypeId = query.timeOffTypeId;
+  if (query.status && query.status !== "all") where.status = query.status;
+  if (query.timeOffTypeId && query.timeOffTypeId !== "all") where.timeOffTypeId = query.timeOffTypeId;
+
+  // Employee relation conditions (role, department, search)
+  const employeeWhere: any = {};
+  const conditions: any[] = [];
+
+  if (currentUser?.role?.toLowerCase() === "employee") {
+    let empId = currentUser.employeeId;
+    if (!empId && currentUser.id) {
+      const u = await prisma.user.findUnique({
+        where: { id: currentUser.id },
+        select: { employeeId: true, linkedEmployee: { select: { id: true } } },
+      });
+      empId = u?.employeeId || u?.linkedEmployee?.id;
+    }
+    where.employeeId = empId || "00000000-0000-0000-0000-000000000000";
+  }
+
+  if (query.departmentId) {
+    employeeWhere.departmentId = query.departmentId;
+  }
+
+  if (query.search && query.search.trim()) {
+    const s = query.search.trim();
+    conditions.push({
+      OR: [
+        { firstName: { contains: s, mode: "insensitive" } },
+        { lastName: { contains: s, mode: "insensitive" } },
+        { employeeCode: { contains: s, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  if (conditions.length > 0) {
+    employeeWhere.AND = conditions;
+  }
+
+  if (Object.keys(employeeWhere).length > 0) {
+    where.employee = employeeWhere;
+  }
 
   return prisma.timeOffRequest.findMany({
     where,
     include: {
       employee: {
-        select: { id: true, firstName: true, lastName: true, employeeCode: true, email: true },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          employeeCode: true,
+          email: true,
+          department: { select: { id: true, name: true } },
+          jobPosition: { select: { id: true, title: true } },
+          manager: { select: { id: true, firstName: true, lastName: true } },
+        },
       },
       timeOffType: {
-        select: { id: true, name: true, unit: true, requiresAllocation: true, approvalRequired: true },
+        select: { id: true, name: true, unit: true, requiresAllocation: true, approvalRequired: true, color: true },
       },
       allocation: {
         select: { id: true, allocated: true, taken: true, remaining: true, validFrom: true, validTo: true },
@@ -436,6 +522,38 @@ export const createRequestService = async (
 
   const startDate = new Date(input.startDate);
   const endDate = new Date(input.endDate);
+
+  // Validate start & end date rules (must be today or future date, not in the past, and within 6 months advance gap)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const startDay = new Date(startDate);
+  startDay.setHours(0, 0, 0, 0);
+
+  if (startDay < today) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Time off start date cannot be in the past. Please select today or a future date."
+    );
+  }
+
+  if (endDate < startDate) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "End date cannot be prior to start date."
+    );
+  }
+
+  const maxAdvanceDate = new Date(today);
+  maxAdvanceDate.setMonth(maxAdvanceDate.getMonth() + 6);
+  maxAdvanceDate.setHours(23, 59, 59, 999);
+
+  if (startDate > maxAdvanceDate || endDate > maxAdvanceDate) {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      "Time off requests cannot be scheduled more than 6 months in advance."
+    );
+  }
 
   // 1. Check double-booking / overlap
   await checkForOverlappingRequests(input.employeeId, companyId, startDate, endDate);

@@ -28,7 +28,7 @@ export const authMiddleware = async (req: Request, _res: Response, next: NextFun
     // Verify against DB to enforce account active status
     const dbUser = await prisma.user.findFirst({
       where: { id: payload.userId, deletedAt: null },
-      select: { id: true, email: true, role: true, isActive: true, companyId: true },
+      select: { id: true, email: true, role: true, isActive: true, companyId: true, employeeId: true },
     });
 
     if (!dbUser || !dbUser.isActive) {
@@ -40,8 +40,9 @@ export const authMiddleware = async (req: Request, _res: Response, next: NextFun
       id: dbUser.id,
       userId: dbUser.id,
       email: dbUser.email,
-      role: dbUser.role,
+      role: dbUser.role.toLowerCase(),
       companyId: dbUser.companyId ?? undefined,
+      employeeId: dbUser.employeeId ?? undefined,
       isActive: dbUser.isActive,
     };
 

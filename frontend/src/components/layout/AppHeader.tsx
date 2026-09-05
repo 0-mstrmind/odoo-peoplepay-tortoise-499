@@ -48,9 +48,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       else if (tab === 'schedules') subTitle = 'Working Schedules'
       else subTitle = 'All Contracts'
     } else if (pathname.startsWith('/attendance')) {
-      viewTitle = user?.role === 'employee' ? 'My Attendance' : 'Attendance'
+      viewTitle = user?.role?.toLowerCase() === 'employee' ? 'My Attendance' : 'Attendance'
     } else if (pathname.startsWith('/time-off')) {
-      viewTitle = user?.role === 'employee' ? 'My Time Off' : 'Time Off'
+      viewTitle = user?.role?.toLowerCase() === 'employee' ? 'My Time Off' : 'Time Off'
       if (tab === 'allocations') subTitle = 'Leave Allocations'
       else subTitle = 'Time Off Requests'
     } else if (pathname.startsWith('/payroll')) {

@@ -33,7 +33,16 @@ import {
   createDepartmentService,
   createJobPositionService,
   createWorkingScheduleService,
+  getMyEmployeeProfileService,
 } from "./employee.service.js";
+
+export const getMyEmployeeProfile = CatchAsync(async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const userEmployeeId = req.user?.employeeId;
+  const userEmail = req.user?.email;
+  const employee = await getMyEmployeeProfileService(userId, userEmployeeId, userEmail, req.user?.companyId);
+  sendResponse(res, StatusCodes.OK, "Logged in employee profile retrieved successfully", { employee });
+});
 
 export const getEmployees = CatchAsync(async (req: Request, res: Response) => {
   const query = queryEmployeeSchema.parse(req.query);

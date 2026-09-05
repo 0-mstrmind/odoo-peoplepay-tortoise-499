@@ -162,6 +162,92 @@ export const listEmployeesService = async (
   };
 };
 
+// Get logged-in user's own employee profile & hub details
+export const getMyEmployeeProfileService = async (
+  userId: string,
+  userEmployeeId?: string | null,
+  userEmail?: string | null,
+  callerCompanyId?: string | null,
+) => {
+  const companyId = await resolveCompanyId(callerCompanyId);
+
+  const whereConditions: any[] = [{ userId }];
+  if (userEmployeeId) {
+    whereConditions.push({ id: userEmployeeId });
+  }
+  if (userEmail) {
+    whereConditions.push({ email: { equals: userEmail.trim(), mode: "insensitive" } });
+  }
+
+  const employee = await prisma.employee.findFirst({
+    where: {
+      companyId,
+      deletedAt: null,
+      OR: whereConditions,
+    },
+    include: {
+      department: {
+        include: {
+          manager: {
+            select: { id: true, firstName: true, lastName: true, email: true, employeeCode: true },
+          },
+        },
+      },
+      jobPosition: true,
+      manager: {
+        select: { id: true, firstName: true, lastName: true, employeeCode: true, email: true },
+      },
+      schedule: {
+        include: {
+          scheduleLines: {
+            orderBy: { dayOfWeek: "asc" },
+          },
+        },
+      },
+      bankAccounts: {
+        where: { deletedAt: null },
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+      },
+      contracts: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: {
+          salaryStructure: {
+            include: {
+              structureRules: {
+                orderBy: { sequence: "asc" },
+                include: { rule: true },
+              },
+            },
+          },
+          schedule: true,
+        },
+      },
+      timeOffAllocations: {
+        where: { deletedAt: null },
+        include: { timeOffType: true },
+      },
+      timeOffRequests: {
+        where: { deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        include: { timeOffType: true },
+      },
+      attendances: {
+        where: { deletedAt: null },
+        take: 10,
+        orderBy: { attendanceDate: "desc" },
+      },
+      payslips: {
+        where: { deletedAt: null },
+        take: 5,
+        orderBy: { periodStart: "desc" },
+      },
+    },
+  });
+
+  return employee;
+};
+
 // Get single employee operational hub details with smart counts
 export const getEmployeeByIdService = async (id: string, callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);

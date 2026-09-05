@@ -9,95 +9,83 @@ import {
   Building2,
   DollarSign,
   Briefcase,
+  Loader2,
+  Check,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuthUser, canAccessPayroll } from '@/store/auth.store'
-
-interface ContractItem {
-  id: string
-  reference: string
-  employeeName: string
-  department: string
-  jobTitle: string
-  schedule: string
-  structure: string
-  wage: number
-  currency: string
-  startDate: string
-  status: 'active' | 'draft' | 'expired'
-}
-
-const SAMPLE_CONTRACTS: ContractItem[] = [
-  {
-    id: 'c-1',
-    reference: 'CON-2026-001',
-    employeeName: 'Aarav Mehta',
-    department: 'Engineering',
-    jobTitle: 'Senior Software Engineer',
-    schedule: 'Standard 40h/week (Mon-Fri)',
-    structure: 'Standard Technical Salary Structure',
-    wage: 120000,
-    currency: 'INR',
-    startDate: '2025-01-15',
-    status: 'active',
-  },
-  {
-    id: 'c-2',
-    reference: 'CON-2026-002',
-    employeeName: 'Maya Shah',
-    department: 'Human Resources',
-    jobTitle: 'HR Specialist',
-    schedule: 'Standard 40h/week (Mon-Fri)',
-    structure: 'HR & Administrative Structure',
-    wage: 85000,
-    currency: 'INR',
-    startDate: '2025-03-01',
-    status: 'active',
-  },
-  {
-    id: 'c-3',
-    reference: 'CON-2026-003',
-    employeeName: 'Rohan Patel',
-    department: 'Finance',
-    jobTitle: 'Financial Analyst',
-    schedule: 'Flexible 35h/week',
-    structure: 'Finance & Accounts Structure',
-    wage: 95000,
-    currency: 'INR',
-    startDate: '2025-06-10',
-    status: 'active',
-  },
-  {
-    id: 'c-4',
-    reference: 'CON-2026-004',
-    employeeName: 'Nisha Rao',
-    department: 'Product',
-    jobTitle: 'Product Manager',
-    schedule: 'Standard 40h/week (Mon-Fri)',
-    structure: 'Management Structure',
-    wage: 140000,
-    currency: 'INR',
-    startDate: '2026-01-01',
-    status: 'draft',
-  },
-]
+import {
+  useContracts,
+  useSalaryStructures,
+  useWorkingSchedules,
+  useUpdateContract,
+} from '@/hooks/use-contracts'
+import { CreateContractModal } from './CreateContractModal'
 
 export const ContractsView: React.FC = () => {
   const user = useAuthUser()
+  const role = (user?.role || '').toLowerCase()
+  const canActivate = role === 'admin' || role === 'super_admin' || role === 'hr_payroll_manager'
+
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'contracts'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
 
   const isPayrollUser = canAccessPayroll(user?.role)
 
-  const filteredContracts = SAMPLE_CONTRACTS.filter((c) => {
+  const updateContractMutation = useUpdateContract()
+
+  const handleActivateContract = async (id: string, contractRef: string) => {
+    try {
+      setActivatingId(id)
+      await updateContractMutation.mutateAsync({
+        id,
+        data: { status: 'active' },
+      })
+      toast.success(`Contract ${contractRef} approved and activated successfully!`)
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || 'Failed to activate contract'
+      toast.error(message)
+    } finally {
+      setActivatingId(null)
+    }
+  }
+
+  const { data: contracts = [], isLoading: isLoadingContracts } = useContracts({
+    status: statusFilter !== 'all' ? statusFilter : undefined,
+    search: search ? search : undefined,
+  })
+
+  const { data: salaryStructures = [], isLoading: isLoadingStructures } = useSalaryStructures()
+  const { data: workingSchedules = [], isLoading: isLoadingSchedules } = useWorkingSchedules()
+
+  // Filtered contracts on client side if search is typed
+  const filteredContracts = contracts.filter((c) => {
+    const ref = c.contractReference || ''
+    const empName = c.employee ? `${c.employee.firstName} ${c.employee.lastName}` : ''
+    const dept = c.department?.name || ''
     const matchesSearch =
-      c.employeeName.toLowerCase().includes(search.toLowerCase()) ||
-      c.reference.toLowerCase().includes(search.toLowerCase()) ||
-      c.department.toLowerCase().includes(search.toLowerCase())
+      empName.toLowerCase().includes(search.toLowerCase()) ||
+      ref.toLowerCase().includes(search.toLowerCase()) ||
+      dept.toLowerCase().includes(search.toLowerCase())
+
+    if (activeTab === 'pending') {
+      return matchesSearch && c.status === 'draft'
+    }
+
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter
     return matchesSearch && matchesStatus
   })
+
+  // Summary Metrics calculated from live backend data
+  const activeContractsCount = contracts.filter((c) => c.status === 'active').length
+  const draftContractsCount = contracts.filter((c) => c.status === 'draft').length
+  const avgMonthlyWage = contracts.length > 0
+    ? Math.round(contracts.reduce((acc, c) => acc + (Number(c.wage) || 0), 0) / contracts.length)
+    : 0
 
   return (
     <div className="space-y-6">
@@ -115,8 +103,8 @@ export const ContractsView: React.FC = () => {
 
         <button
           type="button"
-          onClick={() => alert('New contract creation dialog')}
-          className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+          onClick={() => setIsCreateModalOpen(true)}
+          className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
         >
           <Plus className="w-4 h-4" />
           <span>New Contract</span>
@@ -136,6 +124,24 @@ export const ContractsView: React.FC = () => {
         >
           All Contracts
         </button>
+
+        <button
+          type="button"
+          onClick={() => setSearchParams({ tab: 'pending' })}
+          className={`px-3 py-2 text-xs font-semibold border-b-2 transition-colors cursor-pointer flex items-center gap-1.5 ${
+            activeTab === 'pending'
+              ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
+              : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+          }`}
+        >
+          <span>Pending Approval</span>
+          {draftContractsCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-extrabold bg-amber-500 text-white">
+              {draftContractsCount}
+            </span>
+          )}
+        </button>
+
         {isPayrollUser && (
           <button
             type="button"
@@ -162,9 +168,24 @@ export const ContractsView: React.FC = () => {
         </button>
       </div>
 
-      {/* Tab 1: Contracts List */}
-      {activeTab === 'contracts' && (
+      {/* Tab 1: Contracts List (All Contracts & Pending Approval) */}
+      {(activeTab === 'contracts' || activeTab === 'pending') && (
         <div className="space-y-4">
+          {draftContractsCount > 0 && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-[6px] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="font-semibold text-amber-900 dark:text-amber-200">
+                  {draftContractsCount} contract{draftContractsCount === 1 ? '' : 's'} submitted by HR Manager{draftContractsCount === 1 ? '' : 's'} pending admin approval.
+                </span>
+              </div>
+              {canActivate && (
+                <span className="text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                  Click &quot;Approve&quot; in the table to activate.
+                </span>
+              )}
+            </div>
+          )}
           {/* Metrics summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="pp-card p-4 flex items-center gap-3">
@@ -173,7 +194,7 @@ export const ContractsView: React.FC = () => {
               </div>
               <div>
                 <p className="text-[11px] text-[var(--color-text-muted)] font-medium">Active Contracts</p>
-                <p className="text-lg font-extrabold text-[var(--color-text-heading)]">3</p>
+                <p className="text-lg font-extrabold text-[var(--color-text-heading)]">{activeContractsCount}</p>
               </div>
             </div>
 
@@ -183,7 +204,7 @@ export const ContractsView: React.FC = () => {
               </div>
               <div>
                 <p className="text-[11px] text-[var(--color-text-muted)] font-medium">Draft Contracts</p>
-                <p className="text-lg font-extrabold text-[var(--color-text-heading)]">1</p>
+                <p className="text-lg font-extrabold text-[var(--color-text-heading)]">{draftContractsCount}</p>
               </div>
             </div>
 
@@ -193,7 +214,7 @@ export const ContractsView: React.FC = () => {
               </div>
               <div>
                 <p className="text-[11px] text-[var(--color-text-muted)] font-medium">Avg Monthly Wage</p>
-                <p className="text-lg font-extrabold text-[var(--color-text-heading)]">₹1,10,000</p>
+                <p className="text-lg font-extrabold text-[var(--color-text-heading)]">₹{avgMonthlyWage.toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -218,57 +239,111 @@ export const ContractsView: React.FC = () => {
                 className="pp-input text-xs py-1.5"
               >
                 <option value="all">All Statuses</option>
+                <option value="draft">Pending Approval (Draft)</option>
                 <option value="active">Active</option>
-                <option value="draft">Draft</option>
+                <option value="expired">Expired</option>
+                <option value="terminated">Terminated</option>
               </select>
             </div>
           </div>
 
           {/* Contracts Table */}
           <div className="pp-card overflow-x-auto border border-[var(--color-border)] shadow-xs rounded-[6px]">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
-                  <th className="py-2.5 px-4">Contract Ref</th>
-                  <th className="py-2.5 px-4">Employee</th>
-                  <th className="py-2.5 px-4">Job & Department</th>
-                  <th className="py-2.5 px-4">Working Schedule</th>
-                  <th className="py-2.5 px-4">Monthly Wage</th>
-                  <th className="py-2.5 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
-                {filteredContracts.map((c) => (
-                  <tr key={c.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
-                    <td className="py-3 px-4 font-mono font-semibold text-[var(--color-primary)]">
-                      {c.reference}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
-                      {c.employeeName}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-[var(--color-text-heading)]">{c.jobTitle}</span>
-                        <span className="text-[10px] text-[var(--color-text-muted)]">{c.department}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-[var(--color-text-muted)]">{c.schedule}</td>
-                    <td className="py-3 px-4 font-mono font-bold text-[var(--color-text-heading)]">
-                      ₹{c.wage.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`pp-badge uppercase text-[10px] font-bold ${
-                          c.status === 'active' ? 'pp-badge-success' : 'pp-badge-warning'
-                        }`}
-                      >
-                        {c.status}
-                      </span>
-                    </td>
+            {isLoadingContracts ? (
+              <div className="py-12 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                <span>Loading contracts...</span>
+              </div>
+            ) : filteredContracts.length === 0 ? (
+              <div className="py-12 text-center text-xs text-[var(--color-text-muted)]">
+                No contracts found matching criteria.
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                    <th className="py-2.5 px-4">Contract Ref</th>
+                    <th className="py-2.5 px-4">Employee</th>
+                    <th className="py-2.5 px-4">Job & Department</th>
+                    <th className="py-2.5 px-4">Working Schedule</th>
+                    <th className="py-2.5 px-4">Monthly Wage</th>
+                    <th className="py-2.5 px-4">Status</th>
+                    <th className="py-2.5 px-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
+                  {filteredContracts.map((c) => {
+                    const empName = c.employee ? `${c.employee.firstName} ${c.employee.lastName}` : 'N/A'
+                    const job = c.jobPosition?.title || 'N/A'
+                    const dept = c.department?.name || 'N/A'
+                    const sched = c.schedule?.name || 'Standard Schedule'
+
+                    return (
+                      <tr key={c.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
+                        <td className="py-3 px-4 font-mono font-semibold text-[var(--color-primary)]">
+                          {c.contractReference}
+                        </td>
+                        <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
+                          {empName}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-[var(--color-text-heading)]">{job}</span>
+                            <span className="text-[10px] text-[var(--color-text-muted)]">{dept}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-[var(--color-text-muted)]">{sched}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-[var(--color-text-heading)]">
+                          ₹{Number(c.wage || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`pp-badge uppercase text-[10px] font-bold ${
+                              c.status === 'active'
+                                ? 'pp-badge-success'
+                                : c.status === 'draft'
+                                ? 'pp-badge-warning'
+                                : 'pp-badge-neutral'
+                            }`}
+                          >
+                            {c.status === 'draft' ? 'Pending Approval' : c.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {c.status === 'draft' ? (
+                            canActivate ? (
+                              <button
+                                type="button"
+                                disabled={activatingId === c.id}
+                                onClick={() => handleActivateContract(c.id, c.contractReference)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-[4px] bg-[#00C853] text-white hover:bg-[#00B048] shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                                title="Approve and activate contract"
+                              >
+                                {activatingId === c.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                )}
+                                <span>Approve</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium italic">
+                                Awaiting Admin Review
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-bold">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Approved</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
@@ -281,32 +356,38 @@ export const ContractsView: React.FC = () => {
             <span>Salary Structures & Rules Configuration</span>
           </h3>
           <p className="text-xs text-[var(--color-text-muted)]">
-            Salary structures define standard computation formulas (BASIC, HRA, DEDUCTIONS, NET) using Reverse Polish Notation (RPN).
+            Salary structures define standard computation formulas (BASIC, HRA, DEDUCTIONS, NET) using rules and expressions.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div className="p-4 rounded-[6px] border border-[var(--color-border)] bg-[var(--color-bg-muted)]/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-[var(--color-text-heading)]">Standard Technical Structure</span>
-                <span className="pp-badge pp-badge-success text-[10px]">Active</span>
-              </div>
-              <p className="text-[11px] text-[var(--color-text-muted)]">Code: TECH_STD_2026 | Rules: 6 active formulas</p>
-              <div className="text-[10px] font-mono text-[var(--color-primary)] bg-[rgba(113,72,103,0.06)] p-2 rounded">
-                BASIC: WAGE * 0.50 | HRA: BASIC * 0.40 | NET: GROSS - DEDUCTIONS
-              </div>
+          {isLoadingStructures ? (
+            <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+              <span>Loading salary structures...</span>
             </div>
-
-            <div className="p-4 rounded-[6px] border border-[var(--color-border)] bg-[var(--color-bg-muted)]/40 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs text-[var(--color-text-heading)]">HR & Administrative Structure</span>
-                <span className="pp-badge pp-badge-success text-[10px]">Active</span>
-              </div>
-              <p className="text-[11px] text-[var(--color-text-muted)]">Code: HR_ADMIN_2026 | Rules: 5 active formulas</p>
-              <div className="text-[10px] font-mono text-[var(--color-primary)] bg-[rgba(113,72,103,0.06)] p-2 rounded">
-                BASIC: WAGE * 0.50 | CONVEYANCE: 1600 | NET: GROSS - DEDUCTIONS
-              </div>
+          ) : salaryStructures.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[var(--color-text-muted)]">
+              No salary structures configured yet.
             </div>
-          </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {salaryStructures.map((struct) => (
+                <div key={struct.id} className="p-4 rounded-[6px] border border-[var(--color-border)] bg-[var(--color-bg-muted)]/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-xs text-[var(--color-text-heading)]">{struct.name}</span>
+                    <span className={`pp-badge text-[10px] ${struct.active ? 'pp-badge-success' : 'pp-badge-neutral'}`}>
+                      {struct.active ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                    Code: {struct.code} | Rules: {struct.ruleCount ?? 0} active formulas | Assigned Employees: {struct.employeeCount ?? 0}
+                  </p>
+                  {struct.description && (
+                    <p className="text-[11px] text-[var(--color-text-muted)] italic">{struct.description}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -321,25 +402,39 @@ export const ContractsView: React.FC = () => {
             Define standard working calendars used for attendance tracking and wage proration.
           </p>
 
-          <div className="space-y-3">
-            <div className="p-3.5 border border-[var(--color-border)] rounded-[6px] flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-[var(--color-text-heading)]">Standard 40h/week (Mon-Fri)</p>
-                <p className="text-[11px] text-[var(--color-text-muted)]">09:00 - 18:00 (1 hour lunch break) | Timezone: Asia/Kolkata</p>
-              </div>
-              <span className="pp-badge pp-badge-neutral text-xs">Default Schedule</span>
+          {isLoadingSchedules ? (
+            <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+              <span>Loading working schedules...</span>
             </div>
-
-            <div className="p-3.5 border border-[var(--color-border)] rounded-[6px] flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-[var(--color-text-heading)]">Flexible 35h/week</p>
-                <p className="text-[11px] text-[var(--color-text-muted)]">Core hours 11:00 - 16:00 | Timezone: Asia/Kolkata</p>
-              </div>
-              <span className="pp-badge pp-badge-neutral text-xs">Active</span>
+          ) : workingSchedules.length === 0 ? (
+            <div className="py-8 text-center text-xs text-[var(--color-text-muted)]">
+              No working schedules configured yet.
             </div>
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {workingSchedules.map((sched) => (
+                <div key={sched.id} className="p-3.5 border border-[var(--color-border)] rounded-[6px] flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-[var(--color-text-heading)]">{sched.name}</p>
+                    <p className="text-[11px] text-[var(--color-text-muted)]">
+                      {sched.totalWeeklyHours}h/week | Code: {sched.code} | Timezone: {sched.timezone || 'Asia/Kolkata'}
+                    </p>
+                  </div>
+                  <span className={`pp-badge text-xs ${sched.isActive ? 'pp-badge-neutral' : 'pp-badge-warning'}`}>
+                    {sched.isActive ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
+      {/* Create Contract Modal */}
+      <CreateContractModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+      />
     </div>
   )
 }

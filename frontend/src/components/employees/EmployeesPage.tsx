@@ -1,10 +1,10 @@
-﻿import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo } from 'react'
 import { Search, LayoutGrid, List, Plus, Users, Filter, X } from 'lucide-react'
 import { EmployeeCard } from './EmployeeCard'
 import { EmployeeTableView } from './EmployeeTableView'
 import { NewEmployeeModal } from './NewEmployeeModal'
 import { EmployeeDetailDrawer } from './EmployeeDetailDrawer'
-import { INITIAL_EMPLOYEES, type EmployeeItem } from './types'
+import { type EmployeeItem } from './types'
 import { useEmployees } from '@/hooks/use-api'
 
 export const EmployeesPage: React.FC = () => {
@@ -17,9 +17,6 @@ export const EmployeesPage: React.FC = () => {
   // Department filter state
   const [selectedDept, setSelectedDept] = useState<string>('all')
 
-  // Local state initialized with wireframe seed data
-  const [employeesList, setEmployeesList] = useState<EmployeeItem[]>(INITIAL_EMPLOYEES)
-
   // Modals state
   const [isNewModalOpen, setIsNewModalOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeItem | null>(null)
@@ -29,11 +26,10 @@ export const EmployeesPage: React.FC = () => {
     search: searchQuery || undefined,
   })
 
-  // Sync with API data if available from backend
+  // Sync strictly with live API data from backend
   const displayEmployees = useMemo(() => {
-    // If backend returns data, merge or map it
-    const apiItems = (apiResponse as any)?.data?.items || (apiResponse as any)?.items
-    if (apiItems && Array.isArray(apiItems) && apiItems.length > 0) {
+    const apiItems = (apiResponse as any)?.data?.items || (apiResponse as any)?.items || (Array.isArray(apiResponse) ? apiResponse : [])
+    if (Array.isArray(apiItems) && apiItems.length > 0) {
       const mapped: EmployeeItem[] = apiItems.map((emp: any) => ({
         id: emp.id,
         firstName: emp.firstName,
@@ -51,9 +47,8 @@ export const EmployeesPage: React.FC = () => {
       return mapped
     }
 
-    // Fallback to local state with wireframe dataset
-    return employeesList
-  }, [apiResponse, employeesList])
+    return []
+  }, [apiResponse])
 
   // Filtered employees based on search query and department
   const filteredEmployees = useMemo(() => {
@@ -80,10 +75,6 @@ export const EmployeesPage: React.FC = () => {
     return Array.from(set)
   }, [displayEmployees])
 
-  const handleAddEmployee = (newEmp: EmployeeItem) => {
-    setEmployeesList((prev) => [newEmp, ...prev])
-  }
-
   return (
     <div className="min-h-screen bg-[var(--color-bg-base)] text-[var(--color-text-body)] font-sans antialiased">
       {/* Main Container — without Navbar as strictly requested */}
@@ -106,7 +97,7 @@ export const EmployeesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsNewModalOpen(true)}
-              className="pp-btn-primary h-10 px-5 text-sm font-bold tracking-wider rounded-[4px] shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5"
+              className="pp-btn-primary h-10 px-5 text-sm font-bold tracking-wider rounded-[4px] shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
               <span>NEW</span>
@@ -126,7 +117,7 @@ export const EmployeesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -180,7 +171,7 @@ export const EmployeesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setSelectedDept('all')}
-              className={`px-2.5 py-1 rounded-[4px] font-medium transition-colors ${
+              className={`px-2.5 py-1 rounded-[4px] font-medium transition-colors cursor-pointer ${
                 selectedDept === 'all'
                   ? 'bg-[var(--color-primary)] text-white font-semibold'
                   : 'bg-[var(--color-bg-muted)] text-[var(--color-text-body)] hover:bg-[var(--color-border)]'
@@ -193,7 +184,7 @@ export const EmployeesPage: React.FC = () => {
                 key={dept}
                 type="button"
                 onClick={() => setSelectedDept(dept)}
-                className={`px-2.5 py-1 rounded-[4px] font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-[4px] font-medium transition-colors cursor-pointer ${
                   selectedDept === dept
                     ? 'bg-[var(--color-primary)] text-white font-semibold'
                     : 'bg-[var(--color-bg-muted)] text-[var(--color-text-body)] hover:bg-[var(--color-border)]'
@@ -234,7 +225,7 @@ export const EmployeesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="pp-btn-secondary text-xs py-1.5 px-3 rounded-[4px]"
+                className="pp-btn-secondary text-xs py-1.5 px-3 rounded-[4px] cursor-pointer"
               >
                 Clear Search
               </button>
@@ -242,7 +233,7 @@ export const EmployeesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsNewModalOpen(true)}
-                className="pp-btn-primary text-xs py-1.5 px-4 rounded-[4px]"
+                className="pp-btn-primary text-xs py-1.5 px-4 rounded-[4px] cursor-pointer"
               >
                 Add Employee
               </button>
@@ -272,7 +263,7 @@ export const EmployeesPage: React.FC = () => {
       <NewEmployeeModal
         isOpen={isNewModalOpen}
         onClose={() => setIsNewModalOpen(false)}
-        onAddEmployee={handleAddEmployee}
+        onAddEmployee={() => {}}
       />
 
       {/* Employee Detail Drawer */}

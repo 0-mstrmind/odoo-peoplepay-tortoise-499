@@ -8,6 +8,7 @@ import {
   approveAttendanceRequest,
   refuseAttendanceRequest,
   getAttendances,
+  getTodayAttendanceSummary,
   getAttendanceById,
   createAttendance,
   updateAttendance,
@@ -49,6 +50,7 @@ router.post(
 );
 
 // 3. Attendance Query Endpoints
+router.get("/today-summary", getTodayAttendanceSummary);
 router.get("/", getAttendances);
 router.get("/:id", getAttendanceById);
 

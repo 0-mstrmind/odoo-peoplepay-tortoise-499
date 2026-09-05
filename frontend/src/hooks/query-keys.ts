@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Query key factory — centralised, type-safe query keys
  *
  * Pattern:  queryKeys.<domain>.<scope>(...args)
@@ -37,8 +37,10 @@ export const queryKeys = {
 
   // ── Attendance ─────────────────────────────────────────────────────────────
   attendance: {
-    all:     ['attendance'] as const,
-    records: (employeeId: string, month: string) => ['attendance', employeeId, month] as const,
+    all:          ['attendance'] as const,
+    records:      (employeeId: string, month: string) => ['attendance', employeeId, month] as const,
+    todaySummary: (params?: Record<string, unknown>) => ['attendance', 'today-summary', params] as const,
+    list:         (params?: Record<string, unknown>) => ['attendance', 'list', params] as const,
   },
 
   // ── Contracts ──────────────────────────────────────────────────────────────

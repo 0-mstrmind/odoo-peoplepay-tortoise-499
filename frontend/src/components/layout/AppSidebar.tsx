@@ -65,6 +65,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const isContracts = pathname.startsWith('/contracts')
   const isAttendance = pathname.startsWith('/attendance')
   const isTimeOff = pathname.startsWith('/time-off')
+  const isPayouts = pathname.startsWith('/payouts') || pathname.startsWith('/payout-history')
   const isPayroll = pathname.startsWith('/payroll')
   const isUserMgmt = pathname.startsWith('/user-management')
 
@@ -298,66 +299,35 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
               {/* Time Off */}
               {showTimeOff && (
-                <div>
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/time-off')}
-                      title={role === 'employee' ? 'My Leave Requests' : 'Time Off & Leave Management'}
-                      className={`flex-1 flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                        isTimeOff && !search.includes('tab=')
-                          ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                          : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                      }`}
-                    >
-                      <Calendar className="w-4 h-4 shrink-0" />
-                      {!isCollapsed && <span>{role === 'employee' ? 'My Time Off' : 'Time Off'}</span>}
-                    </button>
-                    {!isCollapsed && (
-                      <button
-                        type="button"
-                        onClick={() => toggleSubMenu('timeoff')}
-                        className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
-                      >
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                            openSubMenus.timeoff ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                    )}
-                  </div>
-
-                  {!isCollapsed && openSubMenus.timeoff && (
-                    <div className="ml-6 pl-2.5 border-l border-[var(--color-border)] my-1 space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={() => navigate('/time-off')}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          isTimeOff && !search.includes('tab=')
-                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                        }`}
-                      >
-                        Time Off Requests
-                      </button>
-                      {role !== 'employee' && (
-                        <button
-                          type="button"
-                          onClick={() => navigate('/time-off?tab=allocations')}
-                          className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                            search.includes('tab=allocations')
-                              ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                              : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                          }`}
-                        >
-                          Leave Allocations
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/time-off')}
+                  title={role === 'employee' ? 'My Leave Requests & Allocations' : 'Time Off & Leave Management'}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                    isTimeOff
+                      ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                      : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  {!isCollapsed && <span>{role === 'employee' ? 'My Time Off' : 'Time Off'}</span>}
+                </button>
               )}
+
+              {/* Payout History */}
+              <button
+                type="button"
+                onClick={() => navigate('/payouts')}
+                title={role === 'employee' ? 'My Payout & Payslip History' : 'Payout History & Remuneration'}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                  isPayouts
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                {!isCollapsed && <span>{role === 'employee' ? 'My Payout History' : 'Payout History'}</span>}
+              </button>
 
               {/* Payroll */}
               {showPayroll && (
@@ -372,7 +342,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   }`}
                 >
                   <CreditCard className="w-4 h-4 shrink-0" />
-                  {!isCollapsed && <span>Payroll</span>}
+                  {!isCollapsed && <span>Payroll Engine</span>}
                 </button>
               )}
             </nav>
@@ -405,6 +375,27 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 {!isCollapsed && (
                   <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-[rgba(113,72,103,0.12)] text-[var(--color-primary)] rounded">
                     Admin
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/contracts?tab=pending')}
+                title="Admin Contract Approvals Portal"
+                className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                  isContracts && search.includes('tab=pending')
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <FileText className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
+                  {!isCollapsed && <span className="truncate">Contract Approvals</span>}
+                </div>
+                {!isCollapsed && (
+                  <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded">
+                    Review
                   </span>
                 )}
               </button>
