@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react'
-import { Search, LayoutGrid, List, Plus, Users, Filter, X } from 'lucide-react'
+import { Search, LayoutGrid, List, Users, Filter, X } from 'lucide-react'
 import { EmployeeCard } from './EmployeeCard'
 import { EmployeeTableView } from './EmployeeTableView'
-import { NewEmployeeModal } from './NewEmployeeModal'
 import { EmployeeDetailDrawer } from './EmployeeDetailDrawer'
 import { type EmployeeItem } from './types'
 import { useEmployees } from '@/hooks/use-api'
@@ -18,7 +17,6 @@ export const EmployeesPage: React.FC = () => {
   const [selectedDept, setSelectedDept] = useState<string>('all')
 
   // Modals state
-  const [isNewModalOpen, setIsNewModalOpen] = useState(false)
   const [selectedEmployee, setSelectedEmployee] = useState<EmployeeItem | null>(null)
 
   // TanStack Query integration with backend API
@@ -91,18 +89,8 @@ export const EmployeesPage: React.FC = () => {
 
         {/* Toolbar Section (matching wireframe) */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-6">
-          {/* Left Controls: NEW Button + Search Input */}
-          <div className="flex items-center gap-3 flex-1 max-w-xl">
-            {/* "NEW" Button with brand purple (#714867) and 4px rounding */}
-            <button
-              type="button"
-              onClick={() => setIsNewModalOpen(true)}
-              className="pp-btn-primary h-10 px-5 text-sm font-bold tracking-wider rounded-[4px] shadow-xs active:scale-[0.98] transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>NEW</span>
-            </button>
-
+          {/* Left Controls: Search Input */}
+          <div className="flex items-center gap-3 flex-1 max-w-md">
             {/* Search Input */}
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] pointer-events-none" />
@@ -221,21 +209,13 @@ export const EmployeesPage: React.FC = () => {
                 ? `No employee matches the query "${searchQuery}".`
                 : 'Get started by adding your first team member.'}
             </p>
-            {searchQuery ? (
+            {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 className="pp-btn-secondary text-xs py-1.5 px-3 rounded-[4px] cursor-pointer"
               >
                 Clear Search
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsNewModalOpen(true)}
-                className="pp-btn-primary text-xs py-1.5 px-4 rounded-[4px] cursor-pointer"
-              >
-                Add Employee
               </button>
             )}
           </div>
@@ -258,13 +238,6 @@ export const EmployeesPage: React.FC = () => {
           />
         )}
       </main>
-
-      {/* New Employee Modal */}
-      <NewEmployeeModal
-        isOpen={isNewModalOpen}
-        onClose={() => setIsNewModalOpen(false)}
-        onSuccess={() => setIsNewModalOpen(false)}
-      />
 
       {/* Employee Detail Drawer */}
       <EmployeeDetailDrawer
