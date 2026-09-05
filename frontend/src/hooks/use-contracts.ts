@@ -137,6 +137,26 @@ export function useCreateContract() {
 }
 
 /**
+ * Mutation for updating contract details or status (e.g. Activate/Terminate)
+ */
+export function useUpdateContract() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: Partial<CreateContractPayload> }) => {
+      const response = await apiClient.patch<any>(`/contracts/${id}`, data)
+      const res = response.data?.data || response.data
+      return (res?.item || res?.contract || res) as ApiContractItem
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['contracts'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['employees'] })
+    },
+  })
+}
+
+/**
  * Fetch company employee master data (departments, positions, schedules, managers)
  */
 export function useEmployeeMasters() {

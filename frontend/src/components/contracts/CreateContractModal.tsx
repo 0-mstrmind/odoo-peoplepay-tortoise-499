@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { X, FileText, Loader2, DollarSign, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuthUser } from '@/store/auth.store'
 import {
   useCreateContract,
   useSalaryStructures,
@@ -20,6 +21,10 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
   onClose,
   initialEmployeeId,
 }) => {
+  const user = useAuthUser()
+  const role = (user?.role || '').toLowerCase()
+  const canActivateDirectly = role === 'admin' || role === 'super_admin' || role === 'hr_payroll_manager'
+
   const { data: employeesResponse, isLoading: isLoadingEmployees } = useEmployees()
   const employees =
     (employeesResponse as any)?.data?.items ||
@@ -116,6 +121,8 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
       return
     }
 
+    const submitStatus = canActivateDirectly ? status : 'draft'
+
     try {
       await createContractMutation.mutateAsync({
         employeeId,
@@ -128,14 +135,14 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
         wage: numWage,
         currency,
         payFrequency,
-        status,
+        status: submitStatus,
         notes: notes.trim() || null,
       })
 
       toast.success(
-        status === 'active'
+        submitStatus === 'active'
           ? 'Active contract created successfully!'
-          : 'Draft contract saved successfully!'
+          : 'Draft contract submitted successfully for Admin review!'
       )
       onClose()
     } catch (err: any) {
@@ -158,7 +165,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
               <h2 className="text-base font-extrabold text-[var(--color-text-heading)] mb-0 flex items-center gap-2">
                 <span>Create Employment Contract</span>
                 <span className="pp-badge pp-badge-neutral text-[10px] uppercase font-bold">
-                  {status}
+                  {canActivateDirectly ? status : 'Draft'}
                 </span>
               </h2>
               <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
@@ -206,16 +213,25 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 
             <div>
               <label className="block font-semibold text-[var(--color-text-heading)] mb-1">
-                Contract Initial Status
+                Contract Status
               </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as any)}
-                className="pp-input w-full font-semibold"
-              >
-                <option value="draft">Draft (Pending review)</option>
-                <option value="active">Active (Immediate effect)</option>
-              </select>
+              {canActivateDirectly ? (
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as any)}
+                  className="pp-input w-full font-semibold"
+                >
+                  <option value="draft">Draft (Save for review)</option>
+                  <option value="active">Active (Immediate effect)</option>
+                </select>
+              ) : (
+                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-[6px] flex items-center justify-between">
+                  <span className="font-bold text-amber-700 dark:text-amber-300">
+                    Draft (Pending Admin Review)
+                  </span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">Requires Admin Approval</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -233,12 +249,12 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
                 </label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] font-bold">
-                    ₹
+                    {currency === 'INR' ? '₹' : currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '£'}
                   </span>
                   <input
                     type="number"
-                    min="1"
-                    step="100"
+                    min="0"
+                    step="any"
                     value={wage}
                     onChange={(e) => setWage(e.target.value)}
                     className="pp-input w-full pl-6 font-mono font-bold text-[var(--color-text-heading)]"

@@ -10,20 +10,49 @@ import {
   DollarSign,
   Briefcase,
   Loader2,
+  Check,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { useAuthUser, canAccessPayroll } from '@/store/auth.store'
-import { useContracts, useSalaryStructures, useWorkingSchedules } from '@/hooks/use-contracts'
+import {
+  useContracts,
+  useSalaryStructures,
+  useWorkingSchedules,
+  useUpdateContract,
+} from '@/hooks/use-contracts'
 import { CreateContractModal } from './CreateContractModal'
 
 export const ContractsView: React.FC = () => {
   const user = useAuthUser()
+  const role = (user?.role || '').toLowerCase()
+  const canActivate = role === 'admin' || role === 'super_admin' || role === 'hr_payroll_manager'
+
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'contracts'
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
 
   const isPayrollUser = canAccessPayroll(user?.role)
+
+  const updateContractMutation = useUpdateContract()
+
+  const handleActivateContract = async (id: string, contractRef: string) => {
+    try {
+      setActivatingId(id)
+      await updateContractMutation.mutateAsync({
+        id,
+        data: { status: 'active' },
+      })
+      toast.success(`Contract ${contractRef} approved and activated successfully!`)
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || 'Failed to activate contract'
+      toast.error(message)
+    } finally {
+      setActivatingId(null)
+    }
+  }
 
   const { data: contracts = [], isLoading: isLoadingContracts } = useContracts({
     status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -201,6 +230,7 @@ export const ContractsView: React.FC = () => {
                     <th className="py-2.5 px-4">Working Schedule</th>
                     <th className="py-2.5 px-4">Monthly Wage</th>
                     <th className="py-2.5 px-4">Status</th>
+                    {canActivate && <th className="py-2.5 px-4 text-right">Actions</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
@@ -234,9 +264,33 @@ export const ContractsView: React.FC = () => {
                               c.status === 'active' ? 'pp-badge-success' : 'pp-badge-warning'
                             }`}
                           >
-                            {c.status}
+                            {c.status === 'draft' ? 'Draft (Pending)' : c.status}
                           </span>
                         </td>
+                        {canActivate && (
+                          <td className="py-3 px-4 text-right">
+                            {c.status === 'draft' ? (
+                              <button
+                                type="button"
+                                disabled={activatingId === c.id}
+                                onClick={() => handleActivateContract(c.id, c.contractReference)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded bg-[#00C853]/15 text-[#00A844] hover:bg-[#00C853]/25 dark:bg-[#00C853]/20 dark:text-[#00E676] dark:hover:bg-[#00C853]/30 transition-colors disabled:opacity-50 cursor-pointer"
+                                title="Approve and activate contract"
+                              >
+                                {activatingId === c.id ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5" />
+                                )}
+                                <span>Activate</span>
+                              </button>
+                            ) : (
+                              <span className="text-[11px] text-[var(--color-text-muted)] font-medium">
+                                Approved
+                              </span>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     )
                   })}

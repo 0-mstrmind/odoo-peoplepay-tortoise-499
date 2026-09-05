@@ -33,10 +33,13 @@ const checkOverlap = async (
   }
 };
 
-export const createContract = async (companyId: string, userId: string, data: any) => {
+export const createContract = async (companyId: string, userId: string, data: any, userRole?: string) => {
   const startDate = new Date(data.startDate);
   const endDate = data.endDate ? new Date(data.endDate) : null;
-  const status = data.status || "draft";
+
+  // Only admin, super_admin, or hr_payroll_manager can directly activate a contract on creation
+  const canDirectlyActivate = userRole === "admin" || userRole === "super_admin" || userRole === "hr_payroll_manager";
+  const status = canDirectlyActivate ? (data.status || "draft") : "draft";
 
   if (status === "active") {
     await checkOverlap(companyId, data.employeeId, startDate, endDate);
@@ -116,7 +119,7 @@ export const getContracts = async (companyId: string, employeeId?: string) => {
   });
 };
 
-export const updateContract = async (companyId: string, contractId: string, data: any) => {
+export const updateContract = async (companyId: string, contractId: string, data: any, userRole?: string) => {
   const existing = await prisma.contract.findFirst({
     where: { id: contractId, companyId, deletedAt: null },
   });
@@ -128,6 +131,10 @@ export const updateContract = async (companyId: string, contractId: string, data
   const newStatus = data.status || existing.status;
 
   if (newStatus === "active") {
+    const canActivate = userRole === "admin" || userRole === "super_admin" || userRole === "hr_payroll_manager";
+    if (!canActivate && existing.status !== "active") {
+      throw new ApiError(StatusCodes.FORBIDDEN, "Only Admins and Payroll Managers have authority to activate contracts.");
+    }
     await checkOverlap(companyId, existing.employeeId, newStartDate, newEndDate, contractId);
   }
 
