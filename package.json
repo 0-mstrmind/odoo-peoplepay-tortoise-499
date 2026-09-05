@@ -3,10 +3,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "start": "pnpm --filter backend dev",
-    "start:all": "pnpm --parallel --filter backend --filter frontend dev",
-    "start:backend": "pnpm --filter backend dev",
-    "start:frontend": "pnpm --filter frontend dev",
+    "start": "pnpm --filter ./backend dev",
+    "start:all": "pnpm --parallel --filter ./backend --filter ./frontend dev",
+    "start:backend": "pnpm --filter ./backend dev",
+    "start:frontend": "pnpm --filter ./frontend dev",
     "build": "pnpm --recursive build"
   }
 }
