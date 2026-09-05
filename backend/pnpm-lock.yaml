@@ -21,8 +21,8 @@ importers:
         specifier: ^2.8.5
         version: 2.8.6
       dotenv:
-        specifier: ^17.2.3
-        version: 17.4.2
+        specifier: ^16.4.7
+        version: 16.6.1
       express:
         specifier: ^5.1.0
         version: 5.2.1(supports-color@7.2.0)
@@ -44,15 +44,12 @@ importers:
       morgan:
         specifier: ^1.10.1
         version: 1.12.0(supports-color@7.2.0)
-<<<<<<< HEAD
       resend:
         specifier: ^6.26.0
         version: 6.26.0
-=======
       socket.io:
         specifier: ^4.8.3
         version: 4.8.3(supports-color@7.2.0)
->>>>>>> f25422ad1730e4e2397f7be63ecc3669bf59f140
       svix:
         specifier: ^2.3.0
         version: 2.3.0
@@ -956,10 +953,6 @@ packages:
 
   dotenv@16.6.1:
     resolution: {integrity: sha512-uBq4egWHTcTt33a72vpSG0z3HnPuIl6NqYcTrKEg2azoEyl2hpW0zqlxysq2pK9HlDIHyHyakeYaYnSAwd8bow==}
-    engines: {node: '>=12'}
-
-  dotenv@17.4.2:
-    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
@@ -2850,8 +2843,6 @@ snapshots:
   destr@2.0.5: {}
 
   dotenv@16.6.1: {}
-
-  dotenv@17.4.2: {}
 
   dunder-proto@1.0.1:
     dependencies:
