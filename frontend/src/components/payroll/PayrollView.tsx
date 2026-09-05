@@ -31,6 +31,7 @@ import {
   useCancelPayrun,
   useSelectPayrunEmployees,
   usePayslips,
+  useAdjustPayslip,
   useSalaryStructures,
   useCreateSalaryStructure,
   useUpdateSalaryStructure,
@@ -59,6 +60,12 @@ export const PayrollView: React.FC = () => {
     role === 'payroll_manager' ||
     role === 'hr_manager'
 
+  const canAdjustPayslip =
+    role === 'admin' ||
+    role === 'super_admin' ||
+    role === 'hr_payroll_manager' ||
+    role === 'payroll_manager'
+
   // hr_payroll_user has READ-ONLY access to salary structures/rules
   const canWriteSalary = canWriteSalaryConfig(role)
 
@@ -82,6 +89,17 @@ export const PayrollView: React.FC = () => {
   const [selectedPayslip, setSelectedPayslip] = useState<Payslip | null>(null)
   const [editingStructure, setEditingStructure] = useState<SalaryStructure | null>(null)
   const [editingRule, setEditingRule] = useState<SalaryRule | null>(null)
+
+  // Manual Adjustment Modal State
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false)
+  const [adjustTargetPayslip, setAdjustTargetPayslip] = useState<Payslip | null>(null)
+  const [adjustForm, setAdjustForm] = useState({
+    ruleCode: 'BONUS',
+    ruleName: 'Performance Spot Bonus',
+    category: 'allowance',
+    amount: '5000',
+    note: '',
+  })
 
   // Form states for New Payrun
   const [payrunForm, setPayrunForm] = useState({
@@ -151,6 +169,7 @@ export const PayrollView: React.FC = () => {
   const createRuleMutation = useCreateSalaryRule()
   const updateRuleMutation = useUpdateSalaryRule()
   const deleteRuleMutation = useDeleteSalaryRule()
+  const adjustMutation = useAdjustPayslip()
 
   // ── Metrics Calculation ───────────────────────────────────────────────────
   const metrics = useMemo(() => {
@@ -349,6 +368,40 @@ export const PayrollView: React.FC = () => {
       refetchRules()
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to save salary rule')
+    }
+  }
+
+  const handleAdjustSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!adjustTargetPayslip) return
+
+    const amountNum = parseFloat(adjustForm.amount)
+    if (isNaN(amountNum) || amountNum <= 0) {
+      toast.error('Adjustment amount must be a positive number')
+      return
+    }
+
+    try {
+      const res: any = await adjustMutation.mutateAsync({
+        id: adjustTargetPayslip.id,
+        payload: {
+          ruleCode: adjustForm.ruleCode.trim().toUpperCase() || 'BONUS',
+          ruleName: adjustForm.ruleName.trim() || undefined,
+          category: adjustForm.category,
+          amount: amountNum,
+          note: adjustForm.note.trim() || undefined,
+        },
+      })
+      toast.success('Manual adjustment applied & payslip recomputed successfully!')
+      setIsAdjustModalOpen(false)
+      const updated = res?.payslip || res?.data || res
+      if (selectedPayslip && selectedPayslip.id === adjustTargetPayslip.id && updated) {
+        setSelectedPayslip(updated)
+      }
+      refetchPayslips()
+      refetchPayruns()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to apply manual adjustment')
     }
   }
 
@@ -826,14 +879,30 @@ export const PayrollView: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedPayslip(s)}
-                          className="pp-btn-secondary py-1 px-2.5 text-xs font-semibold rounded inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span className="text-[11px]">Breakdown</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-1.5">
+                          {s.status === 'computed' && canAdjustPayslip && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAdjustTargetPayslip(s)
+                                setIsAdjustModalOpen(true)
+                              }}
+                              title="Manual Adjustment"
+                              className="px-2 py-1 text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-500 rounded flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Adjust</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPayslip(s)}
+                            className="pp-btn-secondary py-1 px-2.5 text-xs font-semibold rounded inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span className="text-[11px]">Breakdown</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1645,16 +1714,143 @@ export const PayrollView: React.FC = () => {
                 </span>
               </div>
 
-              <div className="flex justify-end pt-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedPayslip(null)}
-                  className="pp-btn-secondary text-xs py-2 px-4 font-semibold rounded-lg cursor-pointer"
-                >
-                  Close
-                </button>
+              <div className="flex items-center justify-between pt-2">
+                {selectedPayslip.status === 'computed' && canAdjustPayslip ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdjustTargetPayslip(selectedPayslip)
+                      setIsAdjustModalOpen(true)
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg cursor-pointer flex items-center gap-1.5 transition-colors shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Manual Adjustment</span>
+                  </button>
+                ) : <div />}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPayslip(null)}
+                    className="px-4 py-2 text-xs font-semibold bg-[#242938] hover:bg-[#2d3448] text-white rounded-lg cursor-pointer"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: MANUAL PAYSLIP ADJUSTMENT ─────────────────────────────── */}
+      {isAdjustModalOpen && adjustTargetPayslip && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+          <div className="bg-[#181b24] border border-[#2a2e3d] rounded-2xl w-full max-w-md p-6 shadow-2xl text-white space-y-4">
+            <div className="flex items-start justify-between pb-3 border-b border-[#2a2e3d]">
+              <div>
+                <h3 className="text-base font-bold flex items-center gap-2 text-white">
+                  <Plus className="w-4 h-4 text-blue-400" />
+                  <span>Manual Payslip Adjustment</span>
+                </h3>
+                <p className="text-xs text-gray-400 mt-1">
+                  Target:{' '}
+                  <span className="font-semibold text-blue-300">
+                    {adjustTargetPayslip.employee?.firstName} {adjustTargetPayslip.employee?.lastName}
+                  </span>{' '}
+                  ({adjustTargetPayslip.employee?.employeeCode || 'Employee'})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAdjustModalOpen(false)}
+                className="text-gray-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAdjustSubmit} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-gray-400 font-semibold mb-1">Adjustment Category</label>
+                  <select
+                    value={adjustForm.category}
+                    onChange={(e) => setAdjustForm({ ...adjustForm, category: e.target.value })}
+                    className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                    required
+                  >
+                    <option value="allowance">Allowance (Bonus / Incentive)</option>
+                    <option value="deduction">Deduction (Ad-hoc Penalty)</option>
+                    <option value="basic">Basic Wage Adjustment</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-gray-400 font-semibold mb-1">Rule / Item Code</label>
+                  <input
+                    type="text"
+                    value={adjustForm.ruleCode}
+                    onChange={(e) => setAdjustForm({ ...adjustForm, ruleCode: e.target.value.toUpperCase() })}
+                    placeholder="e.g., BONUS"
+                    className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3 py-2 text-white font-mono uppercase focus:outline-none focus:border-blue-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">Description / Line Title</label>
+                <input
+                  type="text"
+                  value={adjustForm.ruleName}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, ruleName: e.target.value })}
+                  placeholder="e.g., Performance Spot Bonus"
+                  className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">Adjustment Amount (₹)</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={adjustForm.amount}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, amount: e.target.value })}
+                  placeholder="5000"
+                  className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3 py-2 text-white font-semibold text-sm focus:outline-none focus:border-blue-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-400 font-semibold mb-1">Audit Note / Reason</label>
+                <textarea
+                  value={adjustForm.note}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, note: e.target.value })}
+                  placeholder="e.g., Approved by Management for outstanding sprint contribution"
+                  className="w-full bg-[#101218] border border-[#2e3344] rounded-lg px-3 py-2 text-white h-20 resize-none focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#2a2e3d]">
+                <button
+                  type="button"
+                  onClick={() => setIsAdjustModalOpen(false)}
+                  className="px-4 py-2 text-gray-400 hover:text-white cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={adjustMutation.isPending}
+                  className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg cursor-pointer flex items-center gap-1.5 disabled:opacity-50 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{adjustMutation.isPending ? 'Applying...' : 'Apply Adjustment'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

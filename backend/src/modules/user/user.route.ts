@@ -13,7 +13,7 @@ const userRouter = Router();
 
 // Apply router-level security middleware (Admins and HR Managers)
 userRouter.use(authMiddleware);
-userRouter.use(requireRole("ADMIN", "super_admin", "hr_manager", "hr_payroll_manager"));
+userRouter.use(requireRole("admin", "super_admin", "hr_manager", "hr_payroll_manager"));
 
 userRouter.get("/", getUsers);
 userRouter.get("/:id", getUserById);

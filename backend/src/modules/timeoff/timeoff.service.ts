@@ -11,6 +11,7 @@ import type {
   CreateRequestInput,
   UpdateRequestInput,
   QueryRequestInput,
+  ForceAllocationInput,
 } from "./timeoff.validation.js";
 
 // Re-export cached company resolver for backward compatibility
@@ -232,6 +233,58 @@ export const createAllocationService = async (input: CreateAllocationInput, call
   });
 };
 
+/// Admin force-allocation: bypasses the standard approval workflow, creating an allocation marked as 'validated'.
+export const forceAllocationService = async (
+  input: ForceAllocationInput,
+  adminUserId?: string | null,
+  callerCompanyId?: string | null,
+) => {
+  const companyId = await resolveCompanyId(callerCompanyId);
+
+  const [employee, leaveType] = await Promise.all([
+    prisma.employee.findFirst({ where: { id: input.employeeId, companyId, deletedAt: null } }),
+    prisma.timeOffType.findFirst({ where: { id: input.timeOffTypeId, companyId, deletedAt: null } }),
+  ]);
+
+  if (!employee) throw new ApiError(StatusCodes.NOT_FOUND, "Employee not found");
+  if (!leaveType) throw new ApiError(StatusCodes.NOT_FOUND, "Leave type not found");
+
+  const validFrom = new Date(input.validFrom);
+  const validTo = new Date(input.validTo);
+
+  if (validFrom > validTo) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "validFrom date must be on or before validTo date");
+  }
+
+  const allocated = Number(input.allocated);
+
+  const allocation = await prisma.timeOffAllocation.create({
+    data: {
+      companyId,
+      employeeId: input.employeeId,
+      timeOffTypeId: input.timeOffTypeId,
+      allocated,
+      taken: 0,
+      remaining: allocated,
+      validFrom,
+      validTo,
+      status: "validated",
+      approvedBy: adminUserId || null,
+      approvedAt: new Date(),
+      notes: input.adminNote ? `[ADMIN OVERRIDE] ${input.adminNote}` : "[ADMIN OVERRIDE] Force-allocated directly",
+    },
+    include: {
+      employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+      timeOffType: { select: { id: true, name: true, unit: true } },
+      approver: { select: { id: true, email: true } },
+    },
+  });
+
+  await invalidateDashboardCache(companyId);
+
+  return allocation;
+};
+
 export const approveAllocationService = async (
   id: string,
   approvedByUserId?: string | null,
@@ -292,7 +345,7 @@ export const getEmployeeLeaveBalancesService = async (employeeId: string, caller
     where: {
       companyId,
       employeeId,
-      status: "approved",
+      status: { in: ["approved", "validated"] },
       deletedAt: null,
       AND: [
         { OR: [{ validFrom: null }, { validFrom: { lte: today } }] },
@@ -670,18 +723,18 @@ export const createRequestService = async (
           employeeId: input.employeeId,
           timeOffTypeId: input.timeOffTypeId,
           companyId,
-          status: "approved",
+          status: { in: ["approved", "validated"] },
           deletedAt: null,
         },
       });
     } else {
-      // Resolve matching approved allocation valid for the period
+      // Resolve matching approved/validated allocation valid for the period
       allocation = await prisma.timeOffAllocation.findFirst({
         where: {
           employeeId: input.employeeId,
           timeOffTypeId: input.timeOffTypeId,
           companyId,
-          status: "approved",
+          status: { in: ["approved", "validated"] },
           deletedAt: null,
           AND: [
             { OR: [{ validFrom: null }, { validFrom: { lte: startDate } }] },

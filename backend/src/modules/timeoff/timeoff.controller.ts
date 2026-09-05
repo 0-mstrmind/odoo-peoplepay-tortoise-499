@@ -14,6 +14,7 @@ import {
   listAllocationsService,
   getAllocationByIdService,
   createAllocationService,
+  forceAllocationService,
   approveAllocationService,
   refuseAllocationService,
   getEmployeeLeaveBalancesService,
@@ -96,6 +97,12 @@ export const getTimeOffAllocationById = CatchAsync(async (req: Request, res: Res
 export const createTimeOffAllocation = CatchAsync(async (req: Request, res: Response) => {
   const result = await createAllocationService(req.body, req.user?.companyId);
   sendResponse(res, StatusCodes.CREATED, "Allocation created successfully", { item: result });
+});
+
+export const forceTimeOffAllocation = CatchAsync(async (req: Request, res: Response) => {
+  const userId = req.user?.id || req.user?.clerkUserId;
+  const result = await forceAllocationService(req.body, userId, req.user?.companyId);
+  sendResponse(res, StatusCodes.CREATED, "Time off force-allocated successfully", { item: result });
 });
 
 export const approveTimeOffAllocation = CatchAsync(async (req: Request, res: Response) => {

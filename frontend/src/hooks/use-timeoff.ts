@@ -190,3 +190,28 @@ export function useRefuseTimeOffRequest() {
     },
   })
 }
+
+/**
+ * Force Time Off Allocation Mutation (Admin Override)
+ */
+export function useForceTimeOffAllocation() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      employeeId: string
+      timeOffTypeId: string
+      allocated: number
+      validFrom: string
+      validTo: string
+      adminNote?: string
+    }) => {
+      const response = await apiClient.post('/time-off-allocations/force', payload)
+      return response.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timeoff'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}

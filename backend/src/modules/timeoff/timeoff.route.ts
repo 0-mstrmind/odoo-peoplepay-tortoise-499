@@ -8,6 +8,7 @@ import {
   getTimeOffAllocations,
   getTimeOffAllocationById,
   createTimeOffAllocation,
+  forceTimeOffAllocation,
   approveTimeOffAllocation,
   refuseTimeOffAllocation,
   getTimeOffRequests,
@@ -22,6 +23,7 @@ import {
   createTimeOffTypeSchema,
   updateTimeOffTypeSchema,
   createAllocationSchema,
+  forceAllocationSchema,
   createRequestSchema,
   updateRequestSchema,
   refuseRequestSchema,
@@ -67,6 +69,13 @@ timeOffAllocationRouter.post(
   requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(createAllocationSchema),
   createTimeOffAllocation,
+);
+timeOffAllocationRouter.post(
+  "/force",
+  clerkAuthMiddleware,
+  requireRole("admin", "super_admin"),
+  validateBody(forceAllocationSchema),
+  forceTimeOffAllocation,
 );
 timeOffAllocationRouter.put(
   "/:id/approve",

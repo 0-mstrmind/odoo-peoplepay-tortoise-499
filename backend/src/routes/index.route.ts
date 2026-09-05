@@ -31,6 +31,7 @@ router.use("/working-schedules", workingScheduleRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/time-off-types", timeOffTypeRouter);
 router.use("/time-off-allocations", timeOffAllocationRouter);
+router.use("/time-off", timeOffAllocationRouter);
 router.use("/time-off-requests", timeOffRequestRouter);
 router.use("/attendance", attendanceRoutes);
 router.use("/attendances", attendanceRoutes);

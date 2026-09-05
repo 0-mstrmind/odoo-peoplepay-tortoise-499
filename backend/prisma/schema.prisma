@@ -351,6 +351,7 @@ model TimeOffAllocation {
   allocated     Decimal   @db.Decimal(7, 2)
   taken         Decimal   @default(0) @db.Decimal(7, 2)
   remaining     Decimal   @db.Decimal(7, 2)
+  extraDays     Decimal?  @default(0) @map("extra_days") @db.Decimal(7, 2)
   validFrom     DateTime? @map("valid_from") @db.Date
   validTo       DateTime? @map("valid_to") @db.Date
   status        String    @default("pending") @db.VarChar(30) // pending | approved | refused | draft | expired
@@ -593,6 +594,8 @@ model PayslipLine {
   rate              Decimal? @db.Decimal(7, 4)
   amount            Decimal  @db.Decimal(15, 2)
   appearsOnPayslip  Boolean  @default(true) @map("appears_on_payslip")
+  isManualAdjustment Boolean @default(false) @map("is_manual_adjustment")
+  adjustmentNote     String?  @map("adjustment_note") @db.Text
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
 

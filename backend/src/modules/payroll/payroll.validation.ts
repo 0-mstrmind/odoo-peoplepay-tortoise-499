@@ -53,8 +53,17 @@ export const queryPayslipSchema = z.object({
     .transform((val) => (val ? Math.min(100, Math.max(1, parseInt(val, 10))) : 50)),
 });
 
+export const adjustPayslipSchema = z.object({
+  ruleCode: z.string().min(1, "Rule code is required"),
+  ruleName: z.string().optional(),
+  category: z.enum(["allowance", "deduction", "basic"]).or(z.string()),
+  amount: z.coerce.number().positive("Amount must be positive"),
+  note: z.string().optional(),
+});
+
 export type CreatePayrunInput = z.infer<typeof createPayrunSchema>;
 export type UpdatePayrunInput = z.infer<typeof updatePayrunSchema>;
 export type SelectEmployeesInput = z.infer<typeof selectEmployeesSchema>;
 export type QueryPayrunInput = z.infer<typeof queryPayrunSchema>;
 export type QueryPayslipInput = z.infer<typeof queryPayslipSchema>;
+export type AdjustPayslipInput = z.infer<typeof adjustPayslipSchema>;

@@ -98,7 +98,11 @@ export interface PayslipLine {
   sequence: number
   amount: number | string
   rate?: number | string | null
+  isManualAdjustment?: boolean
+  adjustmentNote?: string | null
 }
+
+export type PayslipItem = Payslip
 
 export interface Payslip {
   id: string
@@ -126,6 +130,7 @@ export interface Payslip {
   updatedAt?: string
   contract?: {
     id?: string
+    contractReference?: string
     wage?: number | string
     structureId?: string
   } | null
@@ -146,9 +151,6 @@ export interface Payslip {
   lines?: PayslipLine[]
   payslipLines?: PayslipLine[]
 }
-
-export type PayslipItem = Payslip
-
 
 // ────────────────────────────────────────────────────────────────────────────
 // Payruns Hooks
@@ -298,6 +300,33 @@ export function usePayslip(id?: string | null) {
 }
 
 export const usePayslipDetail = usePayslip
+
+export function useAdjustPayslip() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string
+      payload: {
+        ruleCode: string
+        ruleName?: string
+        category: string
+        amount: number
+        note?: string
+      }
+    }) => {
+      const { data } = await apiClient.post<any>(`/payslips/${id}/adjust`, payload)
+      return data
+    },
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.payroll.payslip(id) })
+      qc.invalidateQueries({ queryKey: ['payslips'] })
+      qc.invalidateQueries({ queryKey: queryKeys.payroll.all })
+    },
+  })
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 // Salary Structures Hooks

@@ -7,6 +7,7 @@ import type {
   SelectEmployeesInput,
   QueryPayrunInput,
   QueryPayslipInput,
+  AdjustPayslipInput,
 } from "./payroll.validation.js";
 import { invalidateDashboardCache } from "../dashboard/dashboard.service.js";
 import { resolveCompanyId } from "../employee/employee.service.js";
@@ -827,4 +828,129 @@ export const getPayslipByIdService = async (id: string, callerCompanyId?: string
   }
 
   return payslip;
+};
+
+/**
+ * 11. Manual Payslip Adjustment (Ad-Hoc Bonus / Deduction Injection)
+ * Bypasses automated calculation, injects a manual PayslipLine, and recomputes Net and Gross.
+ */
+export const adjustPayslipService = async (
+  payslipId: string,
+  input: AdjustPayslipInput,
+  callerCompanyId?: string | null,
+) => {
+  const companyId = await resolveCompanyId(callerCompanyId);
+
+  const payslip = await prisma.payslip.findFirst({
+    where: { id: payslipId, companyId, deletedAt: null },
+    include: { payrun: true },
+  });
+
+  if (!payslip) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Payslip not found");
+  }
+
+  if (payslip.status === "paid" || payslip.status === "cancelled") {
+    throw new ApiError(
+      StatusCodes.BAD_REQUEST,
+      `Cannot manually adjust payslip with status '${payslip.status}'`,
+    );
+  }
+
+  // Determine highest sequence for new line
+  const existingLines = await prisma.payslipLine.findMany({
+    where: { payslipId },
+    orderBy: { sequence: "desc" },
+    take: 1,
+  });
+  const nextSequence = (existingLines[0]?.sequence ?? 0) + 10;
+
+  const amount = Number(input.amount);
+  const category = input.category.toLowerCase();
+  const ruleCode = input.ruleCode.toUpperCase();
+  const ruleName = input.ruleName || `${ruleCode} (Manual Adjustment)`;
+
+  // Insert manual adjustment line
+  await prisma.payslipLine.create({
+    data: {
+      companyId,
+      payslipId,
+      ruleCode,
+      ruleName,
+      category,
+      sequence: nextSequence,
+      computationMethod: "fixed",
+      baseAmount: amount,
+      rate: null,
+      amount,
+      appearsOnPayslip: true,
+      isManualAdjustment: true,
+      adjustmentNote: input.note || null,
+    },
+  });
+
+  // Recompute the final Net and Gross totals for the payslip
+  const allLines = await prisma.payslipLine.findMany({
+    where: { payslipId },
+  });
+
+  let basicAmount = 0;
+  let totalAllowances = 0;
+  let totalDeductions = 0;
+
+  for (const line of allLines) {
+    const lineAmount = Number(line.amount);
+    const lineCat = line.category.toLowerCase();
+    if (lineCat === "basic") {
+      basicAmount += lineAmount;
+    } else if (lineCat === "allowance") {
+      totalAllowances += lineAmount;
+    } else if (lineCat === "deduction") {
+      totalDeductions += lineAmount;
+    }
+  }
+
+  // Retain original basic wage if no explicit basic line exists
+  if (basicAmount === 0 && Number(payslip.basic) > 0) {
+    basicAmount = Number(payslip.basic);
+  }
+
+  const gross = parseFloat((basicAmount + totalAllowances).toFixed(2));
+  const net = parseFloat(Math.max(0, gross - totalDeductions).toFixed(2));
+
+  await prisma.payslip.update({
+    where: { id: payslipId },
+    data: {
+      basic: basicAmount,
+      totalAllowances,
+      gross,
+      totalDeductions,
+      net,
+    },
+  });
+
+  // Update parent Payrun aggregate totals if attached to a payrun
+  if (payslip.payrunId) {
+    const payrunPayslips = await prisma.payslip.findMany({
+      where: { payrunId: payslip.payrunId },
+    });
+    const payrunTotalGross = payrunPayslips.reduce((acc, p) => acc + Number(p.gross), 0);
+    const payrunTotalDeductions = payrunPayslips.reduce((acc, p) => acc + Number(p.totalDeductions), 0);
+    const payrunTotalNet = payrunPayslips.reduce((acc, p) => acc + Number(p.net), 0);
+
+    await prisma.payrun.update({
+      where: { id: payslip.payrunId },
+      data: {
+        totalGross: payrunTotalGross,
+        totalDeductions: payrunTotalDeductions,
+        totalNet: payrunTotalNet,
+      },
+    });
+  }
+
+  // Bust caches
+  await cacheService.del(`payslip:${payslipId}`);
+  await invalidateDashboardCache(companyId);
+
+  return getPayslipByIdService(payslipId, companyId);
 };

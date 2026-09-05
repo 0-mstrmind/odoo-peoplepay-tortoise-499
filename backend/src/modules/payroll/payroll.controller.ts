@@ -20,6 +20,7 @@ import {
   getPayrunByIdService,
   listPayslipsService,
   getPayslipByIdService,
+  adjustPayslipService,
 } from "./payroll.service.js";
 import {
   emitPayrunStatusChanged,
@@ -243,4 +244,13 @@ export const getPayslipById = CatchAsync(async (req: Request, res: Response) => 
   }
 
   sendResponse(res, StatusCodes.OK, "Payslip details retrieved successfully", result);
+});
+
+/**
+ * 11. Manual Payslip Adjustment
+ */
+export const adjustPayslip = CatchAsync(async (req: Request, res: Response) => {
+  const id = req.params.id as string;
+  const result = await adjustPayslipService(id, req.body, req.user?.companyId);
+  sendResponse(res, StatusCodes.OK, "Payslip adjusted successfully", { payslip: result });
 });

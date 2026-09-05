@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { clerkAuthMiddleware } from "../../core/middlewares/clerk.middleware.js";
 import { requireRole } from "../../core/middlewares/rbac.middleware.js";
+import { validateBody } from "../../core/middlewares/validateRequest.middleware.js";
+import { adjustPayslipSchema } from "./payroll.validation.js";
 import {
   createPayrun,
   selectEmployees,
@@ -12,6 +14,7 @@ import {
   getPayrunById,
   getPayslips,
   getPayslipById,
+  adjustPayslip,
 } from "./payroll.controller.js";
 
 /**
@@ -101,3 +104,10 @@ payslipRouter.use(clerkAuthMiddleware);
 // "employee" is included — the controller scopes results to their own employeeId.
 payslipRouter.get("/", requireRole(...PAYSLIP_READ_ROLES), getPayslips);
 payslipRouter.get("/:id", requireRole(...PAYSLIP_READ_ROLES), getPayslipById);
+payslipRouter.post(
+  "/:id/adjust",
+  requireRole("admin", "hr_payroll_manager"),
+  validateBody(adjustPayslipSchema),
+  adjustPayslip,
+);
+

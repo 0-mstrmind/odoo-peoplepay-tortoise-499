@@ -66,6 +66,16 @@ export const refuseRequestSchema = z.object({
   refusalReason: z.string().optional(),
 });
 
+/// Admin force-allocation: bypasses approval workflow, instantly validated.
+export const forceAllocationSchema = z.object({
+  employeeId: z.string().uuid("Invalid employee ID"),
+  timeOffTypeId: z.string().uuid("Invalid leave type ID"),
+  allocated: z.coerce.number().positive("Allocated days must be positive"),
+  validFrom: z.string().min(1, "validFrom is required"),
+  validTo: z.string().min(1, "validTo is required"),
+  adminNote: z.string().optional(),
+});
+
 export type CreateTimeOffTypeInput = z.infer<typeof createTimeOffTypeSchema>;
 export type UpdateTimeOffTypeInput = z.infer<typeof updateTimeOffTypeSchema>;
 export type CreateAllocationInput = z.infer<typeof createAllocationSchema>;
@@ -73,3 +83,4 @@ export type QueryAllocationInput = z.infer<typeof queryAllocationSchema>;
 export type CreateRequestInput = z.infer<typeof createRequestSchema>;
 export type UpdateRequestInput = z.infer<typeof updateRequestSchema>;
 export type QueryRequestInput = z.infer<typeof queryRequestSchema>;
+export type ForceAllocationInput = z.infer<typeof forceAllocationSchema>;

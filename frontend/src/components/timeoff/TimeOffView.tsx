@@ -11,6 +11,7 @@ import {
   History,
   X,
   Loader2,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthUser } from '@/store/auth.store'
@@ -21,6 +22,7 @@ import {
   useApproveTimeOffRequest,
   useRefuseTimeOffRequest,
   useCreateTimeOffRequest,
+  useForceTimeOffAllocation,
   type TimeOffRequestItem,
 } from '@/hooks/use-timeoff'
 import {
@@ -35,6 +37,7 @@ export const TimeOffView: React.FC = () => {
   const isStandardEmployee = role === 'employee'
   const isHrOrAdmin = ['admin', 'super_admin', 'hr_manager', 'hr_payroll_manager'].includes(role)
   const canApprove = role ? role !== 'employee' : true
+  const isAdmin = role === 'admin' || role === 'super_admin'
 
   // Logged-in employee profile
   const { data: myEmployee } = useMyEmployeeProfile()
@@ -79,6 +82,17 @@ export const TimeOffView: React.FC = () => {
   const [manualHalfDayPeriod, setManualHalfDayPeriod] = useState<'am' | 'pm'>('am')
   const [manualReason, setManualReason] = useState('')
 
+  // Force Allocate Modal State (Admin Override)
+  const [isForceModalOpen, setIsForceModalOpen] = useState(false)
+  const [forceEmployeeId, setForceEmployeeId] = useState('')
+  const [forceTypeId, setForceTypeId] = useState('')
+  const [forceAllocated, setForceAllocated] = useState('5')
+  const [forceValidFrom, setForceValidFrom] = useState(new Date().toISOString().split('T')[0])
+  const [forceValidTo, setForceValidTo] = useState(
+    new Date(Date.now() + 365 * 86400000).toISOString().split('T')[0]
+  )
+  const [forceNote, setForceNote] = useState('')
+
   // API Queries - all company leave requests
   const {
     data: allRequests = [],
@@ -99,6 +113,7 @@ export const TimeOffView: React.FC = () => {
   const approveMutation = useApproveTimeOffRequest()
   const refuseMutation = useRefuseTimeOffRequest()
   const createMutation = useCreateTimeOffRequest()
+  const forceAllocationMutation = useForceTimeOffAllocation()
 
   const pendingRequests = allRequests.filter(
     (r) => r.status === 'pending' && !processedRequestIds.has(r.id)
@@ -270,6 +285,38 @@ export const TimeOffView: React.FC = () => {
     }
   }
 
+  const handleForceAllocationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const targetEmpId = forceEmployeeId || employeesList[0]?.id
+    const targetTypeId = forceTypeId || leaveTypes[0]?.id
+
+    if (!targetEmpId) {
+      toast.error('Please select an employee')
+      return
+    }
+    if (!targetTypeId) {
+      toast.error('Please select a leave type')
+      return
+    }
+
+    try {
+      await forceAllocationMutation.mutateAsync({
+        employeeId: targetEmpId,
+        timeOffTypeId: targetTypeId,
+        allocated: Number(forceAllocated),
+        validFrom: forceValidFrom,
+        validTo: forceValidTo,
+        adminNote: forceNote || 'Admin override force-allocation',
+      })
+      toast.success('Time off allocation force-created and validated successfully!')
+      setIsForceModalOpen(false)
+      setForceNote('')
+      refetch()
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to force allocate time off')
+    }
+  }
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '--'
     return dateStr.split('T')[0]
@@ -324,6 +371,27 @@ export const TimeOffView: React.FC = () => {
             >
               <Plus className="w-4 h-4" />
               <span>Grant Manual Holiday</span>
+            </button>
+          )}
+
+          {/* Admin Override: Force Allocate */}
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!forceEmployeeId && employeesList.length > 0) {
+                  setForceEmployeeId(employeesList[0].id)
+                }
+                if (!forceTypeId && leaveTypes.length > 0) {
+                  setForceTypeId(leaveTypes[0].id)
+                }
+                setIsForceModalOpen(true)
+              }}
+              className="bg-amber-600 hover:bg-amber-500 text-white text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+              title="Admin Override: Force Allocate Time Off"
+            >
+              <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
+              <span>Force Allocate (Admin Override)</span>
             </button>
           )}
         </div>
@@ -974,7 +1042,6 @@ export const TimeOffView: React.FC = () => {
             </div>
 
             <form onSubmit={handleGrantManualHoliday} className="space-y-3.5">
-              {/* Employee Selector */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
                   Select Employee <span className="text-red-500">*</span>
@@ -996,7 +1063,6 @@ export const TimeOffView: React.FC = () => {
                 </select>
               </div>
 
-              {/* Leave Type Selector */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
                   Leave / Holiday Type <span className="text-red-500">*</span>
@@ -1018,7 +1084,6 @@ export const TimeOffView: React.FC = () => {
                 </select>
               </div>
 
-              {/* Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
@@ -1052,7 +1117,6 @@ export const TimeOffView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Half-Day Option */}
               <div className="p-3 bg-[var(--color-bg-muted)] rounded-[6px] space-y-2 border border-[var(--color-border)]">
                 <div className="flex items-center justify-between">
                   <label htmlFor="manualHalfDay" className="text-xs font-semibold text-[var(--color-text-heading)] cursor-pointer flex items-center gap-2">
@@ -1100,7 +1164,6 @@ export const TimeOffView: React.FC = () => {
                 )}
               </div>
 
-              {/* Reason / Notes */}
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
                   Reason / Notes
@@ -1113,7 +1176,6 @@ export const TimeOffView: React.FC = () => {
                 />
               </div>
 
-              {/* Action Buttons */}
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-border)]">
                 <button
                   type="button"
@@ -1138,6 +1200,160 @@ export const TimeOffView: React.FC = () => {
                       <span>Grant Holiday</span>
                     </>
                   )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Force Allocate Time Off (Admin Override) */}
+      {isForceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-[var(--color-bg-surface)] border border-[var(--color-border)] rounded-[8px] max-w-lg w-full p-5 shadow-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--color-border)]">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                  <Zap className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--color-text-heading)]">
+                    Force Allocate (Admin Override)
+                  </h3>
+                  <p className="text-[11px] text-amber-500/90 font-medium">
+                    Bypasses standard approval workflow; allocation is instantly validated.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsForceModalOpen(false)}
+                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleForceAllocationSubmit} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Target Employee
+                </label>
+                <select
+                  value={forceEmployeeId}
+                  onChange={(e) => setForceEmployeeId(e.target.value)}
+                  className="pp-input text-xs w-full"
+                  required
+                >
+                  {employeesList.map((emp: any) => (
+                    <option key={emp.id} value={emp.id}>
+                      {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                    </option>
+                  ))}
+                  {employeesList.length === 0 && (
+                    <option value="">No active employees found</option>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Leave Type
+                </label>
+                <select
+                  value={forceTypeId}
+                  onChange={(e) => setForceTypeId(e.target.value)}
+                  className="pp-input text-xs w-full"
+                  required
+                >
+                  {leaveTypes.map((type: any) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} {type.unit ? `(${type.unit})` : ''}
+                    </option>
+                  ))}
+                  {leaveTypes.length === 0 && (
+                    <option value="">No leave types configured</option>
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Days to Allocate (Override Grant)
+                </label>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={forceAllocated}
+                  onChange={(e) => setForceAllocated(e.target.value)}
+                  className="pp-input text-xs w-full"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Valid From
+                  </label>
+                  <input
+                    type="date"
+                    value={forceValidFrom}
+                    onChange={(e) => setForceValidFrom(e.target.value)}
+                    className="pp-input text-xs w-full"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Valid To
+                  </label>
+                  <input
+                    type="date"
+                    value={forceValidTo}
+                    onChange={(e) => setForceValidTo(e.target.value)}
+                    className="pp-input text-xs w-full"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                  Admin Note / Justification
+                </label>
+                <textarea
+                  value={forceNote}
+                  onChange={(e) => setForceNote(e.target.value)}
+                  placeholder="e.g. Special executive discretionary allocation..."
+                  className="pp-input text-xs w-full h-18 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[var(--color-border)]">
+                <button
+                  type="button"
+                  onClick={() => setIsForceModalOpen(false)}
+                  className="pp-btn-secondary text-xs py-2 px-3 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={forceAllocationMutation.isPending}
+                  className="bg-amber-600 hover:bg-amber-500 text-white text-xs py-2 px-4 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
+                >
+                  {forceAllocationMutation.isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5 fill-current" />
+                  )}
+                  <span>
+                    {forceAllocationMutation.isPending
+                      ? 'Allocating...'
+                      : 'Confirm Force Allocation'}
+                  </span>
                 </button>
               </div>
             </form>
