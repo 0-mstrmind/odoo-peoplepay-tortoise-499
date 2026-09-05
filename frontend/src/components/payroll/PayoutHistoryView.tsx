@@ -10,8 +10,11 @@ import {
   Loader2,
   Eye,
   Search,
-  Printer,
+  Download,
 } from 'lucide-react'
+import { toast } from 'sonner'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 import { useAuthUser } from '@/store/auth.store'
 import { useMyEmployeeProfile } from '@/hooks/use-api'
 import { usePayslips, usePayslip as usePayslipDetail, type Payslip as PayslipItem, type PayslipLine } from '@/hooks/use-payroll'
@@ -57,6 +60,181 @@ export const PayoutHistoryView: React.FC = () => {
     .reduce((sum, p) => sum + Number(p.net || 0), 0)
 
   const latestPaid = payslipsList.find((p) => p.status === 'paid')
+
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
+
+  const handleDownloadPdf = async () => {
+    const element = document.getElementById('printable-payslip')
+    if (!element) {
+      toast.error('Payslip statement view not found')
+      return
+    }
+
+    setIsDownloadingPdf(true)
+    const periodLabel = payslipDetail?.payrun?.periodLabel || 'Monthly Payrun'
+    const empName = payslipDetail?.employee
+      ? `${payslipDetail.employee.firstName}_${payslipDetail.employee.lastName}`
+      : (user?.name ? user.name.replace(/\s+/g, '_') : 'Employee')
+    const fileName = `Payslip_${empName}_${periodLabel.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+
+    try {
+      // Method 1: Render live element canvas directly
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      })
+
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      })
+
+      const imgWidth = 190
+      const pageHeight = 297
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+
+      // Top branding banner in PDF
+      pdf.setFont('helvetica', 'bold')
+      pdf.setFontSize(16)
+      pdf.setTextColor(113, 72, 103)
+      pdf.text('PeoplePay360', 10, 14)
+
+      pdf.setFont('helvetica', 'normal')
+      pdf.setFontSize(9)
+      pdf.setTextColor(107, 114, 128)
+      pdf.text(`Official Salary Statement — ${periodLabel}`, 10, 19)
+
+      pdf.setDrawColor(113, 72, 103)
+      pdf.setLineWidth(0.5)
+      pdf.line(10, 22, 200, 22)
+
+      pdf.addImage(imgData, 'PNG', 10, 25, imgWidth, Math.min(imgHeight, pageHeight - 30))
+
+      // Generate Blob & trigger system download via virtual anchor
+      const pdfBlob = pdf.output('blob')
+      const blobUrl = URL.createObjectURL(pdfBlob)
+
+      const downloadAnchor = document.createElement('a')
+      downloadAnchor.href = blobUrl
+      downloadAnchor.download = fileName
+      document.body.appendChild(downloadAnchor)
+      downloadAnchor.click()
+
+      document.body.removeChild(downloadAnchor)
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl)
+      }, 1000)
+
+      toast.success(`Downloaded ${fileName}`)
+    } catch (err: any) {
+      console.warn('Canvas rendering error, using jsPDF text fallback:', err)
+      // Method 2: High-reliability jsPDF text & table Blob fallback
+      try {
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(18)
+        pdf.setTextColor(113, 72, 103)
+        pdf.text('PeoplePay360', 14, 18)
+
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(10)
+        pdf.setTextColor(107, 114, 128)
+        pdf.text('Official Salary Payslip Statement & Remuneration Receipt', 14, 24)
+
+        pdf.setDrawColor(226, 229, 234)
+        pdf.setLineWidth(0.5)
+        pdf.line(14, 27, 196, 27)
+
+        let y = 35
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(11)
+        pdf.setTextColor(26, 31, 54)
+        pdf.text(`Pay Period: ${periodLabel}`, 14, y)
+        pdf.text(`Status: ${payslipDetail?.status?.toUpperCase() || 'PAID'}`, 140, y)
+        y += 7
+
+        const empFullName = payslipDetail?.employee
+          ? `${payslipDetail.employee.firstName} ${payslipDetail.employee.lastName}`
+          : employeeName
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(10)
+        pdf.text(`Employee Name: ${empFullName}`, 14, y)
+        pdf.text(`Employee Code: ${payslipDetail?.employee?.employeeCode || 'EMP-0001'}`, 140, y)
+        y += 6
+
+        pdf.text(`Worked Days: ${payslipDetail?.workedDays || 22} Days`, 14, y)
+        pdf.text(`Unpaid Leaves: ${payslipDetail?.leaveDays || 0} Days`, 140, y)
+        y += 10
+
+        pdf.setDrawColor(113, 72, 103)
+        pdf.line(14, y, 196, y)
+        y += 6
+
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(10)
+        pdf.setTextColor(113, 72, 103)
+        pdf.text('Itemized Salary Computation Lines', 14, y)
+        y += 8
+
+        pdf.setFontSize(9)
+        pdf.setTextColor(60, 68, 96)
+
+        const lines = payslipDetail?.payslipLines || []
+        if (lines.length > 0) {
+          lines.forEach((l: any) => {
+            pdf.text(`${l.ruleCode || ''} — ${l.ruleName || ''}`, 14, y)
+            pdf.text(`INR ${Number(l.amount || 0).toLocaleString()}`, 196, y, { align: 'right' })
+            y += 6
+          })
+        } else {
+          pdf.text(`Basic Salary`, 14, y)
+          pdf.text(`INR ${Number(payslipDetail?.basic || 0).toLocaleString()}`, 196, y, { align: 'right' }); y += 6
+          pdf.text(`Gross Salary`, 14, y)
+          pdf.text(`INR ${Number(payslipDetail?.gross || 0).toLocaleString()}`, 196, y, { align: 'right' }); y += 6
+          if (Number(payslipDetail?.totalDeductions || 0) > 0) {
+            pdf.text(`Unpaid Leave Deductions`, 14, y)
+            pdf.text(`-INR ${Number(payslipDetail?.totalDeductions || 0).toLocaleString()}`, 196, y, { align: 'right' }); y += 6
+          }
+        }
+
+        y += 4
+        pdf.setDrawColor(0, 200, 83)
+        pdf.setLineWidth(1)
+        pdf.line(14, y, 196, y)
+        y += 8
+
+        pdf.setFont('helvetica', 'bold')
+        pdf.setFontSize(12)
+        pdf.setTextColor(0, 200, 83)
+        pdf.text('Net Payable Salary Disbursed:', 14, y)
+        pdf.text(`INR ${Number(payslipDetail?.net || 0).toLocaleString()}`, 196, y, { align: 'right' })
+
+        const pdfBlob = pdf.output('blob')
+        const blobUrl = URL.createObjectURL(pdfBlob)
+
+        const downloadAnchor = document.createElement('a')
+        downloadAnchor.href = blobUrl
+        downloadAnchor.download = fileName
+        document.body.appendChild(downloadAnchor)
+        downloadAnchor.click()
+
+        document.body.removeChild(downloadAnchor)
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000)
+
+        toast.success(`Downloaded ${fileName}`)
+      } catch (fallbackErr) {
+        console.error('Fallback PDF generation error:', fallbackErr)
+        toast.error('Failed to generate PDF download.')
+      }
+    } finally {
+      setIsDownloadingPdf(false)
+    }
+  }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -481,11 +659,16 @@ export const PayoutHistoryView: React.FC = () => {
 
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="pp-btn-primary text-xs py-2 px-4 font-bold flex items-center gap-2 cursor-pointer"
+                disabled={isDownloadingPdf}
+                onClick={handleDownloadPdf}
+                className="pp-btn-primary text-xs py-2 px-4 font-bold flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50"
               >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print / Download PDF</span>
+                {isDownloadingPdf ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                <span>{isDownloadingPdf ? 'Generating PDF...' : 'Download PDF Slip'}</span>
               </button>
             </div>
           </div>

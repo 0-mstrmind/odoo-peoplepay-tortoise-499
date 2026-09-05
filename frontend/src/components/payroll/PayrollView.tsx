@@ -399,7 +399,7 @@ export const PayrollView: React.FC = () => {
   }, [payruns, searchQuery])
 
   const filteredPayslips = useMemo(() => {
-    return payslips.filter((s) => {
+    return payslips.filter((s: any) => {
       const empName = `${s.employee?.firstName || ''} ${s.employee?.lastName || ''}`.toLowerCase()
       const code = (s.employee?.employeeCode || '').toLowerCase()
       return empName.includes(searchQuery.toLowerCase()) || code.includes(searchQuery.toLowerCase())
@@ -796,7 +796,7 @@ export const PayrollView: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#232734] text-gray-300">
-                  {filteredPayslips.map((s) => (
+                  {filteredPayslips.map((s: any) => (
                     <tr key={s.id} className="hover:bg-[#1a1d28]/60 transition-colors">
                       <td className="px-4 py-3">
                         <div className="font-semibold text-white">

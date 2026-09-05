@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import CatchAsync from "../../shared/utils/CatchAsync.js";
 import sendResponse from "../../shared/utils/ApiResponse.js";
+import { prisma } from "../../core/config/prisma.js";
 import {
   createPayrunSchema,
   selectEmployeesSchema,
@@ -199,8 +200,17 @@ export const getPayslips = CatchAsync(async (req: Request, res: Response) => {
   const query = queryPayslipSchema.parse(req.query);
 
   // If regular employee, restrict query to own employee profile
-  if (req.user?.role?.toLowerCase() === "employee" && req.user.employeeId) {
-    query.employeeId = req.user.employeeId;
+  if (req.user?.role?.toLowerCase() === "employee") {
+    let empId = req.user.employeeId;
+    if (!empId && req.user.email) {
+      const emp = await prisma.employee.findFirst({
+        where: { OR: [{ email: req.user.email }, { userId: req.user.userId }], companyId: req.user.companyId || undefined, deletedAt: null },
+      });
+      if (emp) empId = emp.id;
+    }
+    if (empId) {
+      query.employeeId = empId;
+    }
   }
 
   const result = await listPayslipsService(query, req.user?.companyId);
@@ -215,17 +225,22 @@ export const getPayslipById = CatchAsync(async (req: Request, res: Response) => 
   const result = await getPayslipByIdService(id, req.user?.companyId);
 
   // If regular employee, ensure they can only view their own payslip
-  if (
-    req.user?.role?.toLowerCase() === "employee" &&
-    req.user.employeeId &&
-    result.employeeId !== req.user.employeeId
-  ) {
-    res.status(StatusCodes.FORBIDDEN).json({
-      success: false,
-      message: "Forbidden: You cannot view another employee's payslip",
-    });
-    return;
+  if (req.user?.role?.toLowerCase() === "employee") {
+    let empId = req.user.employeeId;
+    if (!empId && req.user.email) {
+      const emp = await prisma.employee.findFirst({
+        where: { OR: [{ email: req.user.email }, { userId: req.user.userId }], companyId: req.user.companyId || undefined, deletedAt: null },
+      });
+      if (emp) empId = emp.id;
+    }
+    if (empId && result.employeeId !== empId) {
+      res.status(StatusCodes.FORBIDDEN).json({
+        success: false,
+        message: "Forbidden: You cannot view another employee's payslip",
+      });
+      return;
+    }
   }
 
-  sendResponse(res, StatusCodes.OK, "Payslip details retrieved successfully", { item: result });
+  sendResponse(res, StatusCodes.OK, "Payslip details retrieved successfully", result);
 });
