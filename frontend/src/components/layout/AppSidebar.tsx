@@ -299,65 +299,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
               {/* Time Off */}
               {showTimeOff && (
-                <div>
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/time-off')}
-                      title={role === 'employee' ? 'My Leave Requests' : 'Time Off & Leave Management'}
-                      className={`flex-1 flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                        isTimeOff && !search.includes('tab=')
-                          ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                          : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                      }`}
-                    >
-                      <Calendar className="w-4 h-4 shrink-0" />
-                      {!isCollapsed && <span>{role === 'employee' ? 'My Time Off' : 'Time Off'}</span>}
-                    </button>
-                    {!isCollapsed && (
-                      <button
-                        type="button"
-                        onClick={() => toggleSubMenu('timeoff')}
-                        className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
-                      >
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                            openSubMenus.timeoff ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                    )}
-                  </div>
-
-                  {!isCollapsed && openSubMenus.timeoff && (
-                    <div className="ml-6 pl-2.5 border-l border-[var(--color-border)] my-1 space-y-0.5">
-                      <button
-                        type="button"
-                        onClick={() => navigate('/time-off')}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          isTimeOff && !search.includes('tab=')
-                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                        }`}
-                      >
-                        Time Off Requests
-                      </button>
-                      {role !== 'employee' && (
-                        <button
-                          type="button"
-                          onClick={() => navigate('/time-off?tab=allocations')}
-                          className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                            search.includes('tab=allocations')
-                              ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                              : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                          }`}
-                        >
-                          Leave Allocations
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/time-off')}
+                  title={role === 'employee' ? 'My Leave Requests & Allocations' : 'Time Off & Leave Management'}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                    isTimeOff
+                      ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                      : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                  }`}
+                >
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  {!isCollapsed && <span>{role === 'employee' ? 'My Time Off' : 'Time Off'}</span>}
+                </button>
               )}
 
               {/* Payout History */}
