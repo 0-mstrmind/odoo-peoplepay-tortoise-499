@@ -34,7 +34,6 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
   // Form State
   const todayStr = new Date().toISOString().split('T')[0]
   const [employeeId, setEmployeeId] = useState<string>(initialEmployeeId || '')
-  const [contractReference, setContractReference] = useState<string>('')
   const [startDate, setStartDate] = useState<string>(todayStr)
   const [endDate, setEndDate] = useState<string>('')
   const [wage, setWage] = useState<string>('50000')
@@ -47,7 +46,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
   const [status, setStatus] = useState<'draft' | 'active'>('draft')
   const [notes, setNotes] = useState<string>('')
 
-  // Prepopulate employee and auto-generate reference on open / employee select
+  // Prepopulate employee on open / employee select
   useEffect(() => {
     if (isOpen) {
       const selectedEmp = employees.find((e: any) => e.id === employeeId) || employees[0]
@@ -55,11 +54,6 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
         setEmployeeId(selectedEmp.id)
       }
       if (selectedEmp) {
-        const code = selectedEmp.employeeCode || selectedEmp.id.slice(0, 5).toUpperCase()
-        const year = new Date().getFullYear()
-        if (!contractReference) {
-          setContractReference(`CNT-${code}-${year}`)
-        }
         if (!departmentId && selectedEmp.departmentId) {
           setDepartmentId(selectedEmp.departmentId)
         }
@@ -84,9 +78,6 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
     setEmployeeId(selectedId)
     const emp = employees.find((e: any) => e.id === selectedId)
     if (emp) {
-      const code = emp.employeeCode || emp.id.slice(0, 5).toUpperCase()
-      const year = new Date().getFullYear()
-      setContractReference(`CNT-${code}-${year}`)
       if (emp.departmentId) setDepartmentId(emp.departmentId)
       if (emp.jobPositionId) setJobPositionId(emp.jobPositionId)
       if (emp.scheduleId) setScheduleId(emp.scheduleId)
@@ -109,11 +100,6 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
       return
     }
 
-    if (!contractReference.trim()) {
-      toast.error('Contract reference is required')
-      return
-    }
-
     if (!startDate) {
       toast.error('Start date is required')
       return
@@ -133,7 +119,6 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
     try {
       await createContractMutation.mutateAsync({
         employeeId,
-        contractReference: contractReference.trim(),
         startDate,
         endDate: endDate ? endDate : null,
         departmentId: departmentId || null,
@@ -149,8 +134,8 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 
       toast.success(
         status === 'active'
-          ? `Active contract ${contractReference} created successfully!`
-          : `Draft contract ${contractReference} saved successfully!`
+          ? 'Active contract created successfully!'
+          : 'Draft contract saved successfully!'
       )
       onClose()
     } catch (err: any) {
@@ -192,7 +177,7 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-4 text-xs">
-          {/* Section 1: Employee & Reference */}
+          {/* Section 1: Employee & Status */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold text-[var(--color-text-heading)] mb-1">
@@ -221,16 +206,16 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
 
             <div>
               <label className="block font-semibold text-[var(--color-text-heading)] mb-1">
-                Contract Reference <span className="text-red-500">*</span>
+                Contract Initial Status
               </label>
-              <input
-                type="text"
-                value={contractReference}
-                onChange={(e) => setContractReference(e.target.value)}
-                placeholder="e.g. CNT-EMP001-2026"
-                className="pp-input w-full font-mono"
-                required
-              />
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as any)}
+                className="pp-input w-full font-semibold"
+              >
+                <option value="draft">Draft (Pending review)</option>
+                <option value="active">Active (Immediate effect)</option>
+              </select>
             </div>
           </div>
 
@@ -381,8 +366,8 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
             </div>
           </div>
 
-          {/* Section 5: Dates & Contract Status */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Section 5: Contract Dates */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold text-[var(--color-text-heading)] mb-1">
                 Start Date <span className="text-red-500">*</span>
@@ -408,20 +393,6 @@ export const CreateContractModal: React.FC<CreateContractModalProps> = ({
                 onChange={(e) => setEndDate(e.target.value)}
                 className="pp-input w-full font-mono cursor-pointer"
               />
-            </div>
-
-            <div>
-              <label className="block font-semibold text-[var(--color-text-heading)] mb-1">
-                Contract Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as any)}
-                className="pp-input w-full font-semibold"
-              >
-                <option value="draft">Draft (Pending review)</option>
-                <option value="active">Active (Immediate effect)</option>
-              </select>
             </div>
           </div>
 

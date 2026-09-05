@@ -12,7 +12,7 @@ const optionalUuidSchema = z
 
 const contractBodyBase = z.object({
   employeeId: z.string().uuid("Invalid employee ID"),
-  contractReference: z.string().min(1, "Reference is required"),
+  contractReference: z.string().optional().or(z.literal("")),
   startDate: dateStringSchema,
   endDate: dateStringSchema.nullish().or(z.literal("")),
   departmentId: optionalUuidSchema,

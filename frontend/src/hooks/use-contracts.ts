@@ -4,7 +4,7 @@ import { useCompanyId } from '@/store/auth.store'
 
 export interface CreateContractPayload {
   employeeId: string
-  contractReference: string
+  contractReference?: string
   startDate: string
   endDate?: string | null
   departmentId?: string | null

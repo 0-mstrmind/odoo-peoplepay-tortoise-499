@@ -48,11 +48,22 @@ export const createContract = async (companyId: string, userId: string, data: an
     if (userExists) validCreatorId = userExists.id;
   }
 
+  let contractReference = data.contractReference ? data.contractReference.trim() : "";
+  if (!contractReference) {
+    const emp = await prisma.employee.findUnique({
+      where: { id: data.employeeId },
+      select: { employeeCode: true },
+    });
+    const code = emp?.employeeCode || data.employeeId.slice(0, 5).toUpperCase();
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    contractReference = `CNT-${code}-${new Date().getFullYear()}-${rand}`;
+  }
+
   const createData: any = {
     companyId,
     createdBy: validCreatorId,
     employeeId: data.employeeId,
-    contractReference: data.contractReference,
+    contractReference,
     startDate,
     endDate,
     wage: data.wage,
