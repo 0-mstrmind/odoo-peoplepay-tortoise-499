@@ -65,6 +65,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const isContracts = pathname.startsWith('/contracts')
   const isAttendance = pathname.startsWith('/attendance')
   const isTimeOff = pathname.startsWith('/time-off')
+  const isPayouts = pathname.startsWith('/payouts') || pathname.startsWith('/payout-history')
   const isPayroll = pathname.startsWith('/payroll')
   const isUserMgmt = pathname.startsWith('/user-management')
 
@@ -301,7 +302,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 <button
                   type="button"
                   onClick={() => navigate('/time-off')}
-                  title={role === 'employee' ? 'My Leave Requests' : 'Time Off & Leave Management'}
+                  title={role === 'employee' ? 'My Leave Requests & Allocations' : 'Time Off & Leave Management'}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
                     isTimeOff
                       ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
@@ -312,6 +313,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   {!isCollapsed && <span>{role === 'employee' ? 'My Time Off' : 'Time Off'}</span>}
                 </button>
               )}
+
+              {/* Payout History */}
+              <button
+                type="button"
+                onClick={() => navigate('/payouts')}
+                title={role === 'employee' ? 'My Payout & Payslip History' : 'Payout History & Remuneration'}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                  isPayouts
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <CreditCard className="w-4 h-4 shrink-0" />
+                {!isCollapsed && <span>{role === 'employee' ? 'My Payout History' : 'Payout History'}</span>}
+              </button>
 
               {/* Payroll */}
               {showPayroll && (
@@ -326,7 +342,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                   }`}
                 >
                   <CreditCard className="w-4 h-4 shrink-0" />
-                  {!isCollapsed && <span>Payroll</span>}
+                  {!isCollapsed && <span>Payroll Engine</span>}
                 </button>
               )}
             </nav>

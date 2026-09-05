@@ -3,41 +3,6 @@ import { UserPlus, Search, Filter, Shield } from 'lucide-react'
 import { type UserItem, CreateUserModal } from './CreateUserModal'
 import apiClient from '@/lib/axios'
 
-const INITIAL_USERS: UserItem[] = [
-  {
-    id: 'u-1',
-    name: 'Aarav Mehta',
-    employeeName: 'Aarav Mehta',
-    email: 'aarav@company.com',
-    role: 'HR Payroll User',
-    status: 'active',
-  },
-  {
-    id: 'u-2',
-    name: 'Maya Shah',
-    employeeName: 'Maya Shah',
-    email: 'maya@company.com',
-    role: 'HR Manager',
-    status: 'active',
-  },
-  {
-    id: 'u-3',
-    name: 'Rohan Patel',
-    employeeName: 'Rohan Patel',
-    email: 'rohan@company.com',
-    role: 'Employee',
-    status: 'active',
-  },
-  {
-    id: 'u-4',
-    name: 'Nisha Rao',
-    employeeName: 'Nisha Rao',
-    email: 'nisha@company.com',
-    role: 'HR Payroll Manager',
-    status: 'active',
-  },
-]
-
 // Role formatting helper
 function formatRoleName(roleRaw: string): string {
   if (!roleRaw) return 'Employee'
@@ -61,7 +26,7 @@ function formatRoleName(roleRaw: string): string {
 }
 
 export const UserManagementView: React.FC = () => {
-  const [users, setUsers] = useState<UserItem[]>(INITIAL_USERS)
+  const [users, setUsers] = useState<UserItem[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
@@ -104,7 +69,7 @@ export const UserManagementView: React.FC = () => {
         setUsers(mapped)
       }
     } catch {
-      // Keep sample data if offline/error
+      setUsers([])
     } finally {
       setLoading(false)
     }

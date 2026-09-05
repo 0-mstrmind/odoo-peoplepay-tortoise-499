@@ -119,20 +119,31 @@ export const checkInService = async (
   const dateStr = input.attendanceDate || checkInTime.toISOString().split("T")[0];
   const attendanceDate = new Date(`${dateStr}T00:00:00.000Z`);
 
-  // Check if open check-in already exists on same date
-  const existingOpen = await prisma.attendance.findFirst({
+  // Check if an attendance record already exists for this employee on this date
+  const existingAttendance = await prisma.attendance.findFirst({
     where: {
       companyId,
       employeeId,
       attendanceDate,
-      checkOut: null,
       deletedAt: null,
     },
   });
 
-  if (existingOpen) {
-    throw new ApiError(StatusCodes.CONFLICT, "Employee is already checked in for this date without checking out");
+  if (existingAttendance) {
+    if (existingAttendance.checkOut) {
+      throw new ApiError(
+        StatusCodes.CONFLICT,
+        "You have already completed your punch out for today. Punching in again on the same day is not permitted."
+      );
+    }
+    throw new ApiError(
+      StatusCodes.CONFLICT,
+      "Employee is already checked in for this date without checking out"
+    );
   }
+
+  const isEmployeeRole = currentUser?.role?.toLowerCase() === "employee";
+  const initialStatus = isEmployeeRole ? "pending" : "present";
 
   return prisma.attendance.create({
     data: {
@@ -141,7 +152,7 @@ export const checkInService = async (
       attendanceDate,
       checkIn: checkInTime,
       source: input.source || "system",
-      status: "present",
+      status: initialStatus,
       isCorrected: false,
     },
     include: {
@@ -196,6 +207,8 @@ export const checkOutService = async (
     checkOutTime,
   );
 
+  const isEmployeeRole = currentUser?.role?.toLowerCase() === "employee";
+
   return prisma.attendance.update({
     where: { id: attendance.id },
     data: {
@@ -203,7 +216,7 @@ export const checkOutService = async (
       workedHours,
       expectedHours,
       overtimeHours,
-      status: workedHours < (expectedHours / 2) && expectedHours > 0 ? "half_day" : "present",
+      status: isEmployeeRole ? "pending" : (workedHours < (expectedHours / 2) && expectedHours > 0 ? "half_day" : "present"),
     },
     include: {
       employee: {

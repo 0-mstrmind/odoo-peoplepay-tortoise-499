@@ -2,6 +2,8 @@ import type { Request, Response } from "express";
 import { StatusCodes } from "http-status-codes";
 import CatchAsync from "../../shared/utils/CatchAsync.js";
 import sendResponse from "../../shared/utils/ApiResponse.js";
+import ApiError from "../../shared/utils/ApiError.js";
+import { prisma } from "../../core/config/prisma.js";
 import { queryRequestSchema } from "./timeoff.validation.js";
 import {
   listTimeOffTypesService,
@@ -73,7 +75,15 @@ export const getTimeOffAllocations = CatchAsync(async (req: Request, res: Respon
     timeOffTypeId: req.query.timeOffTypeId as string | undefined,
     status: req.query.status as string | undefined,
   };
-  const result = await listAllocationsService(query, req.user?.companyId);
+  const userRole = req.user?.role?.toLowerCase();
+  let userEmployeeId = req.user?.employeeId;
+
+  if (userRole === "employee" && !userEmployeeId && req.user?.id) {
+    const emp = await prisma.employee.findFirst({ where: { userId: req.user.id, deletedAt: null } });
+    if (emp) userEmployeeId = emp.id;
+  }
+
+  const result = await listAllocationsService(query, req.user?.companyId, userRole, userEmployeeId);
   sendResponse(res, StatusCodes.OK, "Allocations fetched successfully", { items: result });
 });
 
@@ -125,6 +135,22 @@ export const getTimeOffRequestById = CatchAsync(async (req: Request, res: Respon
 
 export const createTimeOffRequest = CatchAsync(async (req: Request, res: Response) => {
   const userId = req.user?.id || req.user?.clerkUserId;
+  const userRole = req.user?.role?.toLowerCase();
+  let userEmployeeId = req.user?.employeeId;
+
+  if (userRole === "employee" && !userEmployeeId && req.user?.id) {
+    const emp = await prisma.employee.findFirst({ where: { userId: req.user.id, deletedAt: null } });
+    if (emp) userEmployeeId = emp.id;
+  }
+
+  // Regular employees can only submit time off requests for themselves
+  if (userRole === "employee") {
+    if (!userEmployeeId) {
+      throw new ApiError(StatusCodes.FORBIDDEN, "No employee record associated with this user account");
+    }
+    req.body.employeeId = userEmployeeId;
+  }
+
   const result = await createRequestService(req.body, userId, req.user?.companyId);
 
   const employeeName = (result as any).employee

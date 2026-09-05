@@ -46,10 +46,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       else if (lower.includes('contract')) navigate('/contracts')
       else if (lower.includes('attend')) navigate('/attendance')
       else if (lower.includes('time')) navigate('/time-off')
+      else if (lower.includes('payout')) navigate('/payouts')
       else if (lower.includes('payroll')) navigate('/payroll')
       else if (lower.includes('user')) navigate('/user-management')
     }
   }
+
+  const isPayrollUser = ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(user?.role?.toLowerCase() || '')
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[var(--color-bg-base)] border-b border-[var(--color-border)] shadow-2xs overflow-visible">
@@ -191,9 +194,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             onClick={() => handleItemClick('Time Off')}
-            title="Time Off & Leave Management"
+            title="Time Off Management — Leave Allocations & Requests"
             className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-              activeItem === 'Time Off'
+              activeItem === 'Time Off' || activeItem === 'Time-Off'
                 ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
                 : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
             }`}
@@ -201,19 +204,35 @@ export const Navbar: React.FC<NavbarProps> = ({
             Time Off
           </button>
 
-          {/* 5. Payroll */}
+          {/* 5. Payout History */}
           <button
             type="button"
-            onClick={() => handleItemClick('Payroll')}
-            title="Payroll Engine — Payrun Calculations & Payslips"
+            onClick={() => handleItemClick('Payout History')}
+            title="Payout History — View salary disbursements & payslip receipts"
             className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-              activeItem === 'Payroll'
+              activeItem === 'Payout History' || activeItem === 'Payouts'
                 ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
                 : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
             }`}
           >
-            Payroll
+            Payout History
           </button>
+
+          {/* 6. Payroll (HR / Admin Only) */}
+          {isPayrollUser && (
+            <button
+              type="button"
+              onClick={() => handleItemClick('Payroll')}
+              title="Payroll Engine — Payrun Calculations & Batch Payslips"
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+                activeItem === 'Payroll'
+                  ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                  : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+              }`}
+            >
+              Payroll Engine
+            </button>
+          )}
         </nav>
 
         {/* Right side items: Tenant / Notifications / User menu */}
@@ -275,7 +294,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
 
-                {(user?.role === 'admin' || user?.role === 'super_admin') && (
+                {['admin', 'super_admin'].includes(user?.role?.toLowerCase() || '') && (
                   <button
                     type="button"
                     title="Open Admin User Access & Management Portal"

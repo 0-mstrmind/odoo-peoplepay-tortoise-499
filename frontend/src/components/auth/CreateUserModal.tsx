@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Lock, AlertCircle } from 'lucide-react'
+import { X, Lock, AlertCircle, UserPlus, Users } from 'lucide-react'
 import apiClient from '@/lib/axios'
 
 export interface UserItem {
@@ -36,6 +36,10 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   onSaved,
 }) => {
   const [selectedEmployee, setSelectedEmployee] = useState('')
+  const [isCreatingNewEmployee, setIsCreatingNewEmployee] = useState(false)
+  const [newFirstName, setNewFirstName] = useState('')
+  const [newLastName, setNewLastName] = useState('')
+  
   const [email, setEmail] = useState('')
   const [role, setRole] = useState('EMPLOYEE')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
@@ -43,7 +47,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [loading, setLoading] = useState(false)
   
   // Field-specific inline errors
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; employeeId?: string; general?: string }>({})
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; employeeId?: string; firstName?: string; general?: string }>({})
 
   const [employeesList, setEmployeesList] = useState<Array<{ id: string; name: string; email: string }>>([])
 
@@ -77,6 +81,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   // Reset or populate drawer fields on open/edit
   useEffect(() => {
     setFieldErrors({})
+    setIsCreatingNewEmployee(false)
+    setNewFirstName('')
+    setNewLastName('')
 
     if (userToEdit) {
       setSelectedEmployee(userToEdit.employeeId || '')
@@ -109,8 +116,16 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   }, [userToEdit, isOpen])
 
   const handleSelectEmployee = (empId: string) => {
-    setSelectedEmployee(empId)
     setFieldErrors((prev) => ({ ...prev, employeeId: undefined }))
+
+    if (empId === '__new_employee__') {
+      setIsCreatingNewEmployee(true)
+      setSelectedEmployee('')
+      return
+    }
+
+    setIsCreatingNewEmployee(false)
+    setSelectedEmployee(empId)
 
     const emp = employeesList.find((e) => e.id === empId)
     if (emp && emp.email) {
@@ -119,15 +134,34 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     }
   }
 
+  const handleNameChange = (fname: string, lname: string) => {
+    setNewFirstName(fname)
+    setNewLastName(lname)
+
+    if (fname || lname) {
+      const suggested = `${fname.toLowerCase().trim()}.${lname.toLowerCase().trim()}@company.com`.replace(/\s+/g, '')
+      if (!email || email.endsWith('@company.com')) {
+        setEmail(suggested)
+      }
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFieldErrors({})
 
-    // Basic frontend validation
-    if (!userToEdit && !selectedEmployee) {
-      setFieldErrors({ employeeId: 'Please select an employee' })
-      return
+    if (!userToEdit) {
+      if (isCreatingNewEmployee) {
+        if (!newFirstName.trim()) {
+          setFieldErrors({ firstName: 'First name is required for new employee' })
+          return
+        }
+      } else if (!selectedEmployee) {
+        setFieldErrors({ employeeId: 'Please select an employee or add a new employee profile' })
+        return
+      }
     }
+
     if (!email || !email.includes('@')) {
       setFieldErrors({ email: 'Please enter a valid work email address' })
       return
@@ -157,16 +191,35 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
         onSaved(savedUser)
       } else {
         // Create Mode: POST /api/v1/users
+        let targetEmployeeId = selectedEmployee
+        let empName = 'New Employee'
+
+        // If creating new employee on-the-fly:
+        if (isCreatingNewEmployee) {
+          const empRes = await apiClient.post('/v1/employees', {
+            employeeCode: `EMP-${Date.now().toString().slice(-6)}`,
+            firstName: newFirstName.trim(),
+            lastName: newLastName.trim() || 'Staff',
+            email: email.trim().toLowerCase(),
+            status: 'active',
+            employeeType: 'full_time',
+          })
+          const createdEmp = empRes.data?.data?.employee || empRes.data?.employee || empRes.data?.data
+          targetEmployeeId = createdEmp.id
+          empName = `${createdEmp.firstName} ${createdEmp.lastName}`
+        } else {
+          const empObj = employeesList.find((e) => e.id === selectedEmployee)
+          if (empObj) empName = empObj.name
+        }
+
         const res = await apiClient.post('/v1/users', {
-          employee_id: selectedEmployee,
+          employee_id: targetEmployeeId,
           email: email.trim().toLowerCase(),
           role,
           is_active: status === 'active',
         })
 
         const created = res.data?.data?.user || res.data?.data
-        const empObj = employeesList.find((e) => e.id === selectedEmployee)
-        const empName = empObj ? empObj.name : 'New Employee'
 
         const savedUser: UserItem = {
           id: created.id,
@@ -175,7 +228,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           email: created.email || email,
           role: created.role || role,
           status: created.isActive === false ? 'inactive' : 'active',
-          employeeId: selectedEmployee,
+          employeeId: targetEmployeeId,
         }
 
         onSaved(savedUser)
@@ -234,11 +287,36 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
           {/* Form */}
           <form id="user-form" onSubmit={handleSubmit} className="space-y-4">
-            {/* Employee Selector */}
+            {/* Employee Selector Header */}
             <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
-                Employee <span className="text-[var(--color-danger)]">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-[var(--color-text-heading)]">
+                  Employee <span className="text-[var(--color-danger)]">*</span>
+                </label>
+                {!userToEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreatingNewEmployee(!isCreatingNewEmployee)
+                      setSelectedEmployee('')
+                    }}
+                    className="text-[11px] font-bold text-[var(--color-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    {isCreatingNewEmployee ? (
+                      <>
+                        <Users className="w-3 h-3" />
+                        <span>Select Existing</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-3 h-3" />
+                        <span>+ Add New Employee</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
               {userToEdit ? (
                 <input
                   type="text"
@@ -246,6 +324,35 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   value={userToEdit.employeeName}
                   className="pp-input bg-[var(--color-bg-muted)] opacity-80 cursor-not-allowed text-xs font-medium"
                 />
+              ) : isCreatingNewEmployee ? (
+                <div className="space-y-2 p-3 bg-[rgba(113,72,103,0.06)] border border-[rgba(113,72,103,0.2)] rounded-[6px] animate-in fade-in">
+                  <div className="text-[11px] font-bold text-[var(--color-primary)] uppercase tracking-wider">
+                    New Employee Profile Details
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="First Name *"
+                        value={newFirstName}
+                        onChange={(e) => handleNameChange(e.target.value, newLastName)}
+                        className="pp-input text-xs"
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Last Name"
+                        value={newLastName}
+                        onChange={(e) => handleNameChange(newFirstName, e.target.value)}
+                        className="pp-input text-xs"
+                      />
+                    </div>
+                  </div>
+                  {fieldErrors.firstName && (
+                    <p className="text-[11px] text-red-600 font-semibold">{fieldErrors.firstName}</p>
+                  )}
+                </div>
               ) : (
                 <select
                   value={selectedEmployee}
@@ -253,6 +360,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   className={`pp-input text-xs ${fieldErrors.employeeId ? 'border-red-500' : ''}`}
                 >
                   <option value="">Select employee...</option>
+                  <option value="__new_employee__" className="font-bold text-[var(--color-primary)]">
+                    + Add New Employee Profile...
+                  </option>
                   {employeesList.map((emp) => (
                     <option key={emp.id} value={emp.id}>
                       {emp.name} ({emp.email})
@@ -260,7 +370,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   ))}
                 </select>
               )}
-              {fieldErrors.employeeId && (
+              {fieldErrors.employeeId && !isCreatingNewEmployee && (
                 <p className="text-[11px] text-red-600 font-semibold mt-1">{fieldErrors.employeeId}</p>
               )}
             </div>

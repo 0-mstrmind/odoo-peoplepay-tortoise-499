@@ -20,6 +20,7 @@ import {
   createDepartment,
   createJobPosition,
   createWorkingSchedule,
+  getMyEmployeeProfile,
 } from "./employee.controller.js";
 import { clerkAuthMiddleware } from "../../core/middlewares/clerk.middleware.js";
 import { requireRole } from "../../core/middlewares/rbac.middleware.js";
@@ -28,6 +29,7 @@ import { getEmployeeLeaveBalances } from "../timeoff/timeoff.controller.js";
 const router = Router();
 
 // 1. Meta and Master Data routes (must precede /:id)
+router.get("/me", clerkAuthMiddleware, getMyEmployeeProfile);
 router.get("/meta/masters", clerkAuthMiddleware, getMasterData);
 router.get("/meta/stats", clerkAuthMiddleware, getEmployeeStats);
 router.post("/meta/departments", clerkAuthMiddleware, requireRole("admin", "hr_manager"), createDepartment);

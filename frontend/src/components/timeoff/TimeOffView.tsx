@@ -8,8 +8,6 @@ import {
   Building2,
   RefreshCw,
   Plus,
-  MessageSquare,
-  FileCheck,
   History,
   X,
   Loader2,
@@ -18,19 +16,32 @@ import { toast } from 'sonner'
 import { useAuthUser } from '@/store/auth.store'
 import {
   useTimeOffRequests,
+  useTimeOffAllocations,
   useTimeOffTypes,
   useApproveTimeOffRequest,
   useRefuseTimeOffRequest,
   useCreateTimeOffRequest,
-  useDepartmentsMaster,
   type TimeOffRequestItem,
+} from '@/hooks/use-timeoff'
+import {
+  useEmployees,
+  useMyEmployeeProfile,
+  useDepartmentsMaster,
 } from '@/hooks/use-api'
 
 export const TimeOffView: React.FC = () => {
   const user = useAuthUser()
   const role = (user?.role || '').toLowerCase()
-  // Any role other than plain employee has approval authority
+  const isStandardEmployee = role === 'employee'
   const canApprove = role ? role !== 'employee' : true
+
+  // Logged-in employee profile
+  const { data: myEmployee } = useMyEmployeeProfile()
+  const { data: employeesResponse } = useEmployees()
+  const employeesList =
+    (employeesResponse as any)?.data?.items ||
+    (employeesResponse as any)?.items ||
+    (Array.isArray(employeesResponse) ? employeesResponse : [])
 
   // Tabs: 'requests' (pending approvals) | 'history' (complete log)
   const [activeTab, setActiveTab] = useState<'requests' | 'history'>('requests')
@@ -51,6 +62,7 @@ export const TimeOffView: React.FC = () => {
 
   // Request Time Off Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [newTypeId, setNewTypeId] = useState('')
   const [newStartDate, setNewStartDate] = useState(new Date().toISOString().split('T')[0])
   const [newEndDate, setNewEndDate] = useState(new Date().toISOString().split('T')[0])
@@ -68,6 +80,7 @@ export const TimeOffView: React.FC = () => {
     search: searchQuery,
   })
 
+  const { data: allocations = [], isLoading: isLoadingAllocations } = useTimeOffAllocations()
   const { data: leaveTypes = [] } = useTimeOffTypes()
   const { data: departments = [] } = useDepartmentsMaster()
 
@@ -87,12 +100,6 @@ export const TimeOffView: React.FC = () => {
     )
     .filter((r) => r.status !== 'pending' || processedRequestIds.has(r.id))
 
-  const approvedCount = allRequests.filter(
-    (r) =>
-      (r.status === 'approved' && !processedRequestIds.has(r.id)) ||
-      processedRequestIds.get(r.id) === 'approved'
-  ).length
-
   const handleApprove = async (item: TimeOffRequestItem) => {
     setActionLoadingId(item.id)
     setActionType('approve')
@@ -103,7 +110,7 @@ export const TimeOffView: React.FC = () => {
       toast.success(`Leave request approved for ${empName}!`)
       refetch()
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to approve leave request')
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to approve leave request')
     } finally {
       setActionLoadingId(null)
       setActionType(null)
@@ -122,7 +129,7 @@ export const TimeOffView: React.FC = () => {
     setActionType('refuse')
     try {
       await refuseMutation.mutateAsync({
-        id: reqId,
+        requestId: reqId,
         refusalReason: refusalReason.trim() || undefined,
       })
       setProcessedRequestIds((prev) => new Map(prev).set(reqId, 'refused'))
@@ -133,24 +140,62 @@ export const TimeOffView: React.FC = () => {
       setRejectingItem(null)
       refetch()
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to refuse leave request')
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to refuse leave request')
     } finally {
       setActionLoadingId(null)
       setActionType(null)
     }
   }
 
+  const handleOpenCreateModal = () => {
+    if (isStandardEmployee && myEmployee?.id) {
+      setSelectedEmployeeId(myEmployee.id)
+    } else if (employeesList.length > 0 && !selectedEmployeeId) {
+      setSelectedEmployeeId(employeesList[0].id)
+    }
+    if (leaveTypes.length > 0 && !newTypeId) {
+      setNewTypeId(leaveTypes[0].id)
+    }
+    setIsCreateModalOpen(true)
+  }
+
+  const todayStr = new Date().toISOString().split('T')[0]
+  const maxObj = new Date()
+  maxObj.setMonth(maxObj.getMonth() + 6)
+  const maxStr = maxObj.toISOString().split('T')[0]
+
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.employeeId && !user?.id) {
-      toast.error('User employee profile not found')
+    const empId = isStandardEmployee && myEmployee?.id
+      ? myEmployee.id
+      : (selectedEmployeeId || user?.employeeId || employeesList[0]?.id)
+
+    const typeId = newTypeId || leaveTypes[0]?.id
+
+    if (!empId || !typeId || !newStartDate || !newEndDate) {
+      toast.error('Please fill out all required fields.')
+      return
+    }
+
+    if (newStartDate < todayStr) {
+      toast.error('Time off start date cannot be in the past.')
+      return
+    }
+
+    if (newEndDate < newStartDate) {
+      toast.error('End date cannot be prior to start date.')
+      return
+    }
+
+    if (newStartDate > maxStr || newEndDate > maxStr) {
+      toast.error('Time off requests cannot be scheduled more than 6 months in advance.')
       return
     }
 
     try {
       await createMutation.mutateAsync({
-        employeeId: (user.employeeId || user.id) as string,
-        timeOffTypeId: newTypeId || leaveTypes[0]?.id || '',
+        employeeId: empId,
+        timeOffTypeId: typeId,
         startDate: newStartDate,
         endDate: newEndDate,
         reason: newReason || 'Personal leave',
@@ -160,7 +205,7 @@ export const TimeOffView: React.FC = () => {
       setNewReason('')
       refetch()
     } catch (err: any) {
-      toast.error(err.response?.data?.message || 'Failed to submit leave request')
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to submit leave request')
     }
   }
 
@@ -171,7 +216,7 @@ export const TimeOffView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* 1. Header */}
+      {/* 1. Header Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-extrabold text-[var(--color-text-heading)] flex items-center gap-2.5">
@@ -199,7 +244,7 @@ export const TimeOffView: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={handleOpenCreateModal}
             className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Plus className="w-4 h-4" />
@@ -208,72 +253,51 @@ export const TimeOffView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Top Summary KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="pp-card p-4 border border-[var(--color-border)] shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-              Pending Approvals
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-[#FFAA00]">
-                {isLoading ? '...' : pendingRequests.length}
-              </span>
-              <span className="text-[11px] text-[var(--color-text-muted)]">Requires Review</span>
-            </div>
-            <p className="text-[10px] text-[var(--color-text-muted)]">
-              Awaiting manager action
-            </p>
-          </div>
-          <div className="w-11 h-11 rounded-lg bg-[rgba(255,170,0,0.12)] text-[#FFAA00] flex items-center justify-center font-bold shrink-0">
-            <Clock className="w-5 h-5" />
-          </div>
+      {/* 2. Active Leave Balances / Allocations Cards */}
+      {isLoadingAllocations ? (
+        <div className="py-4 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+          <span>Loading leave allocations...</span>
         </div>
+      ) : allocations.length > 0 ? (
+        <div>
+          <h2 className="text-xs font-extrabold text-[var(--color-text-muted)] uppercase tracking-wider mb-3">
+            Active Leave Allocations
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {allocations.map((alloc: any) => {
+              const typeName = alloc.timeOffType?.name || 'Leave'
+              const allocated = Number(alloc.allocated) || 0
+              const remaining = Number(alloc.remaining) || 0
+              const percent = allocated > 0 ? Math.min(100, Math.round((remaining / allocated) * 100)) : 0
 
-        <div className="pp-card p-4 border border-[var(--color-border)] shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-              Approved Requests
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-[#00C853]">
-                {isLoading ? '...' : approvedCount}
-              </span>
-              <span className="text-[11px] text-[var(--color-text-muted)]">Granted</span>
-            </div>
-            <p className="text-[10px] text-[var(--color-text-muted)]">
-              Authorized time off
-            </p>
-          </div>
-          <div className="w-11 h-11 rounded-lg bg-[rgba(0,200,83,0.12)] text-[#00C853] flex items-center justify-center font-bold shrink-0">
-            <CheckCircle2 className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="pp-card p-4 border border-[var(--color-border)] shadow-xs flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">
-              Total Recorded Requests
-            </p>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-[var(--color-text-heading)]">
-                {isLoading ? '...' : allRequests.length}
-              </span>
-              <span className="text-[11px] text-[var(--color-text-muted)]">All Time</span>
-            </div>
-            <p className="text-[10px] text-[var(--color-text-muted)]">
-              Processed leave entries
-            </p>
-          </div>
-          <div className="w-11 h-11 rounded-lg bg-[rgba(113,72,103,0.1)] text-[var(--color-primary)] flex items-center justify-center font-bold shrink-0">
-            <FileCheck className="w-5 h-5" />
+              return (
+                <div key={alloc.id} className="pp-card p-4 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--color-text-heading)]">{typeName}</span>
+                    <span className="pp-badge pp-badge-neutral text-[10px]">
+                      {remaining} / {allocated} Days Left
+                    </span>
+                  </div>
+                  <div className="w-full bg-[var(--color-bg-muted)] h-2 rounded-full overflow-hidden mt-2">
+                    <div
+                      className="bg-[var(--color-primary)] h-full transition-all"
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-[var(--color-text-muted)] pt-1">
+                    {alloc.taken || (allocated - remaining)} days taken
+                  </p>
+                </div>
+              )
+            })}
           </div>
         </div>
-      </div>
+      ) : null}
 
       {/* 3. Filter Bar */}
       <div className="pp-card p-3.5 border border-[var(--color-border)] shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Left: Search */}
+        {/* Search */}
         <div className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
           <input
@@ -281,41 +305,41 @@ export const TimeOffView: React.FC = () => {
             placeholder="Search employee by name, code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pp-input pl-9 text-xs w-full"
+            className="pp-input text-xs pl-9 w-full rounded-[6px]"
           />
         </div>
 
-        {/* Right: Department & Leave Type Filter */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Filters */}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
           {/* Department Filter */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 border border-[var(--color-border)] rounded-[6px] px-2.5 py-1.5 bg-[var(--color-bg-base)]">
             <Building2 className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
             <select
               value={selectedDepartment}
               onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="pp-input text-xs py-1.5 min-w-[150px]"
+              className="text-xs bg-transparent border-none focus:outline-none text-[var(--color-text-heading)] font-semibold cursor-pointer"
             >
               <option value="all">All Departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} {d.code ? `(${d.code})` : ''}
+              {departments.map((dept: any) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
                 </option>
               ))}
             </select>
           </div>
 
           {/* Leave Type Filter */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 border border-[var(--color-border)] rounded-[6px] px-2.5 py-1.5 bg-[var(--color-bg-base)]">
             <Calendar className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="pp-input text-xs py-1.5 min-w-[150px]"
+              className="text-xs bg-transparent border-none focus:outline-none text-[var(--color-text-heading)] font-semibold cursor-pointer"
             >
               <option value="all">All Leave Types</option>
-              {leaveTypes.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name}
+              {leaveTypes.map((type: any) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
                 </option>
               ))}
             </select>
@@ -323,19 +347,19 @@ export const TimeOffView: React.FC = () => {
         </div>
       </div>
 
-      {/* Pending Leave Requests Alert Banner */}
+      {/* 4. Attention Banner: If there are pending leave requests */}
       {pendingRequests.length > 0 && activeTab !== 'requests' && (
-        <div className="pp-card p-3.5 border-l-4 border-l-[#FFAA00] border-[var(--color-border)] bg-[rgba(255,170,0,0.06)] flex items-center justify-between gap-4">
+        <div className="pp-card p-3 border border-amber-500/30 bg-amber-500/10 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[rgba(255,170,0,0.15)] text-[#FFAA00] flex items-center justify-center shrink-0">
-              <Clock className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-600 flex items-center justify-center font-bold text-xs shrink-0">
+              {pendingRequests.length}
             </div>
             <div>
               <p className="text-xs font-bold text-[var(--color-text-heading)]">
-                {pendingRequests.length} Pending Leave Request{pendingRequests.length === 1 ? '' : 's'} Awaiting Approval
+                {pendingRequests.length} pending leave request{pendingRequests.length === 1 ? '' : 's'} awaiting your review
               </p>
               <p className="text-[11px] text-[var(--color-text-muted)]">
-                Employees have submitted time off requests requiring your review.
+                Approve or refuse time off submissions to update employee schedules.
               </p>
             </div>
           </div>
@@ -349,7 +373,7 @@ export const TimeOffView: React.FC = () => {
         </div>
       )}
 
-      {/* 4. Tabs: Leave Requests (Pending) vs History */}
+      {/* 5. Navigation Tabs: Leave Requests (Pending) vs History */}
       <div className="border-b border-[var(--color-border)] flex items-center justify-between gap-2 overflow-x-auto">
         <div className="flex items-center gap-2">
           {/* Tab 1: Leave Requests */}
@@ -394,7 +418,7 @@ export const TimeOffView: React.FC = () => {
         </div>
       </div>
 
-      {/* 5. Tab 1 Content: Pending Leave Requests Table with Approve / Reject Buttons */}
+      {/* 6. Tab 1 Content: Pending Leave Requests Table */}
       {activeTab === 'requests' && (
         <div className="pp-card border border-[var(--color-border)] shadow-xs rounded-[6px] overflow-hidden">
           <div className="p-3.5 border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] flex items-center justify-between">
@@ -429,14 +453,8 @@ export const TimeOffView: React.FC = () => {
                   </tr>
                 ) : pendingRequests.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-10 text-center space-y-2">
-                      <CheckCircle2 className="w-8 h-8 text-[#00C853] mx-auto opacity-70" />
-                      <p className="text-xs font-semibold text-[var(--color-text-heading)]">
-                        All Caught Up! No Pending Leave Requests
-                      </p>
-                      <p className="text-[11px] text-[var(--color-text-muted)]">
-                        There are no outstanding leave requests requiring approval right now.
-                      </p>
+                    <td colSpan={7} className="py-8 text-center text-xs text-[var(--color-text-muted)]">
+                      No pending leave requests awaiting approval.
                     </td>
                   </tr>
                 ) : (
@@ -444,114 +462,80 @@ export const TimeOffView: React.FC = () => {
                     const empName = req.employee
                       ? `${req.employee.firstName} ${req.employee.lastName}`
                       : 'Employee'
+                    const isRowBusy = actionLoadingId === req.id
 
                     return (
                       <tr key={req.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
-                        {/* Employee */}
                         <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-[rgba(113,72,103,0.1)] text-[var(--color-primary)] text-xs font-bold flex items-center justify-center shrink-0">
-                              {empName.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <span className="font-bold text-[var(--color-text-heading)] truncate">
-                                {empName}
-                              </span>
-                              <span className="text-[10px] text-[var(--color-text-muted)]">
-                                {req.employee?.employeeCode || 'EMP'}
-                              </span>
-                            </div>
+                          <div className="font-bold text-[var(--color-text-heading)]">{empName}</div>
+                          <div className="text-[10px] text-[var(--color-text-muted)] font-mono">
+                            {req.employee?.employeeCode || req.employee?.email || ''}
                           </div>
                         </td>
-
-                        {/* Department & Role */}
-                        <td className="py-3 px-4">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-[var(--color-text-heading)]">
-                              {req.employee?.department?.name || 'General'}
-                            </span>
-                            <span className="text-[10px] text-[var(--color-text-muted)]">
-                              {req.employee?.jobPosition?.title || 'Staff'}
-                            </span>
-                          </div>
+                        <td className="py-3 px-4 text-[var(--color-text-muted)]">
+                          {(req.employee as any)?.department?.name || 'General'}
                         </td>
-
-                        {/* Leave Type */}
                         <td className="py-3 px-4">
-                          <span className="pp-badge pp-badge-neutral text-[10px] font-bold">
+                          <span className="font-semibold text-[var(--color-text-heading)]">
                             {req.timeOffType?.name || 'Leave'}
                           </span>
                         </td>
-
-                        {/* Dates */}
                         <td className="py-3 px-4 font-mono text-[11px]">
-                          <span className="font-semibold text-[var(--color-text-heading)]">
-                            {formatDate(req.startDate)}
-                          </span>
-                          <span className="text-[var(--color-text-muted)] mx-1">&rarr;</span>
-                          <span className="font-semibold text-[var(--color-text-heading)]">
-                            {formatDate(req.endDate)}
-                          </span>
+                          {formatDate(req.startDate)} &rarr; {formatDate(req.endDate)}
                         </td>
-
-                        {/* Duration */}
-                        <td className="py-3 px-4 font-semibold text-[var(--color-text-heading)]">
-                          {req.duration} {req.timeOffType?.unit || 'days'}
-                          {req.halfDay && <span className="text-[10px] text-[var(--color-text-muted)] block">(Half Day)</span>}
+                        <td className="py-3 px-4 font-mono font-bold">
+                          {req.duration} day{Number(req.duration) === 1 ? '' : 's'}
                         </td>
-
-                        {/* Reason */}
-                        <td className="py-3 px-4 max-w-xs">
-                          <div className="flex items-start gap-1.5">
-                            <MessageSquare className="w-3.5 h-3.5 text-[var(--color-text-muted)] shrink-0 mt-0.5" />
-                            <span className="text-[11px] text-[var(--color-text-body)] line-clamp-2" title={req.reason || ''}>
-                              {req.reason || 'No description provided'}
-                            </span>
-                          </div>
+                        <td className="py-3 px-4 max-w-xs truncate text-[var(--color-text-muted)]" title={req.reason}>
+                          {req.reason || '—'}
                         </td>
-
-                        {/* Actions (Approve / Reject) */}
                         {canApprove && (
                           <td className="py-3 px-4 text-right">
-                            {(() => {
-                              const isRowActionPending = actionLoadingId === req.id
-                              const isApproving = isRowActionPending && actionType === 'approve'
-                              const isRejecting = isRowActionPending && actionType === 'refuse'
-                              const isAnyActionPending = isRowActionPending || approveMutation.isPending || refuseMutation.isPending
+                            <div className="flex items-center justify-end gap-1.5">
+                              {/* Approve Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(req)}
+                                disabled={isRowBusy}
+                                className={`pp-btn-primary text-[11px] py-1 px-2.5 rounded-[4px] font-semibold flex items-center gap-1 cursor-pointer transition-opacity ${
+                                  isRowBusy && actionType === 'approve'
+                                    ? 'opacity-60 cursor-wait'
+                                    : isRowBusy
+                                    ? 'opacity-40 cursor-not-allowed'
+                                    : ''
+                                }`}
+                                title="Approve Leave Request"
+                              >
+                                {isRowBusy && actionType === 'approve' ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                )}
+                                <span>{isRowBusy && actionType === 'approve' ? 'Approving...' : 'Approve'}</span>
+                              </button>
 
-                              return (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleApprove(req)}
-                                    disabled={isAnyActionPending}
-                                    className="px-3 py-1.5 rounded-[4px] bg-[#00C853] hover:bg-[#00B248] disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-                                    title="Approve Leave Request"
-                                  >
-                                    {isApproving ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    )}
-                                    <span>{isApproving ? 'Approving...' : 'Approve'}</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenRefuse(req)}
-                                    disabled={isAnyActionPending}
-                                    className="px-3 py-1.5 rounded-[4px] bg-[rgba(255,23,68,0.1)] hover:bg-[rgba(255,23,68,0.2)] disabled:opacity-60 disabled:cursor-not-allowed text-[#FF1744] border border-[#FF1744]/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                                    title="Reject Leave Request"
-                                  >
-                                    {isRejecting ? (
-                                      <Loader2 className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                      <XCircle className="w-4 h-4" />
-                                    )}
-                                    <span>{isRejecting ? 'Rejecting...' : 'Reject'}</span>
-                                  </button>
-                                </div>
-                              )
-                            })()}
+                              {/* Refuse Button */}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRefuse(req)}
+                                disabled={isRowBusy}
+                                className={`text-[11px] py-1 px-2.5 rounded-[4px] font-semibold flex items-center gap-1 border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/10 cursor-pointer transition-all ${
+                                  isRowBusy && actionType === 'refuse'
+                                    ? 'opacity-60 cursor-wait'
+                                    : isRowBusy
+                                    ? 'opacity-40 cursor-not-allowed'
+                                    : ''
+                                }`}
+                                title="Reject Leave Request"
+                              >
+                                {isRowBusy && actionType === 'refuse' ? (
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                ) : (
+                                  <XCircle className="w-3.5 h-3.5" />
+                                )}
+                                <span>{isRowBusy && actionType === 'refuse' ? 'Rejecting...' : 'Reject'}</span>
+                              </button>
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -564,7 +548,7 @@ export const TimeOffView: React.FC = () => {
         </div>
       )}
 
-      {/* 6. Tab 2 Content: Leave Requests History Table */}
+      {/* 7. Tab 2 Content: Historical Leave Requests Log (No Approve/Reject buttons here) */}
       {activeTab === 'history' && (
         <div className="pp-card border border-[var(--color-border)] shadow-xs rounded-[6px] overflow-hidden">
           <div className="p-3.5 border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] flex items-center justify-between">
@@ -611,22 +595,23 @@ export const TimeOffView: React.FC = () => {
 
                     return (
                       <tr key={req.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
-                        <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
-                          {empName}
+                        <td className="py-3 px-4">
+                          <div className="font-bold text-[var(--color-text-heading)]">{empName}</div>
+                          <div className="text-[10px] text-[var(--color-text-muted)] font-mono">
+                            {req.employee?.employeeCode || ''}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-[var(--color-text-muted)]">
-                          {req.employee?.department?.name || 'General'}
+                          {(req.employee as any)?.department?.name || 'General'}
                         </td>
-                        <td className="py-3 px-4">
-                          <span className="pp-badge pp-badge-neutral text-[10px]">
-                            {req.timeOffType?.name || 'Leave'}
-                          </span>
+                        <td className="py-3 px-4 font-semibold text-[var(--color-text-heading)]">
+                          {req.timeOffType?.name || 'Leave'}
                         </td>
                         <td className="py-3 px-4 font-mono text-[11px]">
                           {formatDate(req.startDate)} &rarr; {formatDate(req.endDate)}
                         </td>
-                        <td className="py-3 px-4 font-semibold">
-                          {req.duration} {req.timeOffType?.unit || 'days'}
+                        <td className="py-3 px-4 font-mono font-bold">
+                          {req.duration} day{Number(req.duration) === 1 ? '' : 's'}
                         </td>
                         <td className="py-3 px-4">
                           <span
@@ -635,19 +620,23 @@ export const TimeOffView: React.FC = () => {
                                 ? 'pp-badge-success'
                                 : req.status === 'refused'
                                 ? 'pp-badge-danger'
+                                : req.status === 'pending'
+                                ? 'pp-badge-warning'
                                 : 'pp-badge-neutral'
                             }`}
                           >
                             {req.status}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-[11px] text-[var(--color-text-muted)] max-w-xs truncate">
+                        <td className="py-3 px-4 text-xs text-[var(--color-text-muted)] max-w-xs">
                           {req.refusalReason ? (
-                            <span className="text-[#FF1744]">Reason: {req.refusalReason}</span>
+                            <span className="text-red-600 dark:text-red-400 font-medium">
+                              Refusal: {req.refusalReason}
+                            </span>
                           ) : req.reason ? (
-                            req.reason
+                            <span>{req.reason}</span>
                           ) : (
-                            '--'
+                            '—'
                           )}
                         </td>
                       </tr>
@@ -660,13 +649,13 @@ export const TimeOffView: React.FC = () => {
         </div>
       )}
 
-      {/* 7. Reject Modal with Reason Input */}
+      {/* 8. Refusal Reason Modal */}
       {rejectingItem && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[8px] shadow-xl max-w-md w-full p-5 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+          <div className="pp-card w-full max-w-md bg-[var(--color-bg-base)] border border-[var(--color-border)] shadow-xl rounded-[8px] p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
-              <div className="flex items-center gap-2">
-                <XCircle className="w-5 h-5 text-[#FF1744]" />
+              <div className="flex items-center gap-2 text-red-600">
+                <XCircle className="w-5 h-5" />
                 <h3 className="text-sm font-bold text-[var(--color-text-heading)] mb-0">
                   Reject Leave Request
                 </h3>
@@ -674,48 +663,36 @@ export const TimeOffView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setRejectingItem(null)}
-                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
+                className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] rounded cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="text-xs space-y-2 text-[var(--color-text-body)]">
-              <p>
-                <strong>Employee:</strong>{' '}
+            <p className="text-xs text-[var(--color-text-muted)]">
+              Provide an optional explanation for rejecting{' '}
+              <strong className="text-[var(--color-text-heading)]">
                 {rejectingItem.employee
                   ? `${rejectingItem.employee.firstName} ${rejectingItem.employee.lastName}`
-                  : 'Employee'}
-              </p>
-              <p>
-                <strong>Leave Type:</strong> {rejectingItem.timeOffType?.name} ({rejectingItem.duration}{' '}
-                {rejectingItem.timeOffType?.unit || 'days'})
-              </p>
-              <p>
-                <strong>Requested Period:</strong> {formatDate(rejectingItem.startDate)} &rarr;{' '}
-                {formatDate(rejectingItem.endDate)}
-              </p>
-              {rejectingItem.reason && (
-                <div className="p-2.5 rounded-[4px] bg-[var(--color-bg-muted)] border border-[var(--color-border)] text-[11px]">
-                  <span className="font-semibold text-[var(--color-text-heading)]">Employee's Note:</span>{' '}
-                  {rejectingItem.reason}
-                </div>
-              )}
+                  : 'this employee'}
+              </strong>
+              's request for {rejectingItem.duration} day{Number(rejectingItem.duration) === 1 ? '' : 's'} of{' '}
+              {rejectingItem.timeOffType?.name || 'leave'}.
+            </p>
 
-              <div className="space-y-1.5 pt-2">
-                <label className="text-[11px] font-semibold text-[var(--color-text-muted)]">
-                  Reason for Rejection (Optional):
-                </label>
-                <textarea
-                  value={refusalReason}
-                  onChange={(e) => setRefusalReason(e.target.value)}
-                  placeholder="e.g., Staff shortage on requested dates, please reschedule."
-                  className="pp-input w-full text-xs min-h-[70px]"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1">
+                Refusal Reason (Optional)
+              </label>
+              <textarea
+                value={refusalReason}
+                onChange={(e) => setRefusalReason(e.target.value)}
+                placeholder="e.g. Critical deployment scheduled during this timeframe..."
+                className="pp-input text-xs w-full h-20 resize-none rounded-[6px]"
+              />
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--color-border)]">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--color-border)]">
               <button
                 type="button"
                 onClick={() => setRejectingItem(null)}
@@ -726,40 +703,79 @@ export const TimeOffView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleConfirmRefuse}
-                disabled={refuseMutation.isPending || actionType === 'refuse'}
-                className="text-xs py-1.5 px-3.5 rounded-[4px] font-semibold bg-[#FF1744] hover:bg-[#D50000] disabled:opacity-60 disabled:cursor-not-allowed text-white flex items-center gap-1.5 cursor-pointer"
+                disabled={actionLoadingId === rejectingItem.id}
+                className="text-xs py-1.5 px-3.5 rounded-[4px] bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
-                {refuseMutation.isPending || actionType === 'refuse' ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Rejecting...</span>
-                  </>
+                {actionLoadingId === rejectingItem.id ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
-                  <span>Confirm Rejection</span>
+                  <XCircle className="w-3.5 h-3.5" />
                 )}
+                <span>Confirm Rejection</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 8. Request Time Off Modal */}
+      {/* 9. Request Time Off Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[8px] shadow-xl max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+          <div className="pp-card w-full max-w-md bg-[var(--color-bg-base)] border border-[var(--color-border)] shadow-xl rounded-[8px] p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-[var(--color-border)] pb-3">
-              <h3 className="text-base font-bold text-[var(--color-text-heading)]">
-                Submit Time Off Request
+              <h3 className="text-sm font-bold text-[var(--color-text-heading)] mb-0 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[var(--color-primary)]" />
+                <span>Submit Time Off Request</span>
               </h3>
               <button
+                type="button"
                 onClick={() => setIsCreateModalOpen(false)}
-                className="text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
+                className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] rounded cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <form onSubmit={handleCreateRequest} className="space-y-3">
+              {isStandardEmployee ? (
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                    Employee
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    disabled
+                    value={
+                      myEmployee
+                        ? `${myEmployee.firstName} ${myEmployee.lastName} (${myEmployee.employeeCode || myEmployee.email})`
+                        : user?.email ? `${user.email} (My Profile)` : 'My Employee Account'
+                    }
+                    className="pp-input text-xs w-full bg-[var(--color-bg-muted)] font-semibold cursor-not-allowed opacity-90"
+                  />
+                </div>
+              ) : (
+                employeesList.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
+                      Employee
+                    </label>
+                    <select
+                      value={selectedEmployeeId}
+                      onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                      className="pp-input text-xs w-full"
+                      required
+                    >
+                      {employeesList.map((emp: any) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.firstName} {emp.lastName} ({emp.employeeCode || emp.email})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              )}
+
               <div>
                 <label className="block text-xs font-semibold text-[var(--color-text-muted)] mb-1">
                   Leave Type
@@ -768,12 +784,16 @@ export const TimeOffView: React.FC = () => {
                   value={newTypeId || (leaveTypes[0]?.id ?? '')}
                   onChange={(e) => setNewTypeId(e.target.value)}
                   className="pp-input text-xs w-full"
+                  required
                 >
-                  {leaveTypes.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({t.unit})
+                  {leaveTypes.map((type: any) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name} {type.unit ? `(${type.unit})` : ''}
                     </option>
                   ))}
+                  {leaveTypes.length === 0 && (
+                    <option value="">No leave types configured</option>
+                  )}
                 </select>
               </div>
 
@@ -784,6 +804,8 @@ export const TimeOffView: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    min={todayStr}
+                    max={maxStr}
                     value={newStartDate}
                     onChange={(e) => setNewStartDate(e.target.value)}
                     className="pp-input text-xs w-full"
@@ -796,6 +818,8 @@ export const TimeOffView: React.FC = () => {
                   </label>
                   <input
                     type="date"
+                    min={newStartDate || todayStr}
+                    max={maxStr}
                     value={newEndDate}
                     onChange={(e) => setNewEndDate(e.target.value)}
                     className="pp-input text-xs w-full"
@@ -828,9 +852,10 @@ export const TimeOffView: React.FC = () => {
                 <button
                   type="submit"
                   disabled={createMutation.isPending}
-                  className="pp-btn-primary text-xs py-2 px-4 cursor-pointer"
+                  className="pp-btn-primary text-xs py-2 px-4 cursor-pointer flex items-center gap-1.5"
                 >
-                  {createMutation.isPending ? 'Submitting...' : 'Submit Request'}
+                  {createMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  <span>{createMutation.isPending ? 'Submitting...' : 'Submit Request'}</span>
                 </button>
               </div>
             </form>

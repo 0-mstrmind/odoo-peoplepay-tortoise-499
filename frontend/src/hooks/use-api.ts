@@ -57,6 +57,21 @@ export function useEmployees(params?: { page?: number; limit?: number; search?: 
   })
 }
 
+/** Fetch logged-in user's own detailed employee profile */
+export function useMyEmployeeProfile() {
+  const companyId = useCompanyId()
+
+  return useQuery({
+    queryKey: ['employee', 'me', companyId],
+    queryFn: async () => {
+      const response = await apiClient.get<any>('/employees/me')
+      const res = response.data
+      return res?.employee || res?.data?.employee || res?.data || null
+    },
+    enabled: !!companyId,
+  })
+}
+
 /** Fetch a single employee by ID */
 export function useEmployee(id: string) {
   return useQuery({

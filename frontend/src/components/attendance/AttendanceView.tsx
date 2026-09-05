@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Clock,
   UserCheck,
@@ -10,6 +10,12 @@ import {
   RefreshCw,
   History,
   FileCheck,
+  Loader2,
+  AlertCircle,
+  X,
+  CheckCircle2,
+  LogIn,
+  LogOut,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthUser } from '@/store/auth.store'
@@ -19,6 +25,11 @@ import {
   useAttendanceRequests,
   useDepartmentsMaster,
 } from '@/hooks/use-api'
+import {
+  useTodayAttendance,
+  useCheckIn,
+  useCheckOut,
+} from '@/hooks/use-attendance'
 import { AttendanceStatsCards } from './AttendanceStatsCards'
 import { TodayPresentTable } from './TodayPresentTable'
 import { TodayAbsentTable } from './TodayAbsentTable'
@@ -28,6 +39,7 @@ import { ManualAttendanceModal } from './ManualAttendanceModal'
 export const AttendanceView: React.FC = () => {
   const user = useAuthUser()
   const role = (user?.role || '').toLowerCase()
+  const isEmployee = role === 'employee'
   const isHRManager = role === 'hr_manager' || role === 'hr_payroll_manager' || role === 'admin' || role === 'super_admin'
   const isAdmin = role === 'admin' || role === 'super_admin'
 
@@ -78,6 +90,65 @@ export const AttendanceView: React.FC = () => {
     limit: 50,
   })
 
+  // Employee Punch Actions
+  const { data: todayAttendance } = useTodayAttendance()
+  const checkInMutation = useCheckIn()
+  const checkOutMutation = useCheckOut()
+
+  const [isCheckedIn, setIsCheckedIn] = useState(false)
+  const [hasCompletedToday, setHasCompletedToday] = useState(false)
+  const [checkInTime, setCheckInTime] = useState('—')
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+
+  // Sync punch status from backend todayAttendance
+  useEffect(() => {
+    if (todayAttendance) {
+      if (todayAttendance.checkOut) {
+        setIsCheckedIn(false)
+        setHasCompletedToday(true)
+      } else if (todayAttendance.checkIn) {
+        setIsCheckedIn(true)
+        setHasCompletedToday(false)
+        const checkInDate = new Date(todayAttendance.checkIn)
+        setCheckInTime(checkInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+      }
+    }
+  }, [todayAttendance])
+
+  const handleTogglePunch = async () => {
+    if (hasCompletedToday) return
+
+    try {
+      if (!isCheckedIn) {
+        const result = await checkInMutation.mutateAsync()
+        setIsCheckedIn(true)
+        const checkInDate = result.checkIn ? new Date(result.checkIn) : new Date()
+        setCheckInTime(checkInDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+        setActionFeedback(
+          isEmployee
+            ? 'Punch In request submitted successfully — Pending HR approval.'
+            : 'Punched In successfully at ' + checkInDate.toLocaleTimeString()
+        )
+      } else {
+        await checkOutMutation.mutateAsync({ attendanceId: todayAttendance?.id })
+        setIsCheckedIn(false)
+        setHasCompletedToday(true)
+        setActionFeedback(
+          isEmployee
+            ? 'Punch Out request submitted successfully — Pending HR approval.'
+            : 'Punched Out successfully at ' + new Date().toLocaleTimeString() + '. Today\'s shift is completed.'
+        )
+      }
+      refetchSummary()
+      refetchRequests()
+      refetchLogs()
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Attendance request failed'
+      setActionFeedback(`Error: ${errMsg}`)
+    }
+    setTimeout(() => setActionFeedback(null), 4000)
+  }
+
   // Departments list from backend
   const { data: departments = summaryData?.departments || [] } = useDepartmentsMaster()
 
@@ -116,7 +187,45 @@ export const AttendanceView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+        <div className="flex items-center gap-2.5 self-start sm:self-auto flex-wrap">
+          {/* Employee Quick Punch Button */}
+          {isEmployee && (
+            <div className="flex items-center gap-2">
+              {isCheckedIn && (
+                <span className="text-xs text-[var(--color-text-muted)] hidden sm:inline font-medium">
+                  In since <strong className="text-[var(--color-text-heading)]">{checkInTime}</strong>
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={handleTogglePunch}
+                disabled={hasCompletedToday || checkInMutation.isPending || checkOutMutation.isPending}
+                className={`text-xs py-2 px-3.5 rounded-[4px] font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer ${
+                  hasCompletedToday
+                    ? 'bg-emerald-100 text-emerald-800 cursor-not-allowed border border-emerald-300'
+                    : isCheckedIn
+                    ? 'bg-[#FF1744] hover:bg-[#D50000] text-white'
+                    : 'bg-[#00C853] hover:bg-[#00B248] text-white'
+                }`}
+              >
+                {checkInMutation.isPending || checkOutMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : isCheckedIn ? (
+                  <LogOut className="w-4 h-4" />
+                ) : (
+                  <LogIn className="w-4 h-4" />
+                )}
+                <span>
+                  {hasCompletedToday
+                    ? 'Shift Completed'
+                    : isCheckedIn
+                    ? 'Punch Out'
+                    : 'Punch In'}
+                </span>
+              </button>
+            </div>
+          )}
+
           {/* Refresh Button */}
           <button
             type="button"
@@ -147,14 +256,40 @@ export const AttendanceView: React.FC = () => {
         </div>
       </div>
 
+      {/* Action Notification Alert */}
+      {actionFeedback && (
+        <div
+          className={`p-3 rounded-[6px] text-xs font-semibold flex items-center justify-between animate-in fade-in duration-150 ${
+            actionFeedback.startsWith('Error:')
+              ? 'bg-red-500/10 border border-red-500/30 text-red-700 dark:text-red-300'
+              : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {actionFeedback.startsWith('Error:') ? (
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            )}
+            <span>{actionFeedback}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionFeedback(null)}
+            className="p-1 hover:opacity-75 cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
-      {/* 3. KPI Metrics Summary Cards */}
+      {/* 2. KPI Metrics Summary Cards */}
       <AttendanceStatsCards
         stats={summaryData?.stats}
         isLoading={isSummaryLoading}
       />
 
-      {/* 4. Filter Bar & Scope Controls */}
+      {/* 3. Filter Bar & Scope Controls */}
       <div className="pp-card p-3.5 border border-[var(--color-border)] shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Left: Search input */}
         <div className="relative flex-1 max-w-md">
@@ -164,52 +299,52 @@ export const AttendanceView: React.FC = () => {
             placeholder="Search employee by name, code..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pp-input pl-9 text-xs w-full"
+            className="pp-input text-xs pl-9 w-full rounded-[6px]"
           />
         </div>
 
-        {/* Right: Department selector & Date picker */}
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* Department Filter */}
-          <div className="flex items-center gap-1.5">
-            <Building2 className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
-            <select
-              value={selectedDepartment}
-              onChange={(e) => setSelectedDepartment(e.target.value)}
-              className="pp-input text-xs py-1.5 min-w-[150px]"
-            >
-              <option value="all">All Departments</option>
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} {d.code ? `(${d.code})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date Picker */}
-          <div className="flex items-center gap-1.5">
+        {/* Right: Date filter + Department selector */}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+          {/* Date Selector */}
+          <div className="flex items-center gap-1.5 border border-[var(--color-border)] rounded-[6px] px-2.5 py-1.5 bg-[var(--color-bg-base)]">
             <CalendarIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              className="pp-input text-xs py-1.5"
+              className="text-xs bg-transparent border-none focus:outline-none font-semibold text-[var(--color-text-heading)] cursor-pointer"
             />
+          </div>
+
+          {/* Department Filter */}
+          <div className="flex items-center gap-1.5 border border-[var(--color-border)] rounded-[6px] px-2.5 py-1.5 bg-[var(--color-bg-base)]">
+            <Building2 className="w-3.5 h-3.5 text-[var(--color-text-muted)]" />
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="text-xs bg-transparent border-none focus:outline-none text-[var(--color-text-heading)] font-semibold cursor-pointer"
+            >
+              <option value="all">All Departments</option>
+              {departments.map((dept: any) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Pending Attendance Requests Alert Banner */}
+      {/* 4. Attention Banner: If there are pending attendance requests */}
       {pendingRequestsCount > 0 && activeTab !== 'requests' && (
-        <div className="pp-card p-3.5 border-l-4 border-l-[#FFAA00] border-[var(--color-border)] bg-[rgba(255,170,0,0.06)] flex items-center justify-between gap-4">
+        <div className="pp-card p-3 border border-amber-500/30 bg-amber-500/10 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-[rgba(255,170,0,0.15)] text-[#FFAA00] flex items-center justify-center shrink-0">
-              <FileCheck className="w-4 h-4" />
+            <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-600 flex items-center justify-center font-bold text-xs shrink-0">
+              {pendingRequestsCount}
             </div>
             <div>
               <p className="text-xs font-bold text-[var(--color-text-heading)]">
-                {pendingRequestsCount} Pending Attendance Request{pendingRequestsCount === 1 ? '' : 's'} Awaiting Approval
+                {pendingRequestsCount} pending attendance correction / punch request{pendingRequestsCount === 1 ? '' : 's'}
               </p>
               <p className="text-[11px] text-[var(--color-text-muted)]">
                 Employees have submitted manual attendance or correction requests requiring your review.
