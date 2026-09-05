@@ -55,6 +55,40 @@ export interface AttendanceEventPayload {
   timestamp: string;
 }
 
+export interface PayrunEventPayload {
+  payrunId: string;
+  name: string;
+  periodLabel?: string | null;
+  periodStart: string | Date;
+  periodEnd: string | Date;
+  status: string; // draft | computing | computed | validated | paid | cancelled
+  previousStatus?: string;
+  totalGross?: number | string;
+  totalDeductions?: number | string;
+  totalNet?: number | string;
+  totalEmployees?: number;
+  warningsCount?: number;
+  actionBy?: {
+    id?: string;
+    email?: string;
+    role?: string;
+  } | null;
+  timestamp: string;
+}
+
+export interface PayslipAvailablePayload {
+  payslipId: string;
+  payrunId: string;
+  employeeId: string;
+  periodLabel?: string | null;
+  periodStart: string | Date;
+  periodEnd: string | Date;
+  netSalary: number | string;
+  status: string;
+  pdfUrl?: string | null;
+  timestamp: string;
+}
+
 export interface ServerToClientEvents {
   // System / Check
   "server:check": (data: { timestamp: string; message: string; payload?: unknown }) => void;
@@ -75,6 +109,16 @@ export interface ServerToClientEvents {
   "attendance:request:refused": (data: AttendanceEventPayload) => void;
   "attendance:updated": (data: AttendanceEventPayload) => void;
 
+  // Payroll & Payrun Events
+  "payroll:payrun:status_changed": (data: PayrunEventPayload) => void;
+  "payroll:payrun:computed": (data: PayrunEventPayload) => void;
+  "payroll:payrun:validated": (data: PayrunEventPayload) => void;
+  "payroll:payrun:paid": (data: PayrunEventPayload) => void;
+  "payroll:payslip:available": (data: PayslipAvailablePayload) => void;
+
+  // Dashboard Auto-Refresh Event
+  "dashboard:metrics:invalidated": (data: { reason: string; timestamp: string; metadata?: unknown }) => void;
+
   // Catch-all
   [event: string]: (...args: any[]) => void;
 }
@@ -83,6 +127,7 @@ export interface ClientToServerEvents {
   "client:check": (data: { message?: string }, callback?: (response: unknown) => void) => void;
   "timeoff:subscribe": (data: { employeeId?: string }, callback?: (response: unknown) => void) => void;
   "attendance:subscribe": (data: { employeeId?: string }, callback?: (response: unknown) => void) => void;
+  "payroll:subscribe": (data: { payrunId?: string }, callback?: (response: unknown) => void) => void;
   [event: string]: (...args: any[]) => void;
 }
 
