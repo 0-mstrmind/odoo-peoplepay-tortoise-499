@@ -72,6 +72,14 @@ export const createSalaryStructureSchema = z.object({
   code: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   isActive: z.boolean().optional().default(true),
+  rules: z
+    .array(
+      z.object({
+        ruleId: z.string().uuid("Invalid ruleId format"),
+        sequence: z.number().int(),
+      }),
+    )
+    .optional(),
 });
 
 export const updateSalaryStructureSchema = z.object({

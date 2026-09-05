@@ -11,16 +11,26 @@ import {
   Briefcase,
   Loader2,
   Check,
+  ChevronDown,
+  Trash2,
+  Layers,
+  Calculator,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuthUser, canAccessPayroll } from '@/store/auth.store'
 import {
   useContracts,
-  useSalaryStructures,
   useWorkingSchedules,
   useUpdateContract,
 } from '@/hooks/use-contracts'
+import {
+  useSalaryStructures,
+  useSalaryRules,
+  useDeleteSalaryRule,
+} from '@/hooks/use-salary'
 import { CreateContractModal } from './CreateContractModal'
+import { CreateSalaryStructureModal } from './CreateSalaryStructureModal'
+import { CreateSalaryRuleModal } from './CreateSalaryRuleModal'
 
 export const ContractsView: React.FC = () => {
   const user = useAuthUser()
@@ -32,11 +42,29 @@ export const ContractsView: React.FC = () => {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isCreateStructureModalOpen, setIsCreateStructureModalOpen] = useState(false)
+  const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false)
+  const [structSubView, setStructSubView] = useState<'structures' | 'rules'>('structures')
+  const [expandedStructureId, setExpandedStructureId] = useState<string | null>(null)
   const [activatingId, setActivatingId] = useState<string | null>(null)
 
   const isPayrollUser = canAccessPayroll(user?.role)
 
   const updateContractMutation = useUpdateContract()
+  const deleteSalaryRuleMutation = useDeleteSalaryRule()
+
+  const { data: salaryRules = [], isLoading: isLoadingRules } = useSalaryRules()
+
+  const handleDeleteRule = async (ruleId: string, ruleCode: string) => {
+    if (!window.confirm(`Are you sure you want to delete salary rule ${ruleCode}?`)) return
+    try {
+      await deleteSalaryRuleMutation.mutateAsync(ruleId)
+      toast.success(`Rule ${ruleCode} deleted successfully!`)
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Failed to delete rule'
+      toast.error(msg)
+    }
+  }
 
   const handleActivateContract = async (id: string, contractRef: string) => {
     try {
@@ -348,44 +376,308 @@ export const ContractsView: React.FC = () => {
         </div>
       )}
 
-      {/* Tab 2: Salary Structures */}
+      {/* Tab 2: Salary Structures & Rules */}
       {activeTab === 'structures' && (
-        <div className="pp-card p-6 space-y-4">
-          <h3 className="text-base font-bold text-[var(--color-text-heading)] flex items-center gap-2">
-            <Building2 className="w-4 h-4 text-[var(--color-primary)]" />
-            <span>Salary Structures & Rules Configuration</span>
-          </h3>
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Salary structures define standard computation formulas (BASIC, HRA, DEDUCTIONS, NET) using rules and expressions.
-          </p>
+        <div className="space-y-4">
+          {/* Header with Actions */}
+          <div className="pp-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-base font-extrabold text-[var(--color-text-heading)] flex items-center gap-2 mb-0">
+                <Building2 className="w-5 h-5 text-[var(--color-primary)]" />
+                <span>Salary Structures & Rules Configuration</span>
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1 mb-0">
+                Configure custom salary structures and reusable compensation rules (Basic, HRA, Allowances, PF, Net).
+              </p>
+            </div>
 
-          {isLoadingStructures ? (
-            <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
-              <span>Loading salary structures...</span>
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setIsCreateRuleModalOpen(true)}
+                className="pp-btn-secondary text-xs py-2 px-3 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                <span>New Salary Rule</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCreateStructureModalOpen(true)}
+                className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Structure</span>
+              </button>
             </div>
-          ) : salaryStructures.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[var(--color-text-muted)]">
-              No salary structures configured yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {salaryStructures.map((struct) => (
-                <div key={struct.id} className="p-4 rounded-[6px] border border-[var(--color-border)] bg-[var(--color-bg-muted)]/40 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs text-[var(--color-text-heading)]">{struct.name}</span>
-                    <span className={`pp-badge text-[10px] ${struct.active ? 'pp-badge-success' : 'pp-badge-neutral'}`}>
-                      {struct.active ? 'Active' : 'Inactive'}
-                    </span>
+          </div>
+
+          {/* Sub-view switcher */}
+          <div className="flex items-center gap-2 border-b border-[var(--color-border)] pb-2">
+            <button
+              type="button"
+              onClick={() => setStructSubView('structures')}
+              className={`px-3 py-1.5 rounded-[6px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                structSubView === 'structures'
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Structures ({salaryStructures.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStructSubView('rules')}
+              className={`px-3 py-1.5 rounded-[6px] text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                structSubView === 'rules'
+                  ? 'bg-[var(--color-primary)] text-white'
+                  : 'bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
+              }`}
+            >
+              <Calculator className="w-3.5 h-3.5" />
+              <span>Rules Catalog ({salaryRules.length})</span>
+            </button>
+          </div>
+
+          {/* Sub-view 1: Salary Structures */}
+          {structSubView === 'structures' && (
+            isLoadingStructures ? (
+              <div className="pp-card py-12 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                <span>Loading salary structures...</span>
+              </div>
+            ) : salaryStructures.length === 0 ? (
+              <div className="pp-card py-12 text-center text-xs text-[var(--color-text-muted)] space-y-3">
+                <p>No salary structures configured yet.</p>
+                <button
+                  type="button"
+                  onClick={() => setIsCreateStructureModalOpen(true)}
+                  className="pp-btn-primary text-xs py-2 px-3 font-semibold inline-flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create First Structure</span>
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {salaryStructures.map((struct) => {
+                  const isExpanded = expandedStructureId === struct.id
+                  const rules = struct.rules || []
+
+                  return (
+                    <div
+                      key={struct.id}
+                      className="pp-card p-4 border border-[var(--color-border)] rounded-[8px] space-y-3 transition-all hover:border-[var(--color-primary)]/30"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-sm text-[var(--color-text-heading)]">
+                              {struct.name}
+                            </span>
+                            <span className="font-mono text-xs font-bold text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)] px-1.5 py-0.5 rounded">
+                              {struct.code}
+                            </span>
+                            <span
+                              className={`pp-badge text-[10px] uppercase font-bold ${
+                                struct.active ? 'pp-badge-success' : 'pp-badge-neutral'
+                              }`}
+                            >
+                              {struct.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          {struct.description && (
+                            <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
+                              {struct.description}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="text-right text-xs">
+                            <span className="text-[var(--color-text-muted)] block text-[11px]">
+                              {struct.ruleCount ?? rules.length} Rules &bull; {struct.employeeCount ?? 0} Contracts
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedStructureId(isExpanded ? null : struct.id)}
+                            className="pp-btn-secondary text-xs py-1.5 px-2.5 rounded-[4px] font-semibold inline-flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>{isExpanded ? 'Hide Rules' : 'View Formula Rules'}</span>
+                            <ChevronDown
+                              className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                                isExpanded ? 'rotate-180' : ''
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Expandable Rules Breakdown */}
+                      {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-[var(--color-border)] space-y-2">
+                          <h5 className="text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                            Evaluation Order & Formula Rules:
+                          </h5>
+                          {rules.length === 0 ? (
+                            <p className="text-xs text-[var(--color-text-muted)] italic py-2">
+                              No rules linked to this structure yet.
+                            </p>
+                          ) : (
+                            <div className="overflow-x-auto border border-[var(--color-border)] rounded-[6px]">
+                              <table className="w-full text-left text-xs border-collapse">
+                                <thead>
+                                  <tr className="bg-[var(--color-bg-muted)] border-b border-[var(--color-border)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase">
+                                    <th className="py-2 px-3">Sequence</th>
+                                    <th className="py-2 px-3">Rule Name</th>
+                                    <th className="py-2 px-3">Code</th>
+                                    <th className="py-2 px-3">Category</th>
+                                    <th className="py-2 px-3">Method</th>
+                                    <th className="py-2 px-3">Computation Details</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[var(--color-border)] text-xs">
+                                  {rules.map((r, idx) => (
+                                    <tr key={r.ruleId || idx} className="hover:bg-[var(--color-bg-muted)]/40">
+                                      <td className="py-2 px-3 font-mono font-bold text-[var(--color-primary)]">
+                                        {r.sequence}
+                                      </td>
+                                      <td className="py-2 px-3 font-semibold text-[var(--color-text-heading)]">
+                                        {r.name}
+                                      </td>
+                                      <td className="py-2 px-3 font-mono font-bold text-[var(--color-text-muted)]">
+                                        {r.code}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <span
+                                          className={`pp-badge text-[9px] uppercase font-bold ${
+                                            r.category === 'basic'
+                                              ? 'pp-badge-success'
+                                              : r.category === 'deduction'
+                                              ? 'pp-badge-danger'
+                                              : 'pp-badge-neutral'
+                                          }`}
+                                        >
+                                          {r.category}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 capitalize text-[var(--color-text-muted)]">
+                                        {r.computationMethod}
+                                      </td>
+                                      <td className="py-2 px-3 font-mono text-[11px]">
+                                        {r.computationMethod === 'fixed' && `₹${Number(r.amount || 0).toLocaleString()}`}
+                                        {r.computationMethod === 'percentage' && `${r.percentageValue}% of ${r.basedOnCode || 'BASIC'}`}
+                                        {r.computationMethod === 'formula' && `${r.formula}`}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          )}
+
+          {/* Sub-view 2: Salary Rules Catalog */}
+          {structSubView === 'rules' && (
+            <div className="space-y-4">
+              <div className="pp-card overflow-x-auto border border-[var(--color-border)] rounded-[6px] shadow-xs p-0">
+                {isLoadingRules ? (
+                  <div className="py-12 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-[var(--color-primary)]" />
+                    <span>Loading rules catalog...</span>
                   </div>
-                  <p className="text-[11px] text-[var(--color-text-muted)]">
-                    Code: {struct.code} | Rules: {struct.ruleCount ?? 0} active formulas | Assigned Employees: {struct.employeeCount ?? 0}
-                  </p>
-                  {struct.description && (
-                    <p className="text-[11px] text-[var(--color-text-muted)] italic">{struct.description}</p>
-                  )}
-                </div>
-              ))}
+                ) : salaryRules.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-[var(--color-text-muted)] space-y-3">
+                    <p>No salary rules in catalog.</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateRuleModalOpen(true)}
+                      className="pp-btn-primary text-xs py-2 px-3 font-semibold inline-flex items-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create First Rule</span>
+                    </button>
+                  </div>
+                ) : (
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] text-[11px] font-bold text-[var(--color-text-muted)] uppercase tracking-wider">
+                        <th className="py-2.5 px-4">Code</th>
+                        <th className="py-2.5 px-4">Rule Name</th>
+                        <th className="py-2.5 px-4">Category</th>
+                        <th className="py-2.5 px-4">Computation Method</th>
+                        <th className="py-2.5 px-4">Formula / Value</th>
+                        <th className="py-2.5 px-4">Default Seq</th>
+                        <th className="py-2.5 px-4">On Payslip</th>
+                        <th className="py-2.5 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--color-border)] text-xs text-[var(--color-text-body)]">
+                      {salaryRules.map((rule) => (
+                        <tr key={rule.id} className="hover:bg-[var(--color-bg-muted)]/50 transition-colors">
+                          <td className="py-3 px-4 font-mono font-bold text-[var(--color-primary)]">
+                            {rule.code}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-[var(--color-text-heading)]">
+                            {rule.name}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`pp-badge text-[10px] uppercase font-bold ${
+                                rule.category === 'basic'
+                                  ? 'pp-badge-success'
+                                  : rule.category === 'deduction'
+                                  ? 'pp-badge-danger'
+                                  : 'pp-badge-neutral'
+                              }`}
+                            >
+                              {rule.category}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 capitalize text-[var(--color-text-muted)]">
+                            {rule.computationMethod}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-[11px] font-semibold text-[var(--color-text-heading)]">
+                            {rule.computationMethod === 'fixed' && `₹${Number(rule.amount || 0).toLocaleString()}`}
+                            {rule.computationMethod === 'percentage' && `${rule.percentageValue}% of ${rule.basedOnCode || 'BASIC'}`}
+                            {rule.computationMethod === 'formula' && `${rule.formula}`}
+                          </td>
+                          <td className="py-3 px-4 font-mono text-[var(--color-text-muted)]">
+                            {rule.sequence}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`pp-badge text-[9px] font-semibold ${
+                                rule.appearsOnPayslip ? 'pp-badge-success' : 'pp-badge-neutral'
+                              }`}
+                            >
+                              {rule.appearsOnPayslip ? 'Yes' : 'No'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRule(rule.id, rule.code)}
+                              className="p-1 text-red-500 hover:text-red-700 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                              title={`Delete rule ${rule.code}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -434,6 +726,18 @@ export const ContractsView: React.FC = () => {
       <CreateContractModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
+      />
+
+      {/* Create Salary Structure Modal */}
+      <CreateSalaryStructureModal
+        isOpen={isCreateStructureModalOpen}
+        onClose={() => setIsCreateStructureModalOpen(false)}
+      />
+
+      {/* Create Salary Rule Modal */}
+      <CreateSalaryRuleModal
+        isOpen={isCreateRuleModalOpen}
+        onClose={() => setIsCreateRuleModalOpen(false)}
       />
     </div>
   )
