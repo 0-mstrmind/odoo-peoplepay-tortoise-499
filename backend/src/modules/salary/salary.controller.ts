@@ -22,19 +22,19 @@ import {
 export const listSalaryStructures = CatchAsync(async (req: Request, res: Response) => {
   const companyId = req.user?.companyId || undefined;
   const structures = await listSalaryStructuresService(companyId);
-  sendResponse(res, StatusCodes.OK, "Salary structures fetched successfully", { structures });
+  sendResponse(res, StatusCodes.OK, "Salary structures fetched successfully", { items: structures, structures });
 });
 
 export const getSalaryStructure = CatchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const structure = await getSalaryStructureByIdService(id);
-  sendResponse(res, StatusCodes.OK, "Salary structure fetched successfully", { structure });
+  sendResponse(res, StatusCodes.OK, "Salary structure fetched successfully", { item: structure, structure });
 });
 
 export const createSalaryStructure = CatchAsync(async (req: Request, res: Response) => {
   const companyId = req.user?.companyId || undefined;
   const structure = await createSalaryStructureService({ ...req.body, companyId });
-  sendResponse(res, StatusCodes.CREATED, "Salary structure created successfully", { structure });
+  sendResponse(res, StatusCodes.CREATED, "Salary structure created successfully", { item: structure, structure });
 });
 
 export const updateSalaryStructure = CatchAsync(async (req: Request, res: Response) => {
@@ -70,25 +70,25 @@ export const removeStructureRule = CatchAsync(async (req: Request, res: Response
 export const listSalaryRules = CatchAsync(async (req: Request, res: Response) => {
   const companyId = req.user?.companyId || undefined;
   const rules = await listSalaryRulesService(companyId);
-  sendResponse(res, StatusCodes.OK, "Salary rules fetched successfully", { rules });
+  sendResponse(res, StatusCodes.OK, "Salary rules fetched successfully", { items: rules, rules });
 });
 
 export const getSalaryRule = CatchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const rule = await getSalaryRuleByIdService(id);
-  sendResponse(res, StatusCodes.OK, "Salary rule fetched successfully", { rule });
+  sendResponse(res, StatusCodes.OK, "Salary rule fetched successfully", { item: rule, rule });
 });
 
 export const createSalaryRule = CatchAsync(async (req: Request, res: Response) => {
   const companyId = req.user?.companyId || undefined;
   const rule = await createSalaryRuleService({ ...req.body, companyId });
-  sendResponse(res, StatusCodes.CREATED, "Salary rule created successfully", { rule });
+  sendResponse(res, StatusCodes.CREATED, "Salary rule created successfully", { item: rule, rule });
 });
 
 export const updateSalaryRule = CatchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const rule = await updateSalaryRuleService(id, req.body);
-  sendResponse(res, StatusCodes.OK, "Salary rule updated successfully", { rule });
+  sendResponse(res, StatusCodes.OK, "Salary rule updated successfully", { item: rule, rule });
 });
 
 export const deleteSalaryRule = CatchAsync(async (req: Request, res: Response) => {

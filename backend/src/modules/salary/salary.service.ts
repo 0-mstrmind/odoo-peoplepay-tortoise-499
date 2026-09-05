@@ -36,10 +36,14 @@ export const listSalaryStructuresService = async (companyId?: string) => {
       const structures = await prisma.salaryStructure.findMany({
         where: {
           deletedAt: null,
-          ...(companyId ? { companyId } : {}),
+          ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {}),
         },
         include: {
-          structureRules: true,
+          structureRules: {
+            where: { isEnabled: true },
+            orderBy: { sequence: "asc" },
+            include: { rule: true },
+          },
           contracts: {
             where: {
               status: "active",
@@ -58,6 +62,20 @@ export const listSalaryStructuresService = async (companyId?: string) => {
         active: s.isActive,
         ruleCount: s.structureRules.length,
         employeeCount: s.contracts.length,
+        rules: s.structureRules.map((sr) => ({
+          structureRuleId: sr.id,
+          ruleId: sr.rule.id,
+          name: sr.rule.name,
+          code: sr.rule.code,
+          category: sr.rule.category,
+          sequence: sr.sequence,
+          computationMethod: sr.rule.computationMethod,
+          amount: sr.rule.amount ? Number(sr.rule.amount) : null,
+          percentageValue: sr.rule.percentageValue ? Number(sr.rule.percentageValue) : null,
+          basedOnCode: sr.rule.basedOnCode,
+          formula: sr.rule.formula,
+          appearsOnPayslip: sr.rule.appearsOnPayslip,
+        })),
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
       }));
@@ -123,6 +141,7 @@ export const createSalaryStructureService = async (data: {
   description?: string | null;
   isActive?: boolean;
   companyId?: string | null;
+  rules?: Array<{ ruleId: string; sequence: number }>;
 }) => {
   const created = await prisma.salaryStructure.create({
     data: {
@@ -131,6 +150,22 @@ export const createSalaryStructureService = async (data: {
       description: data.description || null,
       isActive: data.isActive ?? true,
       companyId: data.companyId || null,
+      ...(data.rules && data.rules.length > 0
+        ? {
+            structureRules: {
+              create: data.rules.map((r) => ({
+                ruleId: r.ruleId,
+                sequence: r.sequence,
+                companyId: data.companyId || null,
+              })),
+            },
+          }
+        : {}),
+    },
+    include: {
+      structureRules: {
+        include: { rule: true },
+      },
     },
   });
 
@@ -315,7 +350,7 @@ export const listSalaryRulesService = async (companyId?: string) => {
       return prisma.salaryRule.findMany({
         where: {
           deletedAt: null,
-          ...(companyId ? { companyId } : {}),
+          ...(companyId ? { OR: [{ companyId }, { companyId: null }] } : {}),
         },
         orderBy: { sequence: "asc" },
       });
