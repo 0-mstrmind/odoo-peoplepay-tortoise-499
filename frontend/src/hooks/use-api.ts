@@ -130,7 +130,7 @@ export interface TodayAttendancePresentItem {
   workedHours: number
   expectedHours: number
   overtimeHours: number
-  status: 'present' | 'late' | 'half_day'
+  status: 'present' | 'late' | 'half_day' | 'pending' | 'on_leave' | 'absent' | string
   managerName: string | null
   isCorrected: boolean
 }
@@ -162,6 +162,7 @@ export interface TodayAttendanceStats {
   halfDayCount: number
   onLeaveCount: number
   attendanceRate: number
+  pendingRequestsCount?: number
 }
 
 export interface TodayAttendanceSummary {
@@ -183,7 +184,7 @@ export interface AttendanceRecordItem {
   expectedHours: number | null
   overtimeHours: number | null
   source: string
-  status: 'present' | 'late' | 'absent' | 'half_day' | 'on_leave' | 'holiday'
+  status: 'present' | 'pending' | 'late' | 'absent' | 'half_day' | 'on_leave' | 'holiday' | string
   isCorrected: boolean
   correctionReason: string | null
   employee?: {
@@ -201,7 +202,6 @@ export interface AttendanceRecordItem {
 /** Hook to fetch Today's Present & Absent Attendance Breakdown */
 export function useTodayAttendanceSummary(params?: {
   departmentId?: string
-  hrAllotted?: boolean
   date?: string
   search?: string
 }) {
@@ -211,9 +211,6 @@ export function useTodayAttendanceSummary(params?: {
       const queryParams: Record<string, string> = {}
       if (params?.departmentId && params.departmentId !== 'all') {
         queryParams.departmentId = params.departmentId
-      }
-      if (typeof params?.hrAllotted === 'boolean') {
-        queryParams.hrAllotted = String(params.hrAllotted)
       }
       if (params?.date) queryParams.date = params.date
       if (params?.search && params.search.trim()) queryParams.search = params.search.trim()
@@ -229,12 +226,14 @@ export function useTodayAttendanceSummary(params?: {
 /** Hook to fetch paginated Attendance Log Records */
 export function useAttendanceList(params?: {
   departmentId?: string
-  hrAllotted?: boolean
   date?: string
   startDate?: string
   endDate?: string
   status?: string
   search?: string
+  source?: string
+  hasRequest?: boolean
+  requestStatus?: 'pending' | 'approved' | 'refused' | 'all'
   page?: number
   limit?: number
 }) {
@@ -243,12 +242,14 @@ export function useAttendanceList(params?: {
     queryFn: async () => {
       const queryParams: Record<string, string | number> = {}
       if (params?.departmentId && params.departmentId !== 'all') queryParams.departmentId = params.departmentId
-      if (typeof params?.hrAllotted === 'boolean') queryParams.hrAllotted = String(params.hrAllotted)
       if (params?.date) queryParams.date = params.date
       if (params?.startDate) queryParams.startDate = params.startDate
       if (params?.endDate) queryParams.endDate = params.endDate
       if (params?.status && params.status !== 'all') queryParams.status = params.status
       if (params?.search && params.search.trim()) queryParams.search = params.search.trim()
+      if (params?.source) queryParams.source = params.source
+      if (typeof params?.hasRequest === 'boolean') queryParams.hasRequest = String(params.hasRequest)
+      if (params?.requestStatus && params.requestStatus !== 'all') queryParams.requestStatus = params.requestStatus
       if (params?.page) queryParams.page = params.page
       if (params?.limit) queryParams.limit = params.limit
 
@@ -256,6 +257,21 @@ export function useAttendanceList(params?: {
       return res.data?.data || res.data
     },
     staleTime: 30 * 1000,
+  })
+}
+
+/** Hook to fetch User Attendance Requests / Corrections */
+export function useAttendanceRequests(params?: {
+  departmentId?: string
+  date?: string
+  search?: string
+  requestStatus?: 'pending' | 'approved' | 'refused' | 'all'
+  page?: number
+  limit?: number
+}) {
+  return useAttendanceList({
+    ...params,
+    hasRequest: true,
   })
 }
 
@@ -308,6 +324,54 @@ export function useCreateAttendance() {
   })
 }
 
+/** Hook for HR Manager to approve employee attendance request */
+export function useApproveAttendanceRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reviewNote }: { id: string; reviewNote?: string }) => {
+      const res = await apiClient.patch(`/attendance/requests/${id}/approve`, {
+        action: 'approve',
+        reviewNote,
+      })
+      return res.data?.data || res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.attendance.all })
+    },
+  })
+}
+
+/** Hook for HR Manager to reject / refuse employee attendance request */
+export function useRefuseAttendanceRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reviewNote }: { id: string; reviewNote?: string }) => {
+      const res = await apiClient.patch(`/attendance/requests/${id}/refuse`, {
+        action: 'refuse',
+        reviewNote,
+      })
+      return res.data?.data || res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.attendance.all })
+    },
+  })
+}
+
+/** Hook for HR Manager to remove / delete employee attendance request or record */
+export function useDeleteAttendance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.delete(`/attendance/${id}`)
+      return res.data?.data || res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.attendance.all })
+    },
+  })
+}
+
 /** Hook to fetch company departments for filters */
 export function useDepartmentsMaster() {
   const companyId = useCompanyId()
@@ -320,5 +384,149 @@ export function useDepartmentsMaster() {
     },
     staleTime: 10 * 60 * 1000,
     enabled: !!companyId,
+  })
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Time Off Module Hooks & Types
+// ────────────────────────────────────────────────────────────────────────────
+
+export interface TimeOffRequestItem {
+  id: string
+  companyId: string
+  employeeId: string
+  timeOffTypeId: string
+  allocationId: string | null
+  startDate: string
+  endDate: string
+  duration: number
+  halfDay: boolean
+  halfDayPeriod: 'am' | 'pm' | null
+  reason: string | null
+  status: 'pending' | 'approved' | 'refused' | 'cancelled'
+  refusalReason: string | null
+  approvedBy: string | null
+  approvedAt: string | null
+  createdAt: string
+  employee?: {
+    id: string
+    firstName: string
+    lastName: string
+    employeeCode: string
+    email: string
+    department?: { id: string; name: string } | null
+    jobPosition?: { id: string; title: string } | null
+    manager?: { id: string; firstName: string; lastName: string } | null
+  }
+  timeOffType?: {
+    id: string
+    name: string
+    unit: string
+    requiresAllocation: boolean
+    approvalRequired: boolean
+    color: string | null
+  }
+  approver?: {
+    id: string
+    email: string
+  } | null
+}
+
+export interface TimeOffTypeItem {
+  id: string
+  name: string
+  code: string | null
+  unit: string
+  color: string | null
+  requiresAllocation: boolean
+  approvalRequired: boolean
+}
+
+/** Hook to fetch list of Time Off Requests with status filter */
+export function useTimeOffRequests(params?: {
+  employeeId?: string
+  status?: string
+  timeOffTypeId?: string
+  departmentId?: string
+  search?: string
+}) {
+  return useQuery({
+    queryKey: ['timeoff', 'requests', params],
+    queryFn: async () => {
+      const queryParams: Record<string, string> = {}
+      if (params?.employeeId) queryParams.employeeId = params.employeeId
+      if (params?.status && params.status !== 'all') queryParams.status = params.status
+      if (params?.timeOffTypeId && params.timeOffTypeId !== 'all') queryParams.timeOffTypeId = params.timeOffTypeId
+      if (params?.departmentId && params.departmentId !== 'all') queryParams.departmentId = params.departmentId
+      if (params?.search && params.search.trim()) queryParams.search = params.search.trim()
+
+      const res = await apiClient.get('/time-off-requests', { params: queryParams })
+      const data = res.data?.data || res.data
+      return (data?.items || (Array.isArray(data) ? data : [])) as TimeOffRequestItem[]
+    },
+    staleTime: 30 * 1000,
+  })
+}
+
+/** Hook to fetch available Time Off Types */
+export function useTimeOffTypes() {
+  return useQuery({
+    queryKey: ['timeoff', 'types'],
+    queryFn: async () => {
+      const res = await apiClient.get('/time-off-types')
+      const data = res.data?.data || res.data
+      return (data?.items || (Array.isArray(data) ? data : [])) as TimeOffTypeItem[]
+    },
+    staleTime: 10 * 60 * 1000,
+  })
+}
+
+/** Hook to approve a time off request */
+export function useApproveTimeOffRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiClient.patch(`/time-off-requests/${id}/approve`)
+      return res.data?.data || res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timeoff'] })
+    },
+  })
+}
+
+/** Hook to refuse / reject a time off request */
+export function useRefuseTimeOffRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, refusalReason }: { id: string; refusalReason?: string }) => {
+      const res = await apiClient.patch(`/time-off-requests/${id}/refuse`, { refusalReason })
+      return res.data?.data || res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timeoff'] })
+    },
+  })
+}
+
+/** Hook to submit a new time off request */
+export function useCreateTimeOffRequest() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      employeeId: string
+      timeOffTypeId: string
+      startDate: string
+      endDate: string
+      reason?: string
+      halfDay?: boolean
+      halfDayPeriod?: 'am' | 'pm'
+    }) => {
+      const res = await apiClient.post('/time-off-requests', payload)
+      return res.data?.data || res.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['timeoff'] })
+    },
   })
 }
