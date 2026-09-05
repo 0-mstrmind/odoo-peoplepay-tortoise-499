@@ -30,6 +30,8 @@ import { clerkAuthMiddleware } from "../../core/middlewares/clerk.middleware.js"
 import { requireRole } from "../../core/middlewares/rbac.middleware.js";
 import { validateBody } from "../../core/middlewares/validateRequest.middleware.js";
 
+const TIMEOFF_ADMIN_ROLES = ["admin", "hr_manager", "hr_payroll_manager", "hr_payroll_user"];
+
 // Router for /time-off-types
 export const timeOffTypeRouter = Router();
 timeOffTypeRouter.get("/", clerkAuthMiddleware, getTimeOffTypes);
@@ -37,21 +39,21 @@ timeOffTypeRouter.get("/:id", clerkAuthMiddleware, getTimeOffTypeById);
 timeOffTypeRouter.post(
   "/",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(createTimeOffTypeSchema),
   createTimeOffType,
 );
 timeOffTypeRouter.put(
   "/:id",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(updateTimeOffTypeSchema),
   updateTimeOffType,
 );
 timeOffTypeRouter.delete(
   "/:id",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   deleteTimeOffType,
 );
 
@@ -62,20 +64,20 @@ timeOffAllocationRouter.get("/:id", clerkAuthMiddleware, getTimeOffAllocationByI
 timeOffAllocationRouter.post(
   "/",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(createAllocationSchema),
   createTimeOffAllocation,
 );
 timeOffAllocationRouter.put(
   "/:id/approve",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   approveTimeOffAllocation,
 );
 timeOffAllocationRouter.put(
   "/:id/refuse",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   refuseTimeOffAllocation,
 );
 
@@ -92,39 +94,39 @@ timeOffRequestRouter.post(
 timeOffRequestRouter.put(
   "/:id/approve",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   approveTimeOffRequest,
 );
 timeOffRequestRouter.patch(
   "/:id/approve",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   approveTimeOffRequest,
 );
 timeOffRequestRouter.post(
   "/:id/approve",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   approveTimeOffRequest,
 );
 timeOffRequestRouter.put(
   "/:id/refuse",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(refuseRequestSchema),
   refuseTimeOffRequest,
 );
 timeOffRequestRouter.patch(
   "/:id/refuse",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(refuseRequestSchema),
   refuseTimeOffRequest,
 );
 timeOffRequestRouter.post(
   "/:id/refuse",
   clerkAuthMiddleware,
-  requireRole("admin", "hr_manager"),
+  requireRole(...TIMEOFF_ADMIN_ROLES),
   validateBody(refuseRequestSchema),
   refuseTimeOffRequest,
 );

@@ -22,6 +22,13 @@ export const apiClient = axios.create({
 // ── Request interceptor — inject auth token + company ID ──────────────────
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Normalize URL if callers provide redundant /v1 prefix
+    if (config.url?.startsWith('/v1/')) {
+      config.url = config.url.replace(/^\/v1/, '')
+    } else if (config.url?.startsWith('v1/')) {
+      config.url = config.url.replace(/^v1\//, '/')
+    }
+
     // Lazily import to avoid circular dependency with store
     // Token is stored in Zustand auth store (persisted to localStorage)
     const raw = localStorage.getItem('pp-auth')

@@ -23,7 +23,7 @@ router.post(
 
 router.get(
   "/",
-  requireRole("admin", "hr_manager", "hr_payroll_manager", "hr_payroll_user"),
+  requireRole("admin", "hr_manager", "hr_payroll_manager"),
   getContractsHandler,
 );
 

@@ -12,8 +12,8 @@ let deleteClerkUser: ((clerkUserId: string) => Promise<void>) | null = null;
 try {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
   if (clerkSecretKey) {
-    // Dynamically import clerk backend if available
-    const { createClerkClient } = await import("@clerk/backend");
+    // Dynamically import clerk express if available
+    const { createClerkClient } = await import("@clerk/express");
     const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
 
     createClerkUser = async (email: string) => {

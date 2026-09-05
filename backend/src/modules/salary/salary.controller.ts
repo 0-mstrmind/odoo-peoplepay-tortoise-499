@@ -8,6 +8,7 @@ import {
   createSalaryRuleService,
   createSalaryStructureService,
   deleteSalaryRuleService,
+  deleteSalaryStructureService,
   getSalaryRuleByIdService,
   getSalaryStructureByIdService,
   listSalaryRulesService,
@@ -41,6 +42,12 @@ export const updateSalaryStructure = CatchAsync(async (req: Request, res: Respon
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const structure = await updateSalaryStructureService(id, req.body);
   sendResponse(res, StatusCodes.OK, "Salary structure updated successfully", { structure });
+});
+
+export const deleteSalaryStructure = CatchAsync(async (req: Request, res: Response) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  await deleteSalaryStructureService(id);
+  sendResponse(res, StatusCodes.OK, "Salary structure deleted successfully");
 });
 
 export const addStructureRule = CatchAsync(async (req: Request, res: Response) => {

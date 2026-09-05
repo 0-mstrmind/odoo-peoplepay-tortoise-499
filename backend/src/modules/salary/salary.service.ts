@@ -196,6 +196,40 @@ export const updateSalaryStructureService = async (
   return updated;
 };
 
+export const deleteSalaryStructureService = async (id: string) => {
+  const structure = await prisma.salaryStructure.findFirst({
+    where: { id, deletedAt: null },
+    include: {
+      contracts: {
+        where: { status: "active", deletedAt: null },
+      },
+    },
+  });
+
+  if (!structure) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "Salary structure not found");
+  }
+
+  if (structure.contracts.length > 0) {
+    throw new ApiError(
+      StatusCodes.CONFLICT,
+      `Cannot delete salary structure currently assigned to ${structure.contracts.length} active employee contract(s)`,
+    );
+  }
+
+  const deleted = await prisma.salaryStructure.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      isActive: false,
+    },
+  });
+
+  await invalidateSalaryCache(structure.companyId || undefined);
+
+  return deleted;
+};
+
 export const addRuleToStructureService = async (
   structureId: string,
   ruleId: string,

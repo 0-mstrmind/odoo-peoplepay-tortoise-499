@@ -2,6 +2,14 @@ import React, { useState, useRef, useEffect } from 'react'
 import { ChevronDown, Bell, Building2, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { AuthUser } from '@/store/auth.store'
+import {
+  canAccessEmployees,
+  canAccessContracts,
+  canAccessAttendance,
+  canAccessTimeOff,
+  canAccessPayroll,
+  canAccessUserManagement,
+} from '@/store/auth.store'
 
 export interface NavbarProps {
   activeItem?: string
@@ -59,7 +67,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         {/* Left Nav Menu Items — Fixed non-scrollable layout */}
         <nav className="flex items-center flex-wrap gap-1 sm:gap-2 md:gap-3 py-1 overflow-visible">
-          {/* 0. Dashboard */}
+          {/* 0. Dashboard - always accessible */}
           <button
             type="button"
             onClick={() => handleItemClick('Dashboard')}
@@ -74,182 +82,192 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* 1. Employees ▼ */}
-          <div className="relative overflow-visible">
-            <button
-              type="button"
-              onClick={() => handleToggle('Employees')}
-              title="Employee Master — Departments, Job Positions & Profiles"
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-                activeItem === 'Employees'
-                  ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
-                  : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-              }`}
-            >
-              <span>Employees</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                  openDropdown === 'Employees' ? 'rotate-180' : ''
+          {canAccessEmployees(user?.role) && (
+            <div className="relative overflow-visible">
+              <button
+                type="button"
+                onClick={() => handleToggle('Employees')}
+                title="Employee Master — Departments, Job Positions & Profiles"
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+                  activeItem === 'Employees'
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                 }`}
-              />
-            </button>
+              >
+                <span>Employees</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                    openDropdown === 'Employees' ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
 
-            {openDropdown === 'Employees' && (
-              <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  type="button"
-                  title="View all employee records"
-                  onClick={() => handleItemClick('Employees', 'All Employees')}
-                  className="w-full text-left px-3 py-2 text-xs font-semibold text-[var(--color-primary)] bg-[rgba(113,72,103,0.06)] hover:bg-[rgba(113,72,103,0.1)] cursor-pointer"
-                >
-                  All Employees
-                </button>
-                <button
-                  type="button"
-                  title="Manage company departments"
-                  onClick={() => handleItemClick('Employees', 'Departments')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
-                >
-                  Departments
-                </button>
-                <button
-                  type="button"
-                  title="Manage employee job positions"
-                  onClick={() => handleItemClick('Employees', 'Job Positions')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
-                >
-                  Job Positions
-                </button>
-              </div>
-            )}
-          </div>
+              {openDropdown === 'Employees' && (
+                <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    title="View all employee records"
+                    onClick={() => handleItemClick('Employees', 'All Employees')}
+                    className="w-full text-left px-3 py-2 text-xs font-semibold text-[var(--color-primary)] bg-[rgba(113,72,103,0.06)] hover:bg-[rgba(113,72,103,0.1)] cursor-pointer"
+                  >
+                    All Employees
+                  </button>
+                  <button
+                    type="button"
+                    title="Manage company departments"
+                    onClick={() => handleItemClick('Employees', 'Departments')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
+                  >
+                    Departments
+                  </button>
+                  <button
+                    type="button"
+                    title="Manage employee job positions"
+                    onClick={() => handleItemClick('Employees', 'Job Positions')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] cursor-pointer"
+                  >
+                    Job Positions
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 2. Contracts ▼ */}
-          <div className="relative overflow-visible">
-            <button
-              type="button"
-              onClick={() => handleToggle('Contracts')}
-              title="Contracts Administration — Wages, Schedules & Salary Structures"
-              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-                activeItem === 'Contracts'
-                  ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
-                  : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-              }`}
-            >
-              <span>Contracts</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                  openDropdown === 'Contracts' ? 'rotate-180' : ''
+          {canAccessContracts(user?.role) && (
+            <div className="relative overflow-visible">
+              <button
+                type="button"
+                onClick={() => handleToggle('Contracts')}
+                title="Contracts Administration — Wages, Schedules & Salary Structures"
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+                  activeItem === 'Contracts'
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                 }`}
-              />
-            </button>
+              >
+                <span>Contracts</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                    openDropdown === 'Contracts' ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
 
-            {openDropdown === 'Contracts' && (
-              <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  type="button"
-                  title="View employment contracts"
-                  onClick={() => handleItemClick('Contracts', 'All Contracts')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  All Contracts
-                </button>
-                <button
-                  type="button"
-                  title="Manage salary structure rules"
-                  onClick={() => handleItemClick('Contracts', 'Salary Structures')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Salary Structures
-                </button>
-                <button
-                  type="button"
-                  title="Configure weekly working schedules"
-                  onClick={() => handleItemClick('Contracts', 'Working Schedules')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Working Schedules
-                </button>
-              </div>
-            )}
-          </div>
+              {openDropdown === 'Contracts' && (
+                <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    title="View employment contracts"
+                    onClick={() => handleItemClick('Contracts', 'All Contracts')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                  >
+                    All Contracts
+                  </button>
+                  <button
+                    type="button"
+                    title="Manage salary structure rules"
+                    onClick={() => handleItemClick('Contracts', 'Salary Structures')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                  >
+                    Salary Structures
+                  </button>
+                  <button
+                    type="button"
+                    title="Configure weekly working schedules"
+                    onClick={() => handleItemClick('Contracts', 'Working Schedules')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                  >
+                    Working Schedules
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 3. Attendance */}
-          <button
-            type="button"
-            onClick={() => handleItemClick('Attendance')}
-            title="Attendance Tracking — Check-in & Check-out logs"
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-              activeItem === 'Attendance'
-                ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
-                : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-            }`}
-          >
-            Attendance
-          </button>
-
-          {/* 4. Time Off ▼ */}
-          <div className="relative overflow-visible">
+          {canAccessAttendance(user?.role) && (
             <button
               type="button"
-              onClick={() => handleToggle('Time Off')}
-              title="Time Off Management — Leave Allocations & Requests"
+              onClick={() => handleItemClick('Attendance')}
+              title="Attendance Tracking — Check-in & Check-out logs"
               className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-                activeItem === 'Time Off'
+                activeItem === 'Attendance'
                   ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
                   : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
               }`}
             >
-              <span>Time Off</span>
-              <ChevronDown
-                className={`w-3.5 h-3.5 transition-transform duration-150 ${
-                  openDropdown === 'Time Off' ? 'rotate-180' : ''
-                }`}
-              />
+              Attendance
             </button>
+          )}
 
-            {openDropdown === 'Time Off' && (
-              <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  type="button"
-                  title="View employee leave requests"
-                  onClick={() => handleItemClick('Time Off', 'Time Off Requests')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Time Off Requests
-                </button>
-                <button
-                  type="button"
-                  title="Grant leave allocations to employees"
-                  onClick={() => handleItemClick('Time Off', 'Leave Allocations')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Leave Allocations
-                </button>
-                <button
-                  type="button"
-                  title="Configure leave types and rules"
-                  onClick={() => handleItemClick('Time Off', 'Leave Types')}
-                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
-                >
-                  Leave Types
-                </button>
-              </div>
-            )}
-          </div>
+          {/* 4. Time Off ▼ */}
+          {canAccessTimeOff(user?.role) && (
+            <div className="relative overflow-visible">
+              <button
+                type="button"
+                onClick={() => handleToggle('Time Off')}
+                title="Time Off Management — Leave Allocations & Requests"
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+                  activeItem === 'Time Off'
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <span>Time Off</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-150 ${
+                    openDropdown === 'Time Off' ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {openDropdown === 'Time Off' && (
+                <div className="absolute left-0 mt-1.5 w-48 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    title="View employee leave requests"
+                    onClick={() => handleItemClick('Time Off', 'Time Off Requests')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                  >
+                    Time Off Requests
+                  </button>
+                  <button
+                    type="button"
+                    title="Grant leave allocations to employees"
+                    onClick={() => handleItemClick('Time Off', 'Leave Allocations')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                  >
+                    Leave Allocations
+                  </button>
+                  <button
+                    type="button"
+                    title="Configure leave types and rules"
+                    onClick={() => handleItemClick('Time Off', 'Leave Types')}
+                    className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                  >
+                    Leave Types
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 5. Payroll */}
-          <button
-            type="button"
-            onClick={() => handleItemClick('Payroll')}
-            title="Payroll Engine — Payrun Calculations & Payslips"
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
-              activeItem === 'Payroll'
-                ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
-                : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-            }`}
-          >
-            Payroll
-          </button>
+          {canAccessPayroll(user?.role) && (
+            <button
+              type="button"
+              onClick={() => handleItemClick('Payroll')}
+              title="Payroll Engine — Payrun Calculations & Payslips"
+              className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-sm font-semibold rounded-[4px] transition-colors cursor-pointer select-none ${
+                activeItem === 'Payroll'
+                  ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.08)]'
+                  : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+              }`}
+            >
+              Payroll
+            </button>
+          )}
         </nav>
 
         {/* Right side items: Tenant / Notifications / User menu */}
@@ -311,7 +329,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </div>
                 )}
 
-                {(user?.role === 'admin' || user?.role === 'super_admin') && (
+                {canAccessUserManagement(user?.role) && (
                   <button
                     type="button"
                     title="Open Admin User Access & Management Portal"

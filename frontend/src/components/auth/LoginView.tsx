@@ -144,28 +144,42 @@ export const LoginView: React.FC<LoginViewProps> = ({ onSuccess }) => {
 
       {/* Demo Credentials Helper */}
       <div className="mt-5 pt-4 border-t border-[#262a38]">
-        <div className="text-[11px] text-gray-400 font-medium mb-2">Quick Demo Accounts:</div>
+        <div className="text-[11px] text-gray-400 font-medium mb-2">Quick Demo Role Switcher:</div>
         <div className="flex flex-wrap gap-1.5">
           <button
             type="button"
             onClick={() => handleQuickLogin('dchandrap973@gmail.com')}
-            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-blue-300 border border-[#30364c]"
+            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-blue-300 border border-[#30364c] cursor-pointer"
           >
-            Admin (dchandrap973)
+            Admin
           </button>
           <button
             type="button"
-            onClick={() => handleQuickLogin('aarav@company.com')}
-            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-gray-300 border border-[#30364c]"
+            onClick={() => handleQuickLogin('payroll.user@peoplepay360.com')}
+            className="text-[11px] px-2 py-1 rounded bg-[rgba(113,72,103,0.2)] hover:bg-[rgba(113,72,103,0.3)] text-[var(--color-primary)] font-semibold border border-[rgba(113,72,103,0.4)] cursor-pointer"
           >
-            Payroll User (Aarav)
+            HR Payroll User
           </button>
           <button
             type="button"
-            onClick={() => handleQuickLogin('maya@company.com')}
-            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-gray-300 border border-[#30364c]"
+            onClick={() => handleQuickLogin('payroll.manager@peoplepay360.com')}
+            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-purple-300 border border-[#30364c] cursor-pointer"
           >
-            Time Off Admin (Maya)
+            HR Payroll Manager
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickLogin('hr.manager@peoplepay360.com')}
+            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-emerald-300 border border-[#30364c] cursor-pointer"
+          >
+            HR Manager
+          </button>
+          <button
+            type="button"
+            onClick={() => handleQuickLogin('rahul.employee@peoplepay360.com')}
+            className="text-[11px] px-2 py-1 rounded bg-[#202432] hover:bg-[#2a2f42] text-gray-400 border border-[#30364c] cursor-pointer"
+          >
+            Employee
           </button>
         </div>
       </div>

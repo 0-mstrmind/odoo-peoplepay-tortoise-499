@@ -99,20 +99,34 @@ export const useIsAuthed  = () => useAuthStore((s) => !!s.token && !!s.user)
 export function hasRolePermission(userRole?: string | null, allowedRoles?: UserRole[]): boolean {
   if (!allowedRoles || allowedRoles.length === 0) return true
   if (!userRole) return false
-  if (userRole === 'admin' || userRole === 'super_admin') return true
-  return allowedRoles.includes(userRole as UserRole)
+  const r = userRole.toLowerCase().trim()
+  if (r === 'admin' || r === 'super_admin') return true
+  return allowedRoles.some((ar) => ar.toLowerCase().trim() === r)
 }
 
 // ── Granular Module RBAC Helpers ──────────────────────────────────────────
 
 export function canAccessEmployees(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase().trim()
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessContracts(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase().trim()
+  // hr_payroll_user does NOT have contract access — contracts are scoped to hr_manager and above
+  return ['admin', 'super_admin', 'hr_manager', 'hr_payroll_manager', 'payroll_manager'].includes(r)
+}
+
+/**
+ * Whether the user can CREATE / EDIT / DELETE salary structures and rules.
+ * hr_payroll_user has READ-ONLY access to salary structures/rules.
+ */
+export function canWriteSalaryConfig(role?: string | null): boolean {
+  if (!role) return false
+  const r = role.toLowerCase().trim()
+  return ['admin', 'super_admin', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessAttendance(role?: string | null): boolean {
@@ -127,16 +141,19 @@ export function canAccessTimeOff(role?: string | null): boolean {
 
 export function canAccessPayroll(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase().trim()
+  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessSalaryStructures(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(role)
+  const r = role.toLowerCase().trim()
+  return ['admin', 'super_admin', 'hr_payroll_user', 'payroll_user', 'hr_payroll_manager', 'payroll_manager'].includes(r)
 }
 
 export function canAccessUserManagement(role?: string | null): boolean {
   if (!role) return false
-  return ['admin', 'super_admin'].includes(role)
+  const r = role.toLowerCase().trim()
+  return ['admin', 'super_admin'].includes(r)
 }
 

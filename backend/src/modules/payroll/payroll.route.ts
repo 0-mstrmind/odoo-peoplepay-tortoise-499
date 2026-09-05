@@ -46,27 +46,27 @@ payrunRouter.post(
 );
 payrunRouter.patch(
   "/:id/validate",
-  requireRole("admin", "hr_payroll_manager"),
+  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
   validatePayrun,
 );
 payrunRouter.post(
   "/:id/validate",
-  requireRole("admin", "hr_payroll_manager"),
+  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
   validatePayrun,
 );
 payrunRouter.patch(
   "/:id/mark-paid",
-  requireRole("admin", "hr_payroll_manager"),
+  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
   markPaidPayrun,
 );
 payrunRouter.post(
   "/:id/mark-paid",
-  requireRole("admin", "hr_payroll_manager"),
+  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
   markPaidPayrun,
 );
 payrunRouter.post(
   "/:id/cancel",
-  requireRole("admin", "hr_payroll_manager"),
+  requireRole("admin", "hr_payroll_manager", "hr_payroll_user", "hr_manager"),
   cancelPayrun,
 );
 

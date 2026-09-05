@@ -24,25 +24,27 @@ router.post("/check-in", checkIn);
 router.post("/check-out", checkOut);
 router.post("/requests", createAttendanceRequest);
 
+const ATTENDANCE_ADMIN_ROLES = ["admin", "hr_manager", "hr_payroll_manager", "hr_payroll_user"];
+
 // 2. Attendance Request Review (Accept / Decline) - Manager / Admin
 router.patch(
   "/requests/:id/approve",
-  requireRole("admin", "hr_manager", "hr_payroll_manager"),
+  requireRole(...ATTENDANCE_ADMIN_ROLES),
   approveAttendanceRequest,
 );
 router.patch(
   "/requests/:id/refuse",
-  requireRole("admin", "hr_manager", "hr_payroll_manager"),
+  requireRole(...ATTENDANCE_ADMIN_ROLES),
   refuseAttendanceRequest,
 );
 router.post(
   "/:id/approve",
-  requireRole("admin", "hr_manager", "hr_payroll_manager"),
+  requireRole(...ATTENDANCE_ADMIN_ROLES),
   approveAttendanceRequest,
 );
 router.post(
   "/:id/refuse",
-  requireRole("admin", "hr_manager", "hr_payroll_manager"),
+  requireRole(...ATTENDANCE_ADMIN_ROLES),
   refuseAttendanceRequest,
 );
 
@@ -51,8 +53,8 @@ router.get("/", getAttendances);
 router.get("/:id", getAttendanceById);
 
 // 4. Admin / HR CRUD operations
-router.post("/", requireRole("admin", "hr_manager"), createAttendance);
-router.put("/:id", requireRole("admin", "hr_manager"), updateAttendance);
-router.delete("/:id", requireRole("admin", "hr_manager"), deleteAttendance);
+router.post("/", requireRole(...ATTENDANCE_ADMIN_ROLES), createAttendance);
+router.put("/:id", requireRole(...ATTENDANCE_ADMIN_ROLES), updateAttendance);
+router.delete("/:id", requireRole(...ATTENDANCE_ADMIN_ROLES), deleteAttendance);
 
 export default router;
