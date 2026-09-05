@@ -179,28 +179,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       >
                         All Employees
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/employees?tab=departments')}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          search.includes('tab=departments')
-                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                        }`}
-                      >
-                        Departments
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/employees?tab=positions')}
-                        className={`w-full text-left px-2 py-1.5 text-xs rounded-[4px] transition-colors cursor-pointer ${
-                          search.includes('tab=positions')
-                            ? 'text-[var(--color-primary)] font-bold bg-[rgba(113,72,103,0.08)]'
-                            : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                        }`}
-                      >
-                        Job Positions
-                      </button>
                     </div>
                   )}
                 </div>

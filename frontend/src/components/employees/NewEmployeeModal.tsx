@@ -1,7 +1,15 @@
 import React, { useState } from 'react'
 import { X, Loader2, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
-import { useCreateEmployee, useDepartmentsList, useJobPositionsList } from '@/hooks/use-api'
+import { useCreateEmployee, useDepartmentsList } from '@/hooks/use-api'
+
+const ROLE_OPTIONS = [
+  { id: 'employee', label: 'Employee' },
+  { id: 'hr_manager', label: 'HR Manager' },
+  { id: 'hr_payroll_user', label: 'HR Payroll User' },
+  { id: 'hr_payroll_manager', label: 'HR Payroll Manager' },
+  { id: 'admin', label: 'Admin' },
+]
 
 interface NewEmployeeModalProps {
   isOpen: boolean
@@ -19,7 +27,7 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [departmentId, setDepartmentId] = useState('')
-  const [jobPositionId, setJobPositionId] = useState('')
+  const [role, setRole] = useState('employee')
   const [employeeType, setEmployeeType] = useState('full_time')
   const [status, setStatus] = useState('active')
   const [dateOfJoining, setDateOfJoining] = useState(new Date().toISOString().split('T')[0])
@@ -27,7 +35,6 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
 
   const createEmployee = useCreateEmployee()
   const { data: departments = [] } = useDepartmentsList()
-  const { data: jobPositions = [] } = useJobPositionsList()
 
   if (!isOpen) return null
 
@@ -46,7 +53,7 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
     setEmail('')
     setPhone('')
     setDepartmentId('')
-    setJobPositionId('')
+    setRole('employee')
     setEmployeeType('full_time')
     setStatus('active')
     setDateOfJoining(new Date().toISOString().split('T')[0])
@@ -69,7 +76,7 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
         email: email.trim().toLowerCase(),
         phone: phone.trim() || undefined,
         departmentId: departmentId || undefined,
-        jobPositionId: jobPositionId || undefined,
+        role: role as any,
         employeeType,
         status,
         dateOfJoining,
@@ -186,7 +193,7 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
             </div>
           </div>
 
-          {/* Department & Job Position (from backend) */}
+          {/* Department & Role */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
@@ -208,22 +215,22 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-                Job Position
+                Role <span className="text-[#FF1744]">*</span>
               </label>
               <select
-                value={jobPositionId}
-                onChange={(e) => setJobPositionId(e.target.value)}
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
                 className="pp-input text-sm cursor-pointer"
               >
-                <option value="">Select position...</option>
-                {jobPositions.map((pos) => (
-                  <option key={pos.id} value={pos.id}>
-                    {pos.title}
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.label}
                   </option>
                 ))}
               </select>
             </div>
           </div>
+
 
           {/* Employee Type & Status */}
           <div className="grid grid-cols-2 gap-4">

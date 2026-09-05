@@ -115,6 +115,7 @@ export function useCreateEmployee() {
       phone?: string
       departmentId?: string
       jobPositionId?: string
+      role?: string
       employeeType?: string
       status?: string
       dateOfJoining?: string
