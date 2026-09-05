@@ -314,20 +314,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 </button>
               )}
 
-              {/* Payout History */}
-              <button
-                type="button"
-                onClick={() => navigate('/payouts')}
-                title={role === 'employee' ? 'My Payout & Payslip History' : 'Payout History & Remuneration'}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isPayouts
-                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                }`}
-              >
-                <CreditCard className="w-4 h-4 shrink-0" />
-                {!isCollapsed && <span>{role === 'employee' ? 'My Payout History' : 'Payout History'}</span>}
-              </button>
+
+              {/* Payout History — Employee only */}
+              {role === 'employee' && (
+                <button
+                  type="button"
+                  onClick={() => navigate('/payouts')}
+                  title="My Payout & Payslip History"
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                    isPayouts
+                      ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                      : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 shrink-0" />
+                  {!isCollapsed && <span>My Payout History</span>}
+                </button>
+              )}
 
               {/* Payroll */}
               {showPayroll && (

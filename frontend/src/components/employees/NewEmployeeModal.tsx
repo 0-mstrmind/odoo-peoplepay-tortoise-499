@@ -1,27 +1,33 @@
 import React, { useState } from 'react'
-import { X } from 'lucide-react'
-import type { EmployeeItem, EmployeeStatus } from './types'
+import { X, Loader2, AlertCircle } from 'lucide-react'
+import { toast } from 'sonner'
+import { useCreateEmployee, useDepartmentsList, useJobPositionsList } from '@/hooks/use-api'
 
 interface NewEmployeeModalProps {
   isOpen: boolean
   onClose: () => void
-  onAddEmployee: (employee: EmployeeItem) => void
+  onSuccess?: () => void
 }
 
 export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
   isOpen,
   onClose,
-  onAddEmployee,
+  onSuccess,
 }) => {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
-  const [department, setDepartment] = useState('Finance')
-  const [jobPosition, setJobPosition] = useState('')
-  const [status, setStatus] = useState<EmployeeStatus>('active')
-  const [location, setLocation] = useState('Mumbai HQ')
+  const [departmentId, setDepartmentId] = useState('')
+  const [jobPositionId, setJobPositionId] = useState('')
+  const [employeeType, setEmployeeType] = useState('full_time')
+  const [status, setStatus] = useState('active')
+  const [dateOfJoining, setDateOfJoining] = useState(new Date().toISOString().split('T')[0])
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const createEmployee = useCreateEmployee()
+  const { data: departments = [] } = useDepartmentsList()
+  const { data: jobPositions = [] } = useJobPositionsList()
 
   if (!isOpen) return null
 
@@ -30,41 +36,52 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
     if (!firstName.trim()) newErrors.firstName = 'First name is required'
     if (!lastName.trim()) newErrors.lastName = 'Last name is required'
     if (!email.trim() || !email.includes('@')) newErrors.email = 'Valid email is required'
-    if (!jobPosition.trim()) newErrors.jobPosition = 'Job position is required'
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
-
-    const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase()
-    const newEmp: EmployeeItem = {
-      id: `emp-${Date.now()}`,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      employeeCode: `EMP-${Math.floor(100 + Math.random() * 900)}`,
-      email: email.trim(),
-      phone: phone.trim() || undefined,
-      department,
-      jobPosition: jobPosition.trim(),
-      status,
-      avatarInitials: initials || 'EP',
-      location,
-      joinedDate: new Date().toISOString().split('T')[0],
-    }
-
-    onAddEmployee(newEmp)
-    onClose()
-
-    // reset
+  const handleClose = () => {
     setFirstName('')
     setLastName('')
     setEmail('')
     setPhone('')
-    setJobPosition('')
+    setDepartmentId('')
+    setJobPositionId('')
+    setEmployeeType('full_time')
+    setStatus('active')
+    setDateOfJoining(new Date().toISOString().split('T')[0])
     setErrors({})
+    onClose()
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+
+    // Auto-generate employee code from name + timestamp
+    const code = `EMP-${firstName.trim().charAt(0).toUpperCase()}${lastName.trim().charAt(0).toUpperCase()}${Date.now().toString().slice(-5)}`
+
+    try {
+      await createEmployee.mutateAsync({
+        employeeCode: code,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim() || undefined,
+        departmentId: departmentId || undefined,
+        jobPositionId: jobPositionId || undefined,
+        employeeType,
+        status,
+        dateOfJoining,
+      })
+
+      toast.success(`Employee ${firstName} ${lastName} created successfully!`)
+      handleClose()
+      onSuccess?.()
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to create employee'
+      setErrors({ general: msg })
+    }
   }
 
   return (
@@ -85,19 +102,28 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-1 rounded-[4px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors"
+            onClick={handleClose}
+            className="p-1 rounded-[4px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+          {/* General Error */}
+          {errors.general && (
+            <div className="p-3 rounded bg-red-500/10 border border-red-500/30 text-xs text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errors.general}</span>
+            </div>
+          )}
+
+          {/* Name Row */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-                First Name *
+                First Name <span className="text-[#FF1744]">*</span>
               </label>
               <input
                 type="text"
@@ -113,7 +139,7 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
 
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-                Last Name *
+                Last Name <span className="text-[#FF1744]">*</span>
               </label>
               <input
                 type="text"
@@ -128,61 +154,11 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-              Job Position *
-            </label>
-            <input
-              type="text"
-              value={jobPosition}
-              onChange={(e) => setJobPosition(e.target.value)}
-              placeholder="e.g. Payroll Specialist"
-              className={`pp-input text-sm ${errors.jobPosition ? 'border-[#FF1744]' : ''}`}
-            />
-            {errors.jobPosition && (
-              <span className="text-xs text-[#FF1744] mt-1 block">{errors.jobPosition}</span>
-            )}
-          </div>
-
+          {/* Email & Phone */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-                Department
-              </label>
-              <select
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                className="pp-input text-sm cursor-pointer bg-white"
-              >
-                <option value="Finance">Finance</option>
-                <option value="HR">HR</option>
-                <option value="Engineering">Engineering</option>
-                <option value="Operations">Operations</option>
-                <option value="Sales">Sales</option>
-                <option value="Marketing">Marketing</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-                Status
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as EmployeeStatus)}
-                className="pp-input text-sm cursor-pointer bg-white"
-              >
-                <option value="active">Active</option>
-                <option value="on_leave">On Leave</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-                Email Address *
+                Email Address <span className="text-[#FF1744]">*</span>
               </label>
               <input
                 type="email"
@@ -210,33 +186,109 @@ export const NewEmployeeModal: React.FC<NewEmployeeModalProps> = ({
             </div>
           </div>
 
+          {/* Department & Job Position (from backend) */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
+                Department
+              </label>
+              <select
+                value={departmentId}
+                onChange={(e) => setDepartmentId(e.target.value)}
+                className="pp-input text-sm cursor-pointer"
+              >
+                <option value="">Select department...</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
+                Job Position
+              </label>
+              <select
+                value={jobPositionId}
+                onChange={(e) => setJobPositionId(e.target.value)}
+                className="pp-input text-sm cursor-pointer"
+              >
+                <option value="">Select position...</option>
+                {jobPositions.map((pos) => (
+                  <option key={pos.id} value={pos.id}>
+                    {pos.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Employee Type & Status */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
+                Employment Type
+              </label>
+              <select
+                value={employeeType}
+                onChange={(e) => setEmployeeType(e.target.value)}
+                className="pp-input text-sm cursor-pointer"
+              >
+                <option value="full_time">Full Time</option>
+                <option value="part_time">Part Time</option>
+                <option value="contract">Contract</option>
+                <option value="intern">Intern</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
+                Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="pp-input text-sm cursor-pointer"
+              >
+                <option value="active">Active</option>
+                <option value="on_leave">On Leave</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Date of Joining */}
           <div>
             <label className="block text-xs font-semibold text-[var(--color-text-heading)] mb-1 uppercase tracking-wide">
-              Work Location
+              Date of Joining
             </label>
             <input
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="e.g. Mumbai HQ"
+              type="date"
+              value={dateOfJoining}
+              onChange={(e) => setDateOfJoining(e.target.value)}
               className="pp-input text-sm"
             />
           </div>
 
-          {/* Modal Footer */}
-          <div className="pt-4 mt-6 border-t border-[var(--color-border)] flex items-center justify-end gap-3">
+          {/* Footer */}
+          <div className="pt-4 mt-2 border-t border-[var(--color-border)] flex items-center justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
-              className="pp-btn-ghost text-sm py-2 px-4 rounded-[4px]"
+              onClick={handleClose}
+              disabled={createEmployee.isPending}
+              className="pp-btn-ghost text-sm py-2 px-4 rounded-[4px] cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="pp-btn-primary text-sm py-2 px-5 rounded-[4px] font-semibold"
+              disabled={createEmployee.isPending}
+              className="pp-btn-primary text-sm py-2 px-5 rounded-[4px] font-semibold flex items-center gap-2 cursor-pointer"
             >
-              Save Employee
+              {createEmployee.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              {createEmployee.isPending ? 'Saving...' : 'Save Employee'}
             </button>
           </div>
         </form>

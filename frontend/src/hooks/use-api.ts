@@ -102,9 +102,66 @@ export function useUpdateEmployee() {
   })
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Dashboard overview
-// ────────────────────────────────────────────────────────────────────────────
+/** Create a new employee (POST) */
+export function useCreateEmployee() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      employeeCode: string
+      firstName: string
+      lastName: string
+      email: string
+      phone?: string
+      departmentId?: string
+      jobPositionId?: string
+      employeeType?: string
+      status?: string
+      dateOfJoining?: string
+    }) => {
+      const { data } = await apiClient.post('/employees', payload)
+      return (data as any)?.data?.employee || (data as any)?.employee || (data as any)?.data || data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.employees.all })
+    },
+  })
+}
+
+/** Fetch all departments for the current company */
+export function useDepartmentsList() {
+  return useQuery({
+    queryKey: ['departments', 'list'],
+    queryFn: async () => {
+      const res = await apiClient.get('/employees/departments')
+      const items = (res.data as any)?.data?.departments
+        || (res.data as any)?.data?.items
+        || (res.data as any)?.departments
+        || (res.data as any)?.items
+        || (Array.isArray(res.data) ? res.data : [])
+      return items as Array<{ id: string; name: string; code: string | null }>
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Fetch all job positions for the current company */
+export function useJobPositionsList() {
+  return useQuery({
+    queryKey: ['job-positions', 'list'],
+    queryFn: async () => {
+      const res = await apiClient.get('/employees/job-positions')
+      const items = (res.data as any)?.data?.positions
+        || (res.data as any)?.data?.items
+        || (res.data as any)?.positions
+        || (res.data as any)?.items
+        || (Array.isArray(res.data) ? res.data : [])
+      return items as Array<{ id: string; title: string; code: string | null }>
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 
 export interface DashboardOverview {
   totalEmployees:    number
