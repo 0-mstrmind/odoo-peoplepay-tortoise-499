@@ -7,17 +7,17 @@ import * as contractService from "./contract.service.js";
 
 export const createContractHandler = CatchAsync(async (req: Request, res: Response) => {
   const contract = await contractService.createContract(req.user!.companyId!, req.user!.id, req.body);
-  sendResponse(res, StatusCodes.CREATED, "Contract created successfully", contract);
+  sendResponse(res, StatusCodes.CREATED, "Contract created successfully", { item: contract, contract });
 });
 
 export const getContractsHandler = CatchAsync(async (req: Request, res: Response) => {
   const employeeId = req.query.employeeId as string | undefined;
   const contracts = await contractService.getContracts(req.user!.companyId!, employeeId);
-  sendResponse(res, StatusCodes.OK, "Contracts retrieved successfully", { contracts });
+  sendResponse(res, StatusCodes.OK, "Contracts retrieved successfully", { items: contracts, contracts });
 });
 
 export const updateContractHandler = CatchAsync(async (req: Request, res: Response) => {
   const targetId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const contract = await contractService.updateContract(req.user!.companyId!, targetId, req.body);
-  sendResponse(res, StatusCodes.OK, "Contract updated successfully", contract);
+  sendResponse(res, StatusCodes.OK, "Contract updated successfully", { item: contract, contract });
 });

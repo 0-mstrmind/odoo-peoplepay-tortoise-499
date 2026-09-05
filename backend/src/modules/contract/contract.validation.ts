@@ -1,19 +1,29 @@
 import { z } from "zod";
 
+const dateStringSchema = z
+  .string()
+  .refine((val) => !isNaN(Date.parse(val)), { message: "Invalid date format" });
+
+const optionalUuidSchema = z
+  .string()
+  .uuid("Invalid ID format")
+  .nullish()
+  .or(z.literal(""));
+
 const contractBodyBase = z.object({
   employeeId: z.string().uuid("Invalid employee ID"),
   contractReference: z.string().min(1, "Reference is required"),
-  startDate: z.string().datetime(),
-  endDate: z.string().datetime().nullable().optional(),
-  departmentId: z.string().uuid("Invalid department ID").optional(),
-  jobPositionId: z.string().uuid("Invalid position ID").optional(),
-  scheduleId: z.string().uuid("Invalid schedule ID").optional(),
-  wage: z.number().positive("Wage must be positive"),
+  startDate: dateStringSchema,
+  endDate: dateStringSchema.nullish().or(z.literal("")),
+  departmentId: optionalUuidSchema,
+  jobPositionId: optionalUuidSchema,
+  scheduleId: optionalUuidSchema,
+  wage: z.coerce.number().positive("Wage must be positive"),
   currency: z.string().default("INR"),
-  payFrequency: z.enum(["monthly", "bi_weekly", "weekly"]),
-  salaryStructureId: z.string().uuid("Invalid salary structure ID").optional(),
+  payFrequency: z.enum(["monthly", "bi_weekly", "weekly"]).default("monthly"),
+  salaryStructureId: optionalUuidSchema,
   status: z.enum(["draft", "active", "expired", "terminated"]).default("draft"),
-  notes: z.string().optional(),
+  notes: z.string().nullish().or(z.literal("")),
 });
 
 export const createContractSchema = z.object({

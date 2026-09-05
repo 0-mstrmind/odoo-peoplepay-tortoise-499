@@ -34,15 +34,55 @@ const checkOverlap = async (
 };
 
 export const createContract = async (companyId: string, userId: string, data: any) => {
-  if (data.status === "active") {
-    await checkOverlap(companyId, data.employeeId, new Date(data.startDate), data.endDate ? new Date(data.endDate) : null);
+  const startDate = new Date(data.startDate);
+  const endDate = data.endDate ? new Date(data.endDate) : null;
+  const status = data.status || "draft";
+
+  if (status === "active") {
+    await checkOverlap(companyId, data.employeeId, startDate, endDate);
+  }
+
+  let validCreatorId: string | null = null;
+  if (userId) {
+    const userExists = await prisma.user.findUnique({ where: { id: userId }, select: { id: true } });
+    if (userExists) validCreatorId = userExists.id;
+  }
+
+  const createData: any = {
+    companyId,
+    createdBy: validCreatorId,
+    employeeId: data.employeeId,
+    contractReference: data.contractReference,
+    startDate,
+    endDate,
+    wage: data.wage,
+    currency: data.currency || "INR",
+    payFrequency: data.payFrequency || "monthly",
+    status,
+    notes: data.notes ? data.notes.trim() : null,
+  };
+
+  if (data.departmentId && data.departmentId.trim()) {
+    createData.departmentId = data.departmentId;
+  }
+  if (data.jobPositionId && data.jobPositionId.trim()) {
+    createData.jobPositionId = data.jobPositionId;
+  }
+  if (data.scheduleId && data.scheduleId.trim()) {
+    createData.scheduleId = data.scheduleId;
+  }
+  if (data.salaryStructureId && data.salaryStructureId.trim()) {
+    createData.salaryStructureId = data.salaryStructureId;
   }
 
   return prisma.contract.create({
-    data: {
-      ...data,
-      companyId,
-      createdBy: userId,
+    data: createData,
+    include: {
+      employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+      department: { select: { id: true, name: true } },
+      jobPosition: { select: { id: true, title: true } },
+      schedule: { select: { id: true, name: true } },
+      salaryStructure: { select: { id: true, name: true } },
     },
   });
 };
@@ -56,7 +96,11 @@ export const getContracts = async (companyId: string, employeeId?: string) => {
     },
     orderBy: { startDate: "desc" },
     include: {
-      employee: { select: { firstName: true, lastName: true, employeeCode: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+      department: { select: { id: true, name: true } },
+      jobPosition: { select: { id: true, title: true } },
+      schedule: { select: { id: true, name: true } },
+      salaryStructure: { select: { id: true, name: true } },
     },
   });
 };
@@ -76,8 +120,23 @@ export const updateContract = async (companyId: string, contractId: string, data
     await checkOverlap(companyId, existing.employeeId, newStartDate, newEndDate, contractId);
   }
 
+  const updateData: any = { ...data };
+  if (data.startDate) updateData.startDate = newStartDate;
+  if (data.endDate !== undefined) updateData.endDate = newEndDate;
+  if (data.departmentId !== undefined) updateData.departmentId = data.departmentId ? data.departmentId : null;
+  if (data.jobPositionId !== undefined) updateData.jobPositionId = data.jobPositionId ? data.jobPositionId : null;
+  if (data.scheduleId !== undefined) updateData.scheduleId = data.scheduleId ? data.scheduleId : null;
+  if (data.salaryStructureId !== undefined) updateData.salaryStructureId = data.salaryStructureId ? data.salaryStructureId : null;
+
   return prisma.contract.update({
     where: { id: contractId },
-    data,
+    data: updateData,
+    include: {
+      employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+      department: { select: { id: true, name: true } },
+      jobPosition: { select: { id: true, title: true } },
+      schedule: { select: { id: true, name: true } },
+      salaryStructure: { select: { id: true, name: true } },
+    },
   });
 };
