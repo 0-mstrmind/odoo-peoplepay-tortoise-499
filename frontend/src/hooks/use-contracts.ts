@@ -220,3 +220,36 @@ export function useWorkingSchedules() {
     enabled: !!companyId,
   })
 }
+
+export interface CreateWorkingSchedulePayload {
+  name: string
+  code?: string | null
+  scheduleType?: 'fixed' | 'flexible' | 'shift'
+  timezone?: string
+  scheduleLines?: Array<{
+    dayOfWeek: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+    startTime?: string | null
+    endTime?: string | null
+    breakDurationMinutes?: number
+    isDayOff?: boolean
+  }>
+}
+
+/**
+ * Mutation for creating a new working schedule
+ */
+export function useCreateWorkingSchedule() {
+  const qc = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: CreateWorkingSchedulePayload) => {
+      const response = await apiClient.post<any>('/working-schedules', payload)
+      return response.data?.data || response.data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['working-schedules'] })
+      qc.invalidateQueries({ queryKey: ['employee-masters'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+    },
+  })
+}

@@ -12,7 +12,7 @@ import { clerkAuthMiddleware } from "../../core/middlewares/clerk.middleware.js"
 import { requireRole } from "../../core/middlewares/rbac.middleware.js";
 
 const router = Router();
-const HR_ROLES = ["admin", "hr_manager", "hr_payroll_manager", "hr_payroll_user"];
+const HR_ROLES = ["admin", "hr_manager", "hr_payroll_manager", "hr_payroll_user", "employee"];
 
 router.get("/", clerkAuthMiddleware, listWorkingSchedules);
 router.post("/", clerkAuthMiddleware, requireRole(...HR_ROLES), createWorkingSchedule);

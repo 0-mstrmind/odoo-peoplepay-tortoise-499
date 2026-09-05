@@ -31,6 +31,7 @@ import {
 import { CreateContractModal } from './CreateContractModal'
 import { CreateSalaryStructureModal } from './CreateSalaryStructureModal'
 import { CreateSalaryRuleModal } from './CreateSalaryRuleModal'
+import { CreateWorkingScheduleModal } from './CreateWorkingScheduleModal'
 
 export const ContractsView: React.FC = () => {
   const user = useAuthUser()
@@ -60,6 +61,7 @@ export const ContractsView: React.FC = () => {
   }, [searchParams])
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [isCreateStructureModalOpen, setIsCreateStructureModalOpen] = useState(false)
   const [isCreateRuleModalOpen, setIsCreateRuleModalOpen] = useState(false)
   const [structSubView, setStructSubView] = useState<'structures' | 'rules'>('structures')
@@ -143,17 +145,25 @@ export const ContractsView: React.FC = () => {
           </p>
         </div>
 
-        {/* Create Contract button is ONLY displayed on All Contracts tab */}
-        {activeTab === 'contracts' && (
+        {activeTab === 'schedules' ? (
+          <button
+            type="button"
+            onClick={() => setIsScheduleModalOpen(true)}
+            className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Working Schedule</span>
+          </button>
+        ) : activeTab === 'contracts' ? (
           <button
             type="button"
             onClick={() => setIsCreateModalOpen(true)}
-            className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
+            className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
             <span>New Contract</span>
           </button>
-        )}
+        ) : null}
       </div>
 
       {/* Tabs */}
@@ -776,13 +786,26 @@ export const ContractsView: React.FC = () => {
       {/* Tab 3: Working Schedules */}
       {activeTab === 'schedules' && (
         <div className="pp-card p-6 space-y-4">
-          <h3 className="text-base font-bold text-[var(--color-text-heading)] flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-[var(--color-primary)]" />
-            <span>Working Schedules</span>
-          </h3>
-          <p className="text-xs text-[var(--color-text-muted)]">
-            Define standard working calendars used for attendance tracking and wage proration.
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--color-border)] pb-3">
+            <div>
+              <h3 className="text-base font-bold text-[var(--color-text-heading)] flex items-center gap-2 mb-1">
+                <Briefcase className="w-4 h-4 text-[var(--color-primary)]" />
+                <span>Working Schedules</span>
+              </h3>
+              <p className="text-xs text-[var(--color-text-muted)] mb-0">
+                Define standard working calendars used for attendance tracking and wage proration.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsScheduleModalOpen(true)}
+              className="pp-btn-primary text-xs py-2 px-3.5 rounded-[4px] font-semibold flex items-center gap-1.5 cursor-pointer self-start sm:self-auto shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Working Schedule</span>
+            </button>
+          </div>
 
           {isLoadingSchedules ? (
             <div className="py-8 text-center text-xs text-[var(--color-text-muted)] flex items-center justify-center gap-2">
@@ -790,8 +813,16 @@ export const ContractsView: React.FC = () => {
               <span>Loading working schedules...</span>
             </div>
           ) : workingSchedules.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[var(--color-text-muted)]">
-              No working schedules configured yet.
+            <div className="py-12 text-center text-xs text-[var(--color-text-muted)] space-y-3">
+              <p className="mb-0">No working schedules configured yet.</p>
+              <button
+                type="button"
+                onClick={() => setIsScheduleModalOpen(true)}
+                className="pp-btn-primary text-xs py-2 px-4 rounded font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create Working Schedule</span>
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -812,6 +843,7 @@ export const ContractsView: React.FC = () => {
           )}
         </div>
       )}
+
       {/* Create Contract Modal */}
       <CreateContractModal
         isOpen={isCreateModalOpen}
@@ -828,6 +860,12 @@ export const ContractsView: React.FC = () => {
       <CreateSalaryRuleModal
         isOpen={isCreateRuleModalOpen}
         onClose={() => setIsCreateRuleModalOpen(false)}
+      />
+
+      {/* Create Working Schedule Modal */}
+      <CreateWorkingScheduleModal
+        isOpen={isScheduleModalOpen}
+        onClose={() => setIsScheduleModalOpen(false)}
       />
     </div>
   )
