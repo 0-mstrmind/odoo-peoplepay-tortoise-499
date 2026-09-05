@@ -108,11 +108,13 @@ export function useContracts(params?: { status?: string; search?: string }) {
       const response = await apiClient.get<any>('/contracts', { params })
       const data = response.data?.data || response.data
       if (Array.isArray(data)) return data as ApiContractItem[]
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items as ApiContractItem[]
-      if (data && 'contracts' in data && Array.isArray(data.contracts)) return data.contracts as ApiContractItem[]
+      if (data && typeof data === 'object') {
+        if (Array.isArray(data.items)) return data.items as ApiContractItem[]
+        if (Array.isArray(data.contracts)) return data.contracts as ApiContractItem[]
+        if (Array.isArray(data.data)) return data.data as ApiContractItem[]
+      }
       return [] as ApiContractItem[]
     },
-    enabled: !!companyId,
   })
 }
 
@@ -175,7 +177,6 @@ export function useEmployeeMasters() {
       }
     },
     staleTime: 5 * 60 * 1000,
-    enabled: !!companyId,
   })
 }
 
@@ -188,15 +189,16 @@ export function useSalaryStructures() {
   return useQuery({
     queryKey: ['salary-structures', companyId],
     queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: ApiSalaryStructureItem[] | { items: ApiSalaryStructureItem[] } }>(
-        '/salary-structures'
-      )
-      const data = response.data?.data
-      if (Array.isArray(data)) return data
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items
-      return []
+      const response = await apiClient.get<any>('/salary-structures')
+      const data = response.data?.data || response.data
+      if (Array.isArray(data)) return data as ApiSalaryStructureItem[]
+      if (data && typeof data === 'object') {
+        if (Array.isArray(data.items)) return data.items as ApiSalaryStructureItem[]
+        if (Array.isArray(data.structures)) return data.structures as ApiSalaryStructureItem[]
+        if (Array.isArray(data.data)) return data.data as ApiSalaryStructureItem[]
+      }
+      return [] as ApiSalaryStructureItem[]
     },
-    enabled: !!companyId,
   })
 }
 
@@ -223,15 +225,17 @@ export function useWorkingSchedules() {
   return useQuery({
     queryKey: ['working-schedules', companyId],
     queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: ApiWorkingScheduleItem[] | { items: ApiWorkingScheduleItem[] } }>(
-        '/working-schedules'
-      )
-      const data = response.data?.data
-      if (Array.isArray(data)) return data
-      if (data && 'items' in data && Array.isArray(data.items)) return data.items
-      return []
+      const response = await apiClient.get<any>('/working-schedules')
+      const data = response.data?.data || response.data
+      if (Array.isArray(data)) return data as ApiWorkingScheduleItem[]
+      if (data && typeof data === 'object') {
+        if (Array.isArray(data.items)) return data.items as ApiWorkingScheduleItem[]
+        if (Array.isArray(data.schedules)) return data.schedules as ApiWorkingScheduleItem[]
+        if (Array.isArray(data.workingSchedules)) return data.workingSchedules as ApiWorkingScheduleItem[]
+        if (Array.isArray(data.data)) return data.data as ApiWorkingScheduleItem[]
+      }
+      return [] as ApiWorkingScheduleItem[]
     },
-    enabled: !!companyId,
   })
 }
 
@@ -249,7 +253,7 @@ export function useWorkingScheduleDetail(id: string | null) {
       const data = response.data?.data || response.data
       return (data?.schedule || data) as ApiWorkingScheduleDetail
     },
-    enabled: !!id && !!companyId,
+    enabled: !!id,
   })
 }
 
