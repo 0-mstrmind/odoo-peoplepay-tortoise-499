@@ -3,6 +3,7 @@ import { StatusCodes } from "http-status-codes";
 
 import sendResponse from "../../shared/utils/ApiResponse.js";
 import CatchAsync from "../../shared/utils/CatchAsync.js";
+import { emitCheck } from "../../socket/emitter.js";
 import {
   createEmployeeSchema,
   updateEmployeeSchema,
@@ -53,6 +54,14 @@ export const createEmployee = CatchAsync(async (req: Request, res: Response) => 
     id: req.user?.id,
     companyId: req.user?.companyId,
   });
+
+  // Emit real-time notification to company room
+  emitCheck({
+    message: `Employee created: ${employee.firstName} ${employee.lastName}`,
+    payload: { id: employee.id, employeeCode: employee.employeeCode },
+    target: { companyId: employee.companyId },
+  });
+
   sendResponse(res, StatusCodes.CREATED, "Employee created successfully", { employee });
 });
 
