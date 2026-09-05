@@ -9,21 +9,8 @@ import type {
   QueryPayslipInput,
 } from "./payroll.validation.js";
 import { invalidateDashboardCache } from "../dashboard/dashboard.service.js";
-
-/**
- * Resolves caller tenant company ID
- */
-const resolveCompanyId = async (companyId?: string | null): Promise<string> => {
-  if (companyId) return companyId;
-  const fallback = await prisma.company.findFirst({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!fallback) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "No active company found for payroll operations");
-  }
-  return fallback.id;
-};
+import { resolveCompanyId } from "../employee/employee.service.js";
+import { cacheService } from "../../redis/services/cache.service.js";
 
 /**
  * 1. Create Payrun (Step 1 of Wizard: Scope, Period, Salary Structure, optional Employee Selection)
@@ -496,6 +483,10 @@ export const computePayrunService = async (
     },
   });
 
+  // Invalidate payslips and dashboard cache
+  await cacheService.delByPattern("payslip:*");
+  invalidateDashboardCache(companyId).catch(() => {});
+
   return updatedPayrun;
 };
 
@@ -613,7 +604,7 @@ export const cancelPayrunService = async (
     throw new ApiError(StatusCodes.BAD_REQUEST, "Cannot cancel a payrun that has already been paid");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const cancelled = await prisma.$transaction(async (tx) => {
     await tx.payslip.updateMany({
       where: { payrunId },
       data: { status: "cancelled" },
@@ -624,6 +615,11 @@ export const cancelPayrunService = async (
       data: { status: "cancelled" },
     });
   });
+
+  await cacheService.delByPattern("payslip:*");
+  invalidateDashboardCache(companyId).catch(() => {});
+
+  return cancelled;
 };
 
 /**
@@ -772,6 +768,13 @@ export const listPayslipsService = async (
  */
 export const getPayslipByIdService = async (id: string, callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  const cacheKey = `payslip:${id}`;
+
+  // Check Redis cache first
+  const cached = await cacheService.get<any>(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
   const payslip = await prisma.payslip.findFirst({
     where: { id, companyId, deletedAt: null },
@@ -797,6 +800,16 @@ export const getPayslipByIdService = async (id: string, callerCompanyId?: string
 
   if (!payslip) {
     throw new ApiError(StatusCodes.NOT_FOUND, "Payslip not found");
+  }
+
+  // If payslip is finalized (validated or paid), cache for 24 hours
+  if (
+    payslip.status === "validated" ||
+    payslip.status === "paid" ||
+    payslip.payrun?.status === "validated" ||
+    payslip.payrun?.status === "paid"
+  ) {
+    await cacheService.set(cacheKey, payslip, 86400); // 24 hours TTL
   }
 
   return payslip;

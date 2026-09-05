@@ -1,6 +1,8 @@
 import { StatusCodes } from "http-status-codes";
 import { prisma } from "../../core/config/prisma.js";
+import { logger } from "../../core/config/logger.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { cacheService } from "../../redis/services/cache.service.js";
 import type {
   CreateEmployeeInput,
   UpdateEmployeeInput,
@@ -9,33 +11,73 @@ import type {
   QueryEmployeeInput,
 } from "./employee.validation.js";
 
-// Helper to resolve company context or default company
+// Helper to resolve company context or default company with Redis cache
 export const resolveCompanyId = async (providedCompanyId?: string | null): Promise<string> => {
-  if (providedCompanyId) {
-    const company = await prisma.company.findUnique({ where: { id: providedCompanyId } });
-    if (company) return company.id;
+  const cacheKey = `company:id:${providedCompanyId || "default"}`;
+
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      if (providedCompanyId) {
+        const company = await prisma.company.findUnique({ where: { id: providedCompanyId } });
+        if (company) return company.id;
+      }
+
+      // Fallback to first active company or create default
+      let defaultCompany = await prisma.company.findFirst({
+        where: { deletedAt: null },
+        orderBy: { createdAt: "asc" },
+      });
+
+      if (!defaultCompany) {
+        defaultCompany = await prisma.company.create({
+          data: {
+            name: "PeoplePay360 Inc.",
+            slug: "peoplepay360",
+            currency: "INR",
+            industry: "Information Technology",
+            country: "India",
+            timezone: "Asia/Kolkata",
+          },
+        });
+      }
+
+      return defaultCompany.id;
+    },
+    3600, // 1 hour TTL
+  );
+};
+
+/**
+ * Invalidate cached company metadata
+ */
+export const invalidateCompanyCache = async (companyId?: string): Promise<void> => {
+  try {
+    if (companyId) {
+      await cacheService.del(`company:id:${companyId}`, "company:id:default");
+    } else {
+      await cacheService.delByPattern("company:id:*");
+    }
+    logger.debug(`[Company] Cache invalidated for: ${companyId || "all"}`);
+  } catch (err) {
+    logger.warn(`[Company] Failed to invalidate cache: ${(err as Error).message}`);
   }
+};
 
-  // Fallback to first active company or create default
-  let defaultCompany = await prisma.company.findFirst({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (!defaultCompany) {
-    defaultCompany = await prisma.company.create({
-      data: {
-        name: "PeoplePay360 Inc.",
-        slug: "peoplepay360",
-        currency: "INR",
-        industry: "Information Technology",
-        country: "India",
-        timezone: "Asia/Kolkata",
-      },
-    });
+/**
+ * Invalidate cached employee profile and master data
+ */
+export const invalidateEmployeeCache = async (companyId: string, employeeId?: string): Promise<void> => {
+  try {
+    if (employeeId) {
+      await cacheService.del(`employee:${companyId}:${employeeId}`);
+    }
+    await cacheService.del(`employee:masters:${companyId}`);
+    await cacheService.delByPattern(`employee:masters:*`);
+    logger.debug(`[Employee] Cache invalidated for company ${companyId}, employee ${employeeId || "all"}`);
+  } catch (err) {
+    logger.warn(`[Employee] Failed to invalidate cache: ${(err as Error).message}`);
   }
-
-  return defaultCompany.id;
 };
 
 // List employees with rich filters and smart count aggregation
@@ -118,117 +160,124 @@ export const listEmployeesService = async (
 // Get single employee operational hub details with smart counts
 export const getEmployeeByIdService = async (id: string, callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  const cacheKey = `employee:${companyId}:${id}`;
 
-  const employee = await prisma.employee.findFirst({
-    where: { id, companyId, deletedAt: null },
-    include: {
-      department: true,
-      jobPosition: true,
-      manager: { select: { id: true, firstName: true, lastName: true, employeeCode: true, email: true } },
-      schedule: {
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      const employee = await prisma.employee.findFirst({
+        where: { id, companyId, deletedAt: null },
         include: {
-          scheduleLines: {
-            orderBy: { dayOfWeek: "asc" },
+          department: true,
+          jobPosition: true,
+          manager: { select: { id: true, firstName: true, lastName: true, employeeCode: true, email: true } },
+          schedule: {
+            include: {
+              scheduleLines: {
+                orderBy: { dayOfWeek: "asc" },
+              },
+            },
+          },
+          subordinates: {
+            where: { deletedAt: null },
+            select: { id: true, firstName: true, lastName: true, employeeCode: true, jobPosition: { select: { title: true } } },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              isActive: true,
+              lastLoginAt: true,
+              clerkUserId: true,
+            },
+          },
+          bankAccounts: {
+            where: { deletedAt: null },
+            orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
+          },
+          contracts: {
+            where: { deletedAt: null },
+            take: 5,
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              contractReference: true,
+              status: true,
+              wage: true,
+              currency: true,
+              startDate: true,
+              endDate: true,
+            },
+          },
+          attendances: {
+            where: { deletedAt: null },
+            take: 5,
+            orderBy: { attendanceDate: "desc" },
+            select: {
+              id: true,
+              attendanceDate: true,
+              checkIn: true,
+              checkOut: true,
+              workedHours: true,
+              status: true,
+            },
+          },
+          timeOffRequests: {
+            where: { deletedAt: null },
+            take: 5,
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              startDate: true,
+              endDate: true,
+              duration: true,
+              status: true,
+              timeOffType: { select: { name: true, unit: true } },
+            },
+          },
+          payslips: {
+            where: { deletedAt: null },
+            take: 5,
+            orderBy: { periodStart: "desc" },
+            select: {
+              id: true,
+              periodStart: true,
+              periodEnd: true,
+              net: true,
+              currency: true,
+              status: true,
+            },
+          },
+          _count: {
+            select: {
+              contracts: { where: { deletedAt: null } },
+              attendances: { where: { deletedAt: null } },
+              timeOffRequests: { where: { deletedAt: null } },
+              payslips: { where: { deletedAt: null } },
+              timeOffAllocations: { where: { deletedAt: null } },
+            },
           },
         },
-      },
-      subordinates: {
-        where: { deletedAt: null },
-        select: { id: true, firstName: true, lastName: true, employeeCode: true, jobPosition: { select: { title: true } } },
-      },
-      user: {
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          isActive: true,
-          lastLoginAt: true,
-          clerkUserId: true,
-        },
-      },
-      bankAccounts: {
-        where: { deletedAt: null },
-        orderBy: [{ isPrimary: "desc" }, { createdAt: "desc" }],
-      },
-      contracts: {
-        where: { deletedAt: null },
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          contractReference: true,
-          status: true,
-          wage: true,
-          currency: true,
-          startDate: true,
-          endDate: true,
-        },
-      },
-      attendances: {
-        where: { deletedAt: null },
-        take: 5,
-        orderBy: { attendanceDate: "desc" },
-        select: {
-          id: true,
-          attendanceDate: true,
-          checkIn: true,
-          checkOut: true,
-          workedHours: true,
-          status: true,
-        },
-      },
-      timeOffRequests: {
-        where: { deletedAt: null },
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          startDate: true,
-          endDate: true,
-          duration: true,
-          status: true,
-          timeOffType: { select: { name: true, unit: true } },
-        },
-      },
-      payslips: {
-        where: { deletedAt: null },
-        take: 5,
-        orderBy: { periodStart: "desc" },
-        select: {
-          id: true,
-          periodStart: true,
-          periodEnd: true,
-          net: true,
-          currency: true,
-          status: true,
-        },
-      },
-      _count: {
-        select: {
-          contracts: { where: { deletedAt: null } },
-          attendances: { where: { deletedAt: null } },
-          timeOffRequests: { where: { deletedAt: null } },
-          payslips: { where: { deletedAt: null } },
-          timeOffAllocations: { where: { deletedAt: null } },
-        },
-      },
-    },
-  });
+      });
 
-  if (!employee) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Employee not found");
-  }
+      if (!employee) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Employee not found");
+      }
 
-  return {
-    ...employee,
-    smartCounts: {
-      contracts: employee._count.contracts,
-      attendance: employee._count.attendances,
-      timeOff: employee._count.timeOffRequests,
-      payslips: employee._count.payslips,
-      allocations: employee._count.timeOffAllocations,
+      return {
+        ...employee,
+        smartCounts: {
+          contracts: employee._count.contracts,
+          attendance: employee._count.attendances,
+          timeOff: employee._count.timeOffRequests,
+          payslips: employee._count.payslips,
+          allocations: employee._count.timeOffAllocations,
+        },
+      };
     },
-  };
+    900, // 15 minutes TTL
+  );
 };
 
 // Create new employee & optional user account / role assignment (Admin only for role assignment)
@@ -375,7 +424,7 @@ export const updateEmployeeService = async (
     }
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updatedEmployee = await prisma.$transaction(async (tx) => {
     let linkedUserId = existing.userId;
 
     // Admin updating role
@@ -430,6 +479,10 @@ export const updateEmployeeService = async (
 
     return updated;
   }, { timeout: 30000, maxWait: 15000 });
+
+  await invalidateEmployeeCache(companyId, id);
+
+  return updatedEmployee;
 };
 
 // Soft delete employee & deactivate linked user
@@ -444,7 +497,7 @@ export const deleteEmployeeService = async (id: string, callerCompanyId?: string
     throw new ApiError(StatusCodes.NOT_FOUND, "Employee not found");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const deleted = await prisma.$transaction(async (tx) => {
     if (existing.userId) {
       await tx.user.update({
         where: { id: existing.userId },
@@ -457,6 +510,10 @@ export const deleteEmployeeService = async (id: string, callerCompanyId?: string
       data: { deletedAt: new Date(), status: "terminated" },
     });
   }, { timeout: 30000, maxWait: 15000 });
+
+  await invalidateEmployeeCache(companyId, id);
+
+  return deleted;
 };
 
 // Bank Accounts management
@@ -475,7 +532,7 @@ export const addBankAccountService = async (
     throw new ApiError(StatusCodes.NOT_FOUND, "Employee not found");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const created = await prisma.$transaction(async (tx) => {
     if (input.isPrimary) {
       await tx.employeeBankAccount.updateMany({
         where: { employeeId, isPrimary: true },
@@ -496,6 +553,10 @@ export const addBankAccountService = async (
       },
     });
   }, { timeout: 30000, maxWait: 15000 });
+
+  await invalidateEmployeeCache(companyId, employeeId);
+
+  return created;
 };
 
 export const updateBankAccountService = async (
@@ -513,7 +574,7 @@ export const updateBankAccountService = async (
     throw new ApiError(StatusCodes.NOT_FOUND, "Bank account not found");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx) => {
     if (input.isPrimary) {
       await tx.employeeBankAccount.updateMany({
         where: { employeeId: bankAccount.employeeId, isPrimary: true, id: { not: bankAccountId } },
@@ -526,6 +587,10 @@ export const updateBankAccountService = async (
       data: input,
     });
   }, { timeout: 30000, maxWait: 15000 });
+
+  await invalidateEmployeeCache(companyId, bankAccount.employeeId);
+
+  return updated;
 };
 
 export const deleteBankAccountService = async (bankAccountId: string, callerCompanyId?: string | null) => {
@@ -539,77 +604,88 @@ export const deleteBankAccountService = async (bankAccountId: string, callerComp
     throw new ApiError(StatusCodes.NOT_FOUND, "Bank account not found");
   }
 
-  return prisma.employeeBankAccount.update({
+  const deleted = await prisma.employeeBankAccount.update({
     where: { id: bankAccountId },
     data: { deletedAt: new Date() },
   });
+
+  await invalidateEmployeeCache(companyId, bankAccount.employeeId);
+
+  return deleted;
 };
 
 // Retrieve Master Data for Employee Form (Departments, Positions, Schedules, Managers)
 export const getMasterDataService = async (callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  const cacheKey = `employee:masters:${companyId}`;
 
-  let [departments, jobPositions, schedules, managers] = await Promise.all([
-    prisma.department.findMany({
-      where: { companyId, deletedAt: null, isActive: true },
-      select: { id: true, name: true, code: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.jobPosition.findMany({
-      where: { companyId, deletedAt: null, isActive: true },
-      select: { id: true, title: true, code: true, departmentId: true },
-      orderBy: { title: "asc" },
-    }),
-    prisma.workingSchedule.findMany({
-      where: { companyId, deletedAt: null, isActive: true },
-      select: { id: true, name: true, scheduleType: true, totalWeeklyHours: true },
-      orderBy: { name: "asc" },
-    }),
-    prisma.employee.findMany({
-      where: { companyId, deletedAt: null, status: "active" },
-      select: { id: true, firstName: true, lastName: true, employeeCode: true, jobPosition: { select: { title: true } } },
-      orderBy: { firstName: "asc" },
-    }),
-  ]);
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      let [departments, jobPositions, schedules, managers] = await Promise.all([
+        prisma.department.findMany({
+          where: { companyId, deletedAt: null, isActive: true },
+          select: { id: true, name: true, code: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.jobPosition.findMany({
+          where: { companyId, deletedAt: null, isActive: true },
+          select: { id: true, title: true, code: true, departmentId: true },
+          orderBy: { title: "asc" },
+        }),
+        prisma.workingSchedule.findMany({
+          where: { companyId, deletedAt: null, isActive: true },
+          select: { id: true, name: true, scheduleType: true, totalWeeklyHours: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.employee.findMany({
+          where: { companyId, deletedAt: null, status: "active" },
+          select: { id: true, firstName: true, lastName: true, employeeCode: true, jobPosition: { select: { title: true } } },
+          orderBy: { firstName: "asc" },
+        }),
+      ]);
 
-  // If no departments exist yet, provision standard starter entries so user forms are ready
-  if (departments.length === 0) {
-    const defaultDepts = await Promise.all([
-      prisma.department.create({ data: { companyId, name: "Engineering", code: "ENG" } }),
-      prisma.department.create({ data: { companyId, name: "Human Resources", code: "HR" } }),
-      prisma.department.create({ data: { companyId, name: "Finance & Accounts", code: "FIN" } }),
-      prisma.department.create({ data: { companyId, name: "Operations", code: "OPS" } }),
-    ]);
-    departments = defaultDepts.map((d) => ({ id: d.id, name: d.name, code: d.code }));
+      // If no departments exist yet, provision standard starter entries so user forms are ready
+      if (departments.length === 0) {
+        const defaultDepts = await Promise.all([
+          prisma.department.create({ data: { companyId, name: "Engineering", code: "ENG" } }),
+          prisma.department.create({ data: { companyId, name: "Human Resources", code: "HR" } }),
+          prisma.department.create({ data: { companyId, name: "Finance & Accounts", code: "FIN" } }),
+          prisma.department.create({ data: { companyId, name: "Operations", code: "OPS" } }),
+        ]);
+        departments = defaultDepts.map((d) => ({ id: d.id, name: d.name, code: d.code }));
 
-    const defaultPositions = await Promise.all([
-      prisma.jobPosition.create({ data: { companyId, title: "Senior Software Engineer", code: "SSE", departmentId: departments[0].id } }),
-      prisma.jobPosition.create({ data: { companyId, title: "HR Manager", code: "HRM", departmentId: departments[1].id } }),
-      prisma.jobPosition.create({ data: { companyId, title: "Payroll Specialist", code: "PRS", departmentId: departments[2].id } }),
-    ]);
-    jobPositions = defaultPositions.map((p) => ({ id: p.id, title: p.title, code: p.code, departmentId: p.departmentId }));
-  }
+        const defaultPositions = await Promise.all([
+          prisma.jobPosition.create({ data: { companyId, title: "Senior Software Engineer", code: "SSE", departmentId: departments[0].id } }),
+          prisma.jobPosition.create({ data: { companyId, title: "HR Manager", code: "HRM", departmentId: departments[1].id } }),
+          prisma.jobPosition.create({ data: { companyId, title: "Payroll Specialist", code: "PRS", departmentId: departments[2].id } }),
+        ]);
+        jobPositions = defaultPositions.map((p) => ({ id: p.id, title: p.title, code: p.code, departmentId: p.departmentId }));
+      }
 
-  // If no working schedule exists, provision standard 40hr schedule
-  if (schedules.length === 0) {
-    const defaultSchedule = await prisma.workingSchedule.create({
-      data: {
-        companyId,
-        name: "Standard Full-Time (40 Hours)",
-        code: "STD-40",
-        scheduleType: "fixed",
-        totalWeeklyHours: 40.0,
-      },
-    });
-    schedules = [{ id: defaultSchedule.id, name: defaultSchedule.name, scheduleType: defaultSchedule.scheduleType, totalWeeklyHours: defaultSchedule.totalWeeklyHours }];
-  }
+      // If no working schedule exists, provision standard 40hr schedule
+      if (schedules.length === 0) {
+        const defaultSchedule = await prisma.workingSchedule.create({
+          data: {
+            companyId,
+            name: "Standard Full-Time (40 Hours)",
+            code: "STD-40",
+            scheduleType: "fixed",
+            totalWeeklyHours: 40.0,
+          },
+        });
+        schedules = [{ id: defaultSchedule.id, name: defaultSchedule.name, scheduleType: defaultSchedule.scheduleType, totalWeeklyHours: defaultSchedule.totalWeeklyHours }];
+      }
 
-  return {
-    departments,
-    jobPositions,
-    schedules,
-    managers,
-  };
+      return {
+        departments,
+        jobPositions,
+        schedules,
+        managers,
+      };
+    },
+    1800, // 30 minutes TTL
+  );
 };
 
 // Admin endpoint to explicitly update or assign role to an employee
@@ -641,7 +717,7 @@ export const updateEmployeeRoleService = async (
     throw new ApiError(StatusCodes.NOT_FOUND, "Employee not found");
   }
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     let user;
 
     if (employee.userId) {
@@ -688,6 +764,10 @@ export const updateEmployeeRoleService = async (
       userId: user.id,
     };
   }, { timeout: 30000, maxWait: 15000 });
+
+  await invalidateEmployeeCache(companyId, employeeId);
+
+  return result;
 };
 
 // Smart button related collections
@@ -801,7 +881,7 @@ export const createDepartmentService = async (
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
-  return prisma.department.create({
+  const dept = await prisma.department.create({
     data: {
       companyId,
       name: input.name,
@@ -809,6 +889,10 @@ export const createDepartmentService = async (
       managerId: input.managerId || null,
     },
   });
+
+  await invalidateEmployeeCache(companyId);
+
+  return dept;
 };
 
 export const createJobPositionService = async (
@@ -816,7 +900,7 @@ export const createJobPositionService = async (
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
-  return prisma.jobPosition.create({
+  const pos = await prisma.jobPosition.create({
     data: {
       companyId,
       title: input.title,
@@ -824,6 +908,10 @@ export const createJobPositionService = async (
       departmentId: input.departmentId || null,
     },
   });
+
+  await invalidateEmployeeCache(companyId);
+
+  return pos;
 };
 
 export const createWorkingScheduleService = async (
@@ -831,7 +919,7 @@ export const createWorkingScheduleService = async (
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
-  return prisma.workingSchedule.create({
+  const sched = await prisma.workingSchedule.create({
     data: {
       companyId,
       name: input.name,
@@ -840,4 +928,8 @@ export const createWorkingScheduleService = async (
       totalWeeklyHours: input.totalWeeklyHours ?? 40.0,
     },
   });
+
+  await invalidateEmployeeCache(companyId);
+
+  return sched;
 };

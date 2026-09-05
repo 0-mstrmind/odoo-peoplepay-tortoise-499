@@ -1,6 +1,7 @@
 import { StatusCodes } from "http-status-codes";
 import { prisma } from "../../core/config/prisma.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { resolveCompanyId } from "../employee/employee.service.js";
 import type {
   CheckInInput,
   CheckOutInput,
@@ -20,21 +21,6 @@ const DAY_NAMES = [
   "friday",
   "saturday",
 ] as const;
-
-/**
- * Resolves caller tenant company ID
- */
-const resolveCompanyId = async (companyId?: string | null): Promise<string> => {
-  if (companyId) return companyId;
-  const fallback = await prisma.company.findFirst({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "asc" },
-  });
-  if (!fallback) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "No active company found for attendance operations");
-  }
-  return fallback.id;
-};
 
 /**
  * Resolves employee ID from input or authenticated user

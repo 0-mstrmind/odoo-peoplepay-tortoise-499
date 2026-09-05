@@ -1,6 +1,8 @@
 import { StatusCodes } from "http-status-codes";
 import { prisma } from "../../core/config/prisma.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { resolveCompanyId } from "../employee/employee.service.js";
+import { invalidateDashboardCache } from "../dashboard/dashboard.service.js";
 import type {
   CreateTimeOffTypeInput,
   UpdateTimeOffTypeInput,
@@ -11,33 +13,8 @@ import type {
   QueryRequestInput,
 } from "./timeoff.validation.js";
 
-// Helper to resolve company context or default company
-export const resolveCompanyId = async (providedCompanyId?: string | null): Promise<string> => {
-  if (providedCompanyId) {
-    const company = await prisma.company.findUnique({ where: { id: providedCompanyId } });
-    if (company) return company.id;
-  }
-
-  let defaultCompany = await prisma.company.findFirst({
-    where: { deletedAt: null },
-    orderBy: { createdAt: "asc" },
-  });
-
-  if (!defaultCompany) {
-    defaultCompany = await prisma.company.create({
-      data: {
-        name: "PeoplePay360 Inc.",
-        slug: "peoplepay360",
-        currency: "INR",
-        industry: "Information Technology",
-        country: "India",
-        timezone: "Asia/Kolkata",
-      },
-    });
-  }
-
-  return defaultCompany.id;
-};
+// Re-export cached company resolver for backward compatibility
+export { resolveCompanyId };
 
 // ==========================================
 // 1. TIME OFF TYPES SERVICES
@@ -530,8 +507,7 @@ export const createRequestService = async (
   const autoApprove = !timeOffType.approvalRequired;
 
   if (autoApprove) {
-    // Transactionally create approved request and deduct allocation
-    return prisma.$transaction(async (tx) => {
+    const approvedReq = await prisma.$transaction(async (tx) => {
       if (resolvedAllocationId) {
         const allocations: any[] = await tx.$queryRaw`
           SELECT * FROM time_off_allocations WHERE id = ${resolvedAllocationId}::uuid FOR UPDATE
@@ -576,6 +552,10 @@ export const createRequestService = async (
         },
       });
     }, { maxWait: 15000, timeout: 30000 });
+
+    invalidateDashboardCache(companyId).catch(() => {});
+
+    return approvedReq;
   }
 
   return prisma.timeOffRequest.create({
@@ -607,7 +587,7 @@ export const approveRequestService = async (
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
 
-  return prisma.$transaction(async (tx) => {
+  const approved = await prisma.$transaction(async (tx) => {
     const request = await tx.timeOffRequest.findFirst({
       where: { id, companyId, deletedAt: null },
       include: { timeOffType: true, allocation: true },
@@ -668,6 +648,10 @@ export const approveRequestService = async (
       },
     });
   }, { maxWait: 15000, timeout: 30000 });
+
+  invalidateDashboardCache(companyId).catch(() => {});
+
+  return approved;
 };
 
 export const refuseRequestService = async (

@@ -1,7 +1,9 @@
 import { StatusCodes } from "http-status-codes";
 
 import { prisma } from "../../core/config/prisma.js";
+import { logger } from "../../core/config/logger.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { cacheService } from "../../redis/services/cache.service.js";
 import { evaluateFormula } from "../../shared/utils/formulaEvaluator.js";
 import { detectCircularDependencies } from "../../shared/utils/circularDependencyChecker.js";
 
@@ -9,78 +11,110 @@ import { detectCircularDependencies } from "../../shared/utils/circularDependenc
 // SALARY STRUCTURES SERVICE
 // ─────────────────────────────────────────
 
-export const listSalaryStructuresService = async (companyId?: string) => {
-  const structures = await prisma.salaryStructure.findMany({
-    where: {
-      deletedAt: null,
-      ...(companyId ? { companyId } : {}),
-    },
-    include: {
-      structureRules: true,
-      contracts: {
-        where: {
-          status: "active",
-          deletedAt: null,
-        },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+/**
+ * Invalidate cached salary structures and rules
+ */
+export const invalidateSalaryCache = async (companyId?: string): Promise<void> => {
+  try {
+    if (companyId) {
+      await cacheService.delByPattern(`salary:*${companyId}*`);
+    } else {
+      await cacheService.delByPattern("salary:*");
+    }
+    logger.debug(`[Salary] Cache invalidated for: ${companyId || "all"}`);
+  } catch (err) {
+    logger.warn(`[Salary] Failed to invalidate cache: ${(err as Error).message}`);
+  }
+};
 
-  return structures.map((s) => ({
-    id: s.id,
-    name: s.name,
-    code: s.code,
-    description: s.description,
-    active: s.isActive,
-    ruleCount: s.structureRules.length,
-    employeeCount: s.contracts.length,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
-  }));
+export const listSalaryStructuresService = async (companyId?: string) => {
+  const cacheKey = `salary:structures:${companyId || "all"}`;
+
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      const structures = await prisma.salaryStructure.findMany({
+        where: {
+          deletedAt: null,
+          ...(companyId ? { companyId } : {}),
+        },
+        include: {
+          structureRules: true,
+          contracts: {
+            where: {
+              status: "active",
+              deletedAt: null,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return structures.map((s) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+        description: s.description,
+        active: s.isActive,
+        ruleCount: s.structureRules.length,
+        employeeCount: s.contracts.length,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+      }));
+    },
+    3600, // 1 hour TTL
+  );
 };
 
 export const getSalaryStructureByIdService = async (id: string) => {
-  const structure = await prisma.salaryStructure.findFirst({
-    where: { id, deletedAt: null },
-    include: {
-      structureRules: {
-        orderBy: { sequence: "asc" },
+  const cacheKey = `salary:structure:${id}`;
+
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      const structure = await prisma.salaryStructure.findFirst({
+        where: { id, deletedAt: null },
         include: {
-          rule: true,
+          structureRules: {
+            orderBy: { sequence: "asc" },
+            include: {
+              rule: true,
+            },
+          },
         },
-      },
+      });
+
+      if (!structure) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Salary structure not found");
+      }
+
+      return {
+        id: structure.id,
+        name: structure.name,
+        code: structure.code,
+        description: structure.description,
+        active: structure.isActive,
+        rules: structure.structureRules.map((sr) => ({
+          structureRuleId: sr.id,
+          ruleId: sr.rule.id,
+          name: sr.rule.name,
+          code: sr.rule.code,
+          category: sr.rule.category,
+          sequence: sr.sequence,
+          computationMethod: sr.rule.computationMethod,
+          amount: sr.rule.amount ? Number(sr.rule.amount) : null,
+          percentageValue: sr.rule.percentageValue ? Number(sr.rule.percentageValue) : null,
+          basedOnCode: sr.rule.basedOnCode,
+          formula: sr.rule.formula,
+          appearsOnPayslip: sr.rule.appearsOnPayslip,
+          isEnabled: sr.isEnabled,
+        })),
+        createdAt: structure.createdAt,
+        updatedAt: structure.updatedAt,
+      };
     },
-  });
-
-  if (!structure) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Salary structure not found");
-  }
-
-  return {
-    id: structure.id,
-    name: structure.name,
-    code: structure.code,
-    description: structure.description,
-    active: structure.isActive,
-    rules: structure.structureRules.map((sr) => ({
-      structureRuleId: sr.id,
-      ruleId: sr.rule.id,
-      name: sr.rule.name,
-      code: sr.rule.code,
-      category: sr.rule.category,
-      sequence: sr.sequence,
-      computationMethod: sr.rule.computationMethod,
-      amount: sr.rule.amount ? Number(sr.rule.amount) : null,
-      percentageValue: sr.rule.percentageValue ? Number(sr.rule.percentageValue) : null,
-      basedOnCode: sr.rule.basedOnCode,
-      formula: sr.rule.formula,
-      appearsOnPayslip: sr.rule.appearsOnPayslip,
-      isEnabled: sr.isEnabled,
-    })),
-    createdAt: structure.createdAt,
-    updatedAt: structure.updatedAt,
-  };
+    3600, // 1 hour TTL
+  );
 };
 
 export const createSalaryStructureService = async (data: {
@@ -90,7 +124,7 @@ export const createSalaryStructureService = async (data: {
   isActive?: boolean;
   companyId?: string | null;
 }) => {
-  return prisma.salaryStructure.create({
+  const created = await prisma.salaryStructure.create({
     data: {
       name: data.name,
       code: data.code || null,
@@ -99,6 +133,10 @@ export const createSalaryStructureService = async (data: {
       companyId: data.companyId || null,
     },
   });
+
+  await invalidateSalaryCache(data.companyId || undefined);
+
+  return created;
 };
 
 export const updateSalaryStructureService = async (
@@ -143,7 +181,7 @@ export const updateSalaryStructureService = async (
     }
   }
 
-  return prisma.salaryStructure.update({
+  const updated = await prisma.salaryStructure.update({
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
@@ -152,6 +190,10 @@ export const updateSalaryStructureService = async (
       ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
     },
   });
+
+  await invalidateSalaryCache(structure.companyId || undefined);
+
+  return updated;
 };
 
 export const addRuleToStructureService = async (
@@ -201,21 +243,26 @@ export const addRuleToStructureService = async (
     where: { structureId_ruleId: { structureId, ruleId } },
   });
 
+  let result;
   if (existingLink) {
-    return prisma.structureRule.update({
+    result = await prisma.structureRule.update({
       where: { id: existingLink.id },
       data: { sequence },
     });
+  } else {
+    result = await prisma.structureRule.create({
+      data: {
+        structureId,
+        ruleId,
+        sequence,
+        companyId: companyId || structure.companyId || null,
+      },
+    });
   }
 
-  return prisma.structureRule.create({
-    data: {
-      structureId,
-      ruleId,
-      sequence,
-      companyId: companyId || structure.companyId || null,
-    },
-  });
+  await invalidateSalaryCache(companyId || structure.companyId || undefined);
+
+  return result;
 };
 
 export const updateStructureRuleSequenceService = async (structureId: string, ruleId: string, sequence: number) => {
@@ -227,10 +274,14 @@ export const updateStructureRuleSequenceService = async (structureId: string, ru
     throw new ApiError(StatusCodes.NOT_FOUND, "Rule link in structure not found");
   }
 
-  return prisma.structureRule.update({
+  const updated = await prisma.structureRule.update({
     where: { id: link.id },
     data: { sequence },
   });
+
+  await invalidateSalaryCache(link.companyId || undefined);
+
+  return updated;
 };
 
 export const removeRuleFromStructureService = async (structureId: string, ruleId: string) => {
@@ -242,9 +293,13 @@ export const removeRuleFromStructureService = async (structureId: string, ruleId
     throw new ApiError(StatusCodes.NOT_FOUND, "Rule link in structure not found");
   }
 
-  return prisma.structureRule.delete({
+  const deleted = await prisma.structureRule.delete({
     where: { id: link.id },
   });
+
+  await invalidateSalaryCache(link.companyId || undefined);
+
+  return deleted;
 };
 
 // ─────────────────────────────────────────
@@ -252,25 +307,41 @@ export const removeRuleFromStructureService = async (structureId: string, ruleId
 // ─────────────────────────────────────────
 
 export const listSalaryRulesService = async (companyId?: string) => {
-  return prisma.salaryRule.findMany({
-    where: {
-      deletedAt: null,
-      ...(companyId ? { companyId } : {}),
+  const cacheKey = `salary:rules:${companyId || "all"}`;
+
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      return prisma.salaryRule.findMany({
+        where: {
+          deletedAt: null,
+          ...(companyId ? { companyId } : {}),
+        },
+        orderBy: { sequence: "asc" },
+      });
     },
-    orderBy: { sequence: "asc" },
-  });
+    3600, // 1 hour TTL
+  );
 };
 
 export const getSalaryRuleByIdService = async (id: string) => {
-  const rule = await prisma.salaryRule.findFirst({
-    where: { id, deletedAt: null },
-  });
+  const cacheKey = `salary:rule:${id}`;
 
-  if (!rule) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Salary rule not found");
-  }
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      const rule = await prisma.salaryRule.findFirst({
+        where: { id, deletedAt: null },
+      });
 
-  return rule;
+      if (!rule) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Salary rule not found");
+      }
+
+      return rule;
+    },
+    3600, // 1 hour TTL
+  );
 };
 
 export const createSalaryRuleService = async (data: {
@@ -304,7 +375,7 @@ export const createSalaryRuleService = async (data: {
 
   detectCircularDependencies([...existingRules, data]);
 
-  return prisma.salaryRule.create({
+  const created = await prisma.salaryRule.create({
     data: {
       name: data.name,
       code: data.code,
@@ -321,6 +392,10 @@ export const createSalaryRuleService = async (data: {
       companyId: data.companyId || null,
     },
   });
+
+  await invalidateSalaryCache(data.companyId || undefined);
+
+  return created;
 };
 
 export const updateSalaryRuleService = async (
@@ -360,7 +435,7 @@ export const updateSalaryRuleService = async (
   const mergedRules = allRules.map((r) => (r.id === id ? updatedRule : r));
   detectCircularDependencies(mergedRules);
 
-  return prisma.salaryRule.update({
+  const updated = await prisma.salaryRule.update({
     where: { id },
     data: {
       ...(data.name !== undefined ? { name: data.name } : {}),
@@ -376,6 +451,10 @@ export const updateSalaryRuleService = async (
       ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
     },
   });
+
+  await invalidateSalaryCache(existing.companyId || undefined);
+
+  return updated;
 };
 
 export const deleteSalaryRuleService = async (id: string) => {
@@ -415,10 +494,14 @@ export const deleteSalaryRuleService = async (id: string) => {
     );
   }
 
-  return prisma.salaryRule.update({
+  const deleted = await prisma.salaryRule.update({
     where: { id },
     data: { deletedAt: new Date(), isActive: false },
   });
+
+  await invalidateSalaryCache(rule.companyId || undefined);
+
+  return deleted;
 };
 
 // ─────────────────────────────────────────

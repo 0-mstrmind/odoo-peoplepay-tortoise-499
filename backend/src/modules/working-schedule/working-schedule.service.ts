@@ -1,6 +1,8 @@
 import { StatusCodes } from "http-status-codes";
 import { prisma } from "../../core/config/prisma.js";
+import { logger } from "../../core/config/logger.js";
 import ApiError from "../../shared/utils/ApiError.js";
+import { cacheService } from "../../redis/services/cache.service.js";
 import { resolveCompanyId } from "../employee/employee.service.js";
 import type {
   CreateWorkingScheduleInput,
@@ -9,6 +11,18 @@ import type {
   QueryWorkingScheduleInput,
   ScheduleLineInput,
 } from "./working-schedule.validation.js";
+
+/**
+ * Invalidate cached working schedules for a company
+ */
+export const invalidateScheduleCache = async (companyId: string): Promise<void> => {
+  try {
+    await cacheService.delByPattern(`schedule:*${companyId}*`);
+    logger.debug(`[WorkingSchedule] Cache invalidated for company: ${companyId}`);
+  } catch (err) {
+    logger.warn(`[WorkingSchedule] Failed to invalidate cache: ${(err as Error).message}`);
+  }
+};
 
 const DAY_ORDER: Record<string, number> = {
   monday: 1,
@@ -194,80 +208,87 @@ export const getWorkingScheduleByIdService = async (
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  const cacheKey = `schedule:${companyId}:${id}`;
 
-  const schedule = await prisma.workingSchedule.findFirst({
-    where: { id, companyId, deletedAt: null },
-    include: {
-      scheduleLines: true,
-      employees: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          employeeCode: true,
-          status: true,
-          department: { select: { id: true, name: true } },
-          jobPosition: { select: { id: true, title: true } },
+  return await cacheService.getOrSet(
+    cacheKey,
+    async () => {
+      const schedule = await prisma.workingSchedule.findFirst({
+        where: { id, companyId, deletedAt: null },
+        include: {
+          scheduleLines: true,
+          employees: {
+            where: { deletedAt: null },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              employeeCode: true,
+              status: true,
+              department: { select: { id: true, name: true } },
+              jobPosition: { select: { id: true, title: true } },
+            },
+            take: 20,
+          },
+          contracts: {
+            where: { deletedAt: null },
+            select: {
+              id: true,
+              contractReference: true,
+              status: true,
+              wage: true,
+              currency: true,
+              startDate: true,
+              endDate: true,
+              employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
+            },
+            take: 20,
+          },
+          _count: {
+            select: {
+              employees: { where: { deletedAt: null } },
+              contracts: { where: { deletedAt: null } },
+            },
+          },
         },
-        take: 20,
-      },
-      contracts: {
-        where: { deletedAt: null },
-        select: {
-          id: true,
-          contractReference: true,
-          status: true,
-          wage: true,
-          currency: true,
-          startDate: true,
-          endDate: true,
-          employee: { select: { id: true, firstName: true, lastName: true, employeeCode: true } },
-        },
-        take: 20,
-      },
-      _count: {
-        select: {
-          employees: { where: { deletedAt: null } },
-          contracts: { where: { deletedAt: null } },
-        },
-      },
+      });
+
+      if (!schedule) {
+        throw new ApiError(StatusCodes.NOT_FOUND, "Working schedule not found");
+      }
+
+      // Sort lines Monday to Sunday
+      const sortedLines = [...schedule.scheduleLines].sort(
+        (a, b) => (DAY_ORDER[a.dayOfWeek.toLowerCase()] || 99) - (DAY_ORDER[b.dayOfWeek.toLowerCase()] || 99),
+      );
+
+      return {
+        id: schedule.id,
+        name: schedule.name,
+        code: schedule.code,
+        scheduleType: schedule.scheduleType,
+        totalWeeklyHours: schedule.totalWeeklyHours ? Number(schedule.totalWeeklyHours) : 0,
+        timezone: schedule.timezone,
+        isActive: schedule.isActive,
+        createdAt: schedule.createdAt,
+        updatedAt: schedule.updatedAt,
+        scheduleLines: sortedLines.map((line) => ({
+          id: line.id,
+          dayOfWeek: line.dayOfWeek,
+          startTime: line.startTime ? line.startTime.toISOString().substring(11, 16) : null,
+          endTime: line.endTime ? line.endTime.toISOString().substring(11, 16) : null,
+          breakDurationMinutes: line.breakDurationMinutes,
+          workDurationMinutes: line.workDurationMinutes,
+          isDayOff: line.isDayOff,
+        })),
+        employeesCount: schedule._count.employees,
+        contractsCount: schedule._count.contracts,
+        assignedEmployees: schedule.employees,
+        assignedContracts: schedule.contracts,
+      };
     },
-  });
-
-  if (!schedule) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Working schedule not found");
-  }
-
-  // Sort lines Monday to Sunday
-  const sortedLines = [...schedule.scheduleLines].sort(
-    (a, b) => (DAY_ORDER[a.dayOfWeek.toLowerCase()] || 99) - (DAY_ORDER[b.dayOfWeek.toLowerCase()] || 99),
+    7200, // 2 hours TTL
   );
-
-  return {
-    id: schedule.id,
-    name: schedule.name,
-    code: schedule.code,
-    scheduleType: schedule.scheduleType,
-    totalWeeklyHours: schedule.totalWeeklyHours ? Number(schedule.totalWeeklyHours) : 0,
-    timezone: schedule.timezone,
-    isActive: schedule.isActive,
-    createdAt: schedule.createdAt,
-    updatedAt: schedule.updatedAt,
-    scheduleLines: sortedLines.map((line) => ({
-      id: line.id,
-      dayOfWeek: line.dayOfWeek,
-      startTime: line.startTime ? line.startTime.toISOString().substring(11, 16) : null,
-      endTime: line.endTime ? line.endTime.toISOString().substring(11, 16) : null,
-      breakDurationMinutes: line.breakDurationMinutes,
-      workDurationMinutes: line.workDurationMinutes,
-      isDayOff: line.isDayOff,
-    })),
-    employeesCount: schedule._count.employees,
-    contractsCount: schedule._count.contracts,
-    assignedEmployees: schedule.employees,
-    assignedContracts: schedule.contracts,
-  };
 };
 
 // Create working schedule with automatic total weekly hours calculation
@@ -296,7 +317,7 @@ export const createWorkingScheduleService = async (
 
   const { processedLines, totalWeeklyHours } = processScheduleLines(input.scheduleLines || []);
 
-  return prisma.$transaction(
+  const created = await prisma.$transaction(
     async (tx) => {
       const schedule = await tx.workingSchedule.create({
         data: {
@@ -332,6 +353,10 @@ export const createWorkingScheduleService = async (
     },
     { timeout: 30000, maxWait: 15000 },
   );
+
+  await invalidateScheduleCache(companyId);
+
+  return created;
 };
 
 // Update working schedule and optionally replace schedule lines with automatic recalculation
@@ -360,7 +385,7 @@ export const updateWorkingScheduleService = async (
     }
   }
 
-  return prisma.$transaction(
+  const updated = await prisma.$transaction(
     async (tx) => {
       let updatedTotalHours = existing.totalWeeklyHours;
 
@@ -385,7 +410,7 @@ export const updateWorkingScheduleService = async (
         });
       }
 
-      const updated = await tx.workingSchedule.update({
+      const res = await tx.workingSchedule.update({
         where: { id },
         data: {
           name: input.name,
@@ -398,10 +423,14 @@ export const updateWorkingScheduleService = async (
         include: { scheduleLines: true },
       });
 
-      return updated;
+      return res;
     },
     { timeout: 30000, maxWait: 15000 },
   );
+
+  await invalidateScheduleCache(companyId);
+
+  return updated;
 };
 
 // Soft delete working schedule
@@ -434,10 +463,14 @@ export const deleteWorkingScheduleService = async (
     );
   }
 
-  return prisma.workingSchedule.update({
+  const deleted = await prisma.workingSchedule.update({
     where: { id },
     data: { deletedAt: new Date(), isActive: false },
   });
+
+  await invalidateScheduleCache(companyId);
+
+  return deleted;
 };
 
 // Assign schedule to employees or contracts (PDF Section A3)
@@ -456,7 +489,7 @@ export const assignScheduleService = async (
     throw new ApiError(StatusCodes.NOT_FOUND, "Working schedule not found");
   }
 
-  return prisma.$transaction(
+  const assignmentResult = await prisma.$transaction(
     async (tx) => {
       let employeesUpdated = 0;
       let contractsUpdated = 0;
@@ -494,4 +527,8 @@ export const assignScheduleService = async (
     },
     { timeout: 30000, maxWait: 15000 },
   );
+
+  await invalidateScheduleCache(companyId);
+
+  return assignmentResult;
 };
