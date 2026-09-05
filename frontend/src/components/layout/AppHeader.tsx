@@ -1,6 +1,6 @@
 import React from 'react'
 import { useLocation } from 'react-router-dom'
-import { PanelLeft, PanelLeftClose, ChevronRight, Building2, ShieldCheck } from 'lucide-react'
+import { PanelLeft, PanelLeftClose, ChevronRight, Building2, ShieldCheck, Settings } from 'lucide-react'
 import type { AuthUser } from '@/store/auth.store'
 import { NotificationDropdown } from './NotificationDropdown'
 
@@ -10,6 +10,7 @@ export interface AppHeaderProps {
   currentView?: string
   activeSubItem?: string
   user: AuthUser | null
+  onOpenProfileModal?: (tab?: 'profile' | 'password') => void
 }
 
 export const AppHeader: React.FC<AppHeaderProps> = ({
@@ -18,6 +19,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   currentView,
   activeSubItem,
   user,
+  onOpenProfileModal,
 }) => {
   const location = useLocation()
   const pathname = location.pathname
@@ -95,8 +97,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right side: Tenant Workspace Badge, Notifications, User Status */}
-      <div className="flex items-center gap-3">
+      {/* Right side: Tenant Workspace Badge, Notifications, User Profile & Settings */}
+      <div className="flex items-center gap-2.5">
         <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-[4px] bg-[rgba(113,72,103,0.08)] border border-[rgba(113,72,103,0.2)] text-xs font-semibold text-[var(--color-primary)]">
           <Building2 className="w-3.5 h-3.5" />
           <span>PeoplePay360 Tenant</span>
@@ -109,8 +111,23 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => onOpenProfileModal?.('profile')}
+          className="flex items-center gap-2 px-2.5 py-1 rounded-[6px] bg-[var(--color-bg-muted)] border border-[var(--color-border)] text-xs font-semibold text-[var(--color-text-heading)] hover:border-[var(--color-primary)] transition-all cursor-pointer shadow-2xs"
+          title="Edit My Profile & Password Settings"
+        >
+          <div className="w-5 h-5 rounded-full bg-[var(--color-primary)] text-white text-[10px] font-bold flex items-center justify-center">
+            {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+          </div>
+          <span className="hidden sm:inline font-bold">{user?.name || user?.email?.split('@')[0] || 'My Profile'}</span>
+          <Settings className="w-3.5 h-3.5 text-[var(--color-text-muted)] hover:text-[var(--color-primary)]" />
+        </button>
+
         <NotificationDropdown />
       </div>
     </header>
   )
 }
+
+

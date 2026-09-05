@@ -98,13 +98,14 @@ export const TimeOffView: React.FC = () => {
   )
   const [forceNote, setForceNote] = useState('')
 
-  // API Queries - all company leave requests
+  // API Queries - all company leave requests (or personal requests for standard employee)
   const {
     data: allRequests = [],
     isLoading,
     refetch,
     isRefetching,
   } = useTimeOffRequests({
+    employeeId: isStandardEmployee ? myEmployee?.id : undefined,
     departmentId: selectedDepartment !== 'all' ? selectedDepartment : undefined,
     timeOffTypeId: selectedType !== 'all' ? selectedType : undefined,
     search: searchQuery,
@@ -772,8 +773,8 @@ export const TimeOffView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Attention Banner: If there are pending leave requests */}
-      {pendingRequests.length > 0 && activeTab !== 'requests' && (
+      {/* 4. Attention Banner: If there are pending leave requests for HR/Managers */}
+      {!isStandardEmployee && canApprove && pendingRequests.length > 0 && activeTab !== 'requests' && (
         <div className="pp-card p-3 border border-amber-500/30 bg-amber-500/10 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2.5">
             <div className="w-7 h-7 rounded-full bg-amber-500/20 text-amber-600 flex items-center justify-center font-bold text-xs shrink-0">
@@ -812,7 +813,7 @@ export const TimeOffView: React.FC = () => {
             }`}
           >
             <Clock className="w-4 h-4 text-[#FFAA00]" />
-            <span>Leave Requests</span>
+            <span>{isStandardEmployee ? 'My Pending Requests' : 'Leave Requests'}</span>
             <span
               className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                 activeTab === 'requests'
@@ -848,7 +849,7 @@ export const TimeOffView: React.FC = () => {
         <div className="pp-card border border-[var(--color-border)] shadow-xs rounded-[6px] overflow-hidden">
           <div className="p-3.5 border-b border-[var(--color-border)] bg-[var(--color-bg-muted)] flex items-center justify-between">
             <h3 className="text-xs font-bold text-[var(--color-text-heading)] uppercase tracking-wider mb-0">
-              Pending Leave Requests Requiring Approval
+              {isStandardEmployee ? 'My Pending Leave Submissions' : 'Pending Leave Requests Requiring Approval'}
             </h3>
             <span className="text-[11px] text-[var(--color-text-muted)]">
               {pendingRequests.length} pending request{pendingRequests.length === 1 ? '' : 's'}

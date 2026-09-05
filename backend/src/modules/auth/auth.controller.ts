@@ -9,6 +9,8 @@ import {
   loginService,
   updateUserRoleService,
   updateUserStatusService,
+  updateMyProfileService,
+  updateMyPasswordService,
 } from "./auth.service.js";
 
 export const login = CatchAsync(async (req: Request, res: Response) => {
@@ -20,6 +22,18 @@ export const login = CatchAsync(async (req: Request, res: Response) => {
 export const getMe = CatchAsync(async (req: Request, res: Response) => {
   const user = await getMeService(req.user!.id);
   sendResponse(res, StatusCodes.OK, "User profile fetched successfully", { user });
+});
+
+export const updateMyProfile = CatchAsync(async (req: Request, res: Response) => {
+  const { firstName, lastName, phone } = req.body;
+  const user = await updateMyProfileService(req.user!.id, { firstName, lastName, phone });
+  sendResponse(res, StatusCodes.OK, "Profile information updated successfully", { user });
+});
+
+export const updateMyPassword = CatchAsync(async (req: Request, res: Response) => {
+  const { currentPassword, newPassword } = req.body;
+  const result = await updateMyPasswordService(req.user!.id, { currentPassword, newPassword });
+  sendResponse(res, StatusCodes.OK, "Password updated successfully", result);
 });
 
 export const listUsers = CatchAsync(async (req: Request, res: Response) => {
@@ -42,4 +56,4 @@ export const updateUserStatus = CatchAsync(async (req: Request, res: Response) =
   const companyId = req.user?.role === "admin" ? undefined : req.user?.companyId || undefined;
   const updatedUser = await updateUserStatusService(targetId, isActive, companyId);
   sendResponse(res, StatusCodes.OK, "User status updated successfully", { user: updatedUser });
-});
+});

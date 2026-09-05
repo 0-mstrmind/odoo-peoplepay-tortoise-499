@@ -3,10 +3,14 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { Toaster, toast } from 'sonner'
 import { AppSidebar } from './AppSidebar'
 import { AppHeader } from './AppHeader'
+import { MyProfileModal } from '../profile/MyProfileModal'
 import { useAuthStore, useAuthUser } from '@/store/auth.store'
 
 export const AppLayout: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const [profileModalTab, setProfileModalTab] = useState<'profile' | 'password'>('profile')
+
   const user = useAuthUser()
   const logout = useAuthStore((s) => s.logout)
   const navigate = useNavigate()
@@ -34,6 +38,11 @@ export const AppLayout: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  const handleOpenProfileModal = (tab: 'profile' | 'password' = 'profile') => {
+    setProfileModalTab(tab)
+    setIsProfileModalOpen(true)
+  }
+
   const handleSignOut = () => {
     logout()
     navigate('/login', { replace: true })
@@ -48,6 +57,7 @@ export const AppLayout: React.FC = () => {
         onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
         user={user}
         onSignOut={handleSignOut}
+        onOpenProfileModal={handleOpenProfileModal}
       />
 
       {/* Main Content Area offset by Sidebar width */}
@@ -61,15 +71,24 @@ export const AppLayout: React.FC = () => {
           isSidebarCollapsed={isSidebarCollapsed}
           onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
           user={user}
+          onOpenProfileModal={handleOpenProfileModal}
         />
 
         {/* View Workspace Container */}
         <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 lg:p-8">
-          <Outlet />
+          <Outlet context={{ onOpenProfileModal: handleOpenProfileModal }} />
         </main>
       </div>
+
+      {/* My Profile & Security Modal */}
+      <MyProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        defaultTab={profileModalTab}
+      />
 
       <Toaster position="top-right" richColors />
     </div>
   )
 }
+

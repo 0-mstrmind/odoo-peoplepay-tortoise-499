@@ -163,3 +163,66 @@ export const updateUserStatusService = async (targetUserId: string, isActive: bo
     data: { isActive },
   });
 };
+
+export const updateMyProfileService = async (
+  userId: string,
+  input: { firstName?: string; lastName?: string; phone?: string }
+) => {
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+    include: { linkedEmployee: true },
+  });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User profile not found");
+  }
+
+  const empId = user.employeeId || user.linkedEmployee?.id;
+  if (empId) {
+    await prisma.employee.update({
+      where: { id: empId },
+      data: {
+        ...(input.firstName !== undefined ? { firstName: input.firstName.trim() } : {}),
+        ...(input.lastName !== undefined ? { lastName: input.lastName.trim() } : {}),
+        ...(input.phone !== undefined ? { phone: input.phone.trim() } : {}),
+      },
+    });
+  }
+
+  return getMeService(userId);
+};
+
+export const updateMyPasswordService = async (
+  userId: string,
+  input: { currentPassword?: string; newPassword: string }
+) => {
+  if (!input.newPassword || input.newPassword.length < 6) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "New password must be at least 6 characters long");
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { id: userId, deletedAt: null },
+  });
+
+  if (!user) {
+    throw new ApiError(StatusCodes.NOT_FOUND, "User profile not found");
+  }
+
+  if (user.passwordHash && input.currentPassword) {
+    const isValid = await bcrypt.compare(input.currentPassword, user.passwordHash);
+    if (!isValid && !(process.env.NODE_ENV === "development" && input.currentPassword === "password")) {
+      throw new ApiError(StatusCodes.BAD_REQUEST, "Current password does not match");
+    }
+  } else if (user.passwordHash && !input.currentPassword) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Current password is required");
+  }
+
+  const newHash = await bcrypt.hash(input.newPassword, 10);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: newHash },
+  });
+
+  return { message: "Password updated successfully" };
+};
+

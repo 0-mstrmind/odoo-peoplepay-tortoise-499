@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useOutletContext } from 'react-router-dom'
 import {
   Users,
   ShieldCheck,
@@ -22,6 +22,7 @@ import {
   Phone,
   MapPin,
   Landmark,
+  Settings,
 } from 'lucide-react'
 import { useAuthUser, useCompanyId, canAccessPayroll, canAccessUserManagement } from '@/store/auth.store'
 import { useDashboardOverview, useMyEmployeeProfile } from '@/hooks/use-api'
@@ -46,6 +47,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToUserManagement,
 }) => {
   const navigate = useNavigate()
+  const outletContext = useOutletContext<{ onOpenProfileModal?: (tab?: 'profile' | 'password') => void }>()
+  const onOpenProfileModal = outletContext?.onOpenProfileModal
+
   const user = useAuthUser()
   const companyId = useCompanyId()
   const { data: overviewData } = useDashboardOverview()
@@ -291,32 +295,45 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </p>
         </div>
 
-        {!isEmployee && (
-          <div className="flex items-center gap-2">
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={onNavigateToUserManagement}
-                className="pp-btn-primary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>User Access Management</span>
-              </button>
-            )}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          <button
+            type="button"
+            onClick={() => onOpenProfileModal?.('profile')}
+            className="pp-btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer font-bold shadow-xs hover:border-[var(--color-primary)]"
+            title="Edit Profile & Change Password"
+          >
+            <Settings className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+            <span>Edit Profile & Security</span>
+          </button>
 
-            {onNavigateToEmployees && (
-              <button
-                type="button"
-                onClick={onNavigateToEmployees}
-                className="pp-btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer"
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Employee Directory</span>
-              </button>
-            )}
-          </div>
-        )}
+          {!isEmployee && (
+            <>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={onNavigateToUserManagement}
+                  className="pp-btn-primary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>User Access Management</span>
+                </button>
+              )}
+
+              {onNavigateToEmployees && (
+                <button
+                  type="button"
+                  onClick={onNavigateToEmployees}
+                  className="pp-btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Employee Directory</span>
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
+
 
       {/* Action Notification Alert */}
       {actionFeedback && (
