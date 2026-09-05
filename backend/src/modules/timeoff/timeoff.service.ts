@@ -570,7 +570,7 @@ export const createRequestService = async (
           approvedAt: new Date(),
         },
         include: {
-          employee: { select: { id: true, firstName: true, lastName: true } },
+          employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
           timeOffType: { select: { id: true, name: true } },
           allocation: true,
         },
@@ -593,7 +593,7 @@ export const createRequestService = async (
       status: "pending",
     },
     include: {
-      employee: { select: { id: true, firstName: true, lastName: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
       timeOffType: { select: { id: true, name: true } },
       allocation: true,
     },
@@ -662,7 +662,7 @@ export const approveRequestService = async (
         approvedAt: new Date(),
       },
       include: {
-        employee: { select: { id: true, firstName: true, lastName: true } },
+        employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
         timeOffType: { select: { id: true, name: true } },
         allocation: true,
       },
@@ -689,7 +689,7 @@ export const refuseRequestService = async (
       refusalReason: refusalReason || null,
     },
     include: {
-      employee: { select: { id: true, firstName: true, lastName: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
       timeOffType: { select: { id: true, name: true } },
     },
   });
@@ -761,7 +761,7 @@ export const updateRequestService = async (
       allocationId: resolvedAllocationId,
     },
     include: {
-      employee: { select: { id: true, firstName: true, lastName: true } },
+      employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
       timeOffType: { select: { id: true, name: true } },
       allocation: true,
     },
@@ -804,6 +804,10 @@ export const cancelRequestService = async (id: string, callerCompanyId?: string 
     return tx.timeOffRequest.update({
       where: { id },
       data: { status: "cancelled" },
+      include: {
+        employee: { select: { id: true, firstName: true, lastName: true, userId: true } },
+        timeOffType: { select: { id: true, name: true } },
+      },
     });
   });
 };
