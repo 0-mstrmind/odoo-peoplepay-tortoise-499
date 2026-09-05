@@ -2,6 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import apiClient from '@/lib/axios'
 import { useCompanyId } from '@/store/auth.store'
 
+export interface PayslipLineItem {
+  id: string
+  ruleCode: string
+  ruleName: string
+  category: string
+  sequence?: number
+  amount: number
+}
+
 export interface PayslipItem {
   id: string
   companyId: string
@@ -17,13 +26,31 @@ export interface PayslipItem {
   gross: number
   totalDeductions: number
   net: number
+  paidAt?: string
+  createdAt?: string
+  payrun?: {
+    id: string
+    name: string
+    periodLabel: string
+    status?: string
+  }
   employee?: {
     id: string
     firstName: string
     lastName: string
     employeeCode: string
+    email?: string
     department?: { name: string }
+    jobPosition?: { title: string }
   }
+  contract?: {
+    contractReference: string
+    wage: number
+  }
+  structure?: {
+    name: string
+  }
+  payslipLines?: PayslipLineItem[]
 }
 
 export interface PayrunItem {
@@ -57,6 +84,25 @@ export function usePayslips(params?: { payrunId?: string; employeeId?: string })
       return []
     },
     enabled: !!companyId,
+  })
+}
+
+/**
+  Fetch detailed payslip breakdown by ID
+ */
+export function usePayslipDetail(id?: string | null) {
+  const companyId = useCompanyId()
+
+  return useQuery({
+    queryKey: ['payroll', 'payslip', id, companyId],
+    queryFn: async () => {
+      if (!id) return null
+      const response = await apiClient.get<{ success: boolean; data: { item: PayslipItem } }>(
+        `/payslips/${id}`
+      )
+      return response.data?.data?.item || (response.data as any)
+    },
+    enabled: !!companyId && !!id,
   })
 }
 

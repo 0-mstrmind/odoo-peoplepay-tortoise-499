@@ -8,6 +8,7 @@ import { ContractsView } from './components/contracts/ContractsView'
 import { AttendanceView } from './components/attendance/AttendanceView'
 import { TimeOffView } from './components/timeoff/TimeOffView'
 import { PayrollView } from './components/payroll/PayrollView'
+import { PayoutHistoryView } from './components/payroll/PayoutHistoryView'
 import { UserManagementView } from './components/auth/UserManagementView'
 import { AuthPage } from './components/auth/AuthPage'
 import { ProtectedRoute, PublicRoute } from './components/auth/ProtectedRoute'
@@ -85,6 +86,10 @@ function App() {
           {/* Time Off: All authenticated users (Employees submit, HR approves) */}
           <Route path="time-off" element={<TimeOffView />} />
           <Route path="timeoff" element={<Navigate to="/time-off" replace />} />
+
+          {/* Payout & Payslip History: All authenticated users */}
+          <Route path="payouts" element={<PayoutHistoryView />} />
+          <Route path="payout-history" element={<Navigate to="/payouts" replace />} />
 
           {/* Payroll Engine: HR Payroll User, HR Payroll Manager, and Admin Only */}
           <Route

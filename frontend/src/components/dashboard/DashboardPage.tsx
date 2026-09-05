@@ -452,9 +452,19 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                   </p>
                 </div>
               </div>
-              <span className="pp-badge pp-badge-success text-xs font-mono font-bold self-start sm:self-auto">
-                Ref: {contractRef}
-              </span>
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => navigate('/payouts')}
+                  className="pp-btn-secondary text-xs py-1.5 px-3 rounded font-bold flex items-center gap-1.5 cursor-pointer hover:bg-[var(--color-primary)] hover:text-white transition-colors"
+                >
+                  <FileText className="w-3.5 h-3.5 text-[var(--color-primary)] hover:text-white" />
+                  <span>View Full Payout History</span>
+                </button>
+                <span className="pp-badge pp-badge-success text-xs font-mono font-bold">
+                  Ref: {contractRef}
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pt-1">
