@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { logger } from "../config/logger.js";
+import { env } from "../config/env.js";
 
 export interface UserCredentialsEmailParams {
   email: string;
@@ -8,25 +9,40 @@ export interface UserCredentialsEmailParams {
   role: string;
   companyName?: string;
   loginUrl?: string;
+  isUpdate?: boolean;
 }
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const resendFromEmail = process.env.RESEND_FROM_EMAIL || "PeoplePay360 <onboarding@resend.dev>";
+/**
+ * Lazily resolves the Resend client with validated API key
+ */
+function getResendClient(): { client: Resend | null; fromEmail: string } {
+  const apiKey = env.RESEND_API_KEY || process.env.RESEND_API_KEY || "";
+  const fromEmail = env.RESEND_FROM_EMAIL || process.env.RESEND_FROM_EMAIL || "PeoplePay <noreply@mstrmind.in>";
 
-let resendClient: Resend | null = null;
-if (resendApiKey && !resendApiKey.includes("123456789")) {
-  try {
-    resendClient = new Resend(resendApiKey);
-  } catch (err: any) {
-    logger.warn(`[Email] Failed to initialize Resend client: ${err.message}`);
+  if (apiKey && !apiKey.includes("123456789") && apiKey.startsWith("re_")) {
+    try {
+      return { client: new Resend(apiKey), fromEmail };
+    } catch (err: any) {
+      logger.warn(`[Email Service] Failed to initialize Resend client: ${err.message}`);
+    }
   }
+
+  return { client: null, fromEmail };
 }
 
 /**
  * Send newly generated user account credentials to the employee's work email
  */
-export async function sendUserCredentialsEmail(params: UserCredentialsEmailParams): Promise<{ success: boolean; messageId?: string }> {
-  const { email, name, password, role, companyName = "PeoplePay360", loginUrl = "http://localhost:5173/login" } = params;
+export async function sendUserCredentialsEmail(params: UserCredentialsEmailParams): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  const {
+    email,
+    name,
+    password,
+    role,
+    companyName = "PeoplePay360",
+    loginUrl = "http://localhost:5173/login",
+    isUpdate = false,
+  } = params;
 
   const htmlContent = `
     <!DOCTYPE html>
@@ -63,8 +79,9 @@ export async function sendUserCredentialsEmail(params: UserCredentialsEmailParam
           <div class="content">
             <div class="greeting">Hello ${name},</div>
             <p class="message">
-              Your user account for the <strong>${companyName}</strong> portal has been created.
-              You can now sign in using the credentials provided below.
+              ${isUpdate
+                ? `Your account password for the <strong>${companyName}</strong> portal has been updated. You can now sign in using the updated credentials provided below.`
+                : `Your user account for the <strong>${companyName}</strong> portal has been created. You can now sign in using the credentials provided below.`}
             </p>
 
             <div class="card">
@@ -77,7 +94,7 @@ export async function sendUserCredentialsEmail(params: UserCredentialsEmailParam
                 <span class="value">${role}</span>
               </div>
               <div class="credential-row">
-                <span class="label">Temporary Password:</span>
+                <span class="label">${isUpdate ? 'New Password:' : 'Temporary Password:'}</span>
                 <span class="password-value">${password}</span>
               </div>
             </div>
@@ -98,34 +115,39 @@ export async function sendUserCredentialsEmail(params: UserCredentialsEmailParam
     </html>
   `;
 
-  if (resendClient) {
+  const { client, fromEmail } = getResendClient();
+  const subject = isUpdate
+    ? `Your ${companyName} Portal Password Has Been Updated`
+    : `Welcome to ${companyName} — Your Account Credentials`;
+
+  if (client) {
     try {
-      const response = await resendClient.emails.send({
-        from: resendFromEmail,
+      const response = await client.emails.send({
+        from: fromEmail,
         to: [email],
-        subject: `Welcome to ${companyName} — Your Account Credentials`,
+        subject,
         html: htmlContent,
       });
 
       if (response.error) {
         logger.warn(`[Email Service] Resend returned an error for ${email}: ${response.error.message}`);
-        // Log credentials in console as fallback
         logger.info(`[Email Service - Fallback Log] Credentials for ${email}: Password: [${password}], Role: [${role}]`);
-        return { success: false };
+        return { success: false, error: response.error.message };
       }
 
-      logger.info(`[Email Service] Welcome email successfully dispatched to ${email} (Message ID: ${response.data?.id})`);
+      logger.info(`[Email Service] Credentials email successfully dispatched to ${email} (Message ID: ${response.data?.id})`);
       return { success: true, messageId: response.data?.id };
     } catch (err: any) {
       logger.warn(`[Email Service] Error dispatching email via Resend to ${email}: ${err.message}`);
       logger.info(`[Email Service - Fallback Log] Credentials for ${email}: Password: [${password}], Role: [${role}]`);
-      return { success: false };
+      return { success: false, error: err.message };
     }
   } else {
     // Development / Offline mode: Cleanly log credentials to backend console
     logger.info(`=======================================================`);
-    logger.info(`[EMAIL SERVICE DEV MOCK] Welcome Email Dispatched`);
+    logger.info(`[EMAIL SERVICE DEV MOCK] Credentials Email Dispatched`);
     logger.info(`To: ${email} (${name})`);
+    logger.info(`Subject: ${subject}`);
     logger.info(`Role: ${role}`);
     logger.info(`Password: ${password}`);
     logger.info(`Login URL: ${loginUrl}`);

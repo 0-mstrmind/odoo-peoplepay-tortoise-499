@@ -44,10 +44,10 @@ export const createUser = CatchAsync(async (req: Request, res: Response) => {
 export const updateUser = CatchAsync(async (req: Request, res: Response) => {
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const body = {
-    role: req.body.role,
+    role: req.body.role || undefined,
     isActive: req.body.isActive ?? req.body.is_active,
-    email: req.body.email,
-    password: req.body.password,
+    email: req.body.email && typeof req.body.email === "string" && req.body.email.trim() ? req.body.email.trim() : undefined,
+    password: req.body.password && typeof req.body.password === "string" && req.body.password.trim() ? req.body.password.trim() : undefined,
   };
 
   const input = updateUserSchema.parse(body);

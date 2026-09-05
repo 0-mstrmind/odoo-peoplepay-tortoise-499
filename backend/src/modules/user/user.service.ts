@@ -8,40 +8,42 @@ import { sendUserCredentialsEmail } from "../../core/services/email.service.js";
 import type { CreateUserInput, UpdateUserInput, QueryUserInput } from "./user.validation.js";
 
 // Optional Clerk SDK helper (graceful fallback if keys missing)
-let createClerkUser: ((email: string) => Promise<string | null>) | null = null;
-let deleteClerkUser: ((clerkUserId: string) => Promise<void>) | null = null;
-
-try {
+async function getClerkClient() {
   const clerkSecretKey = process.env.CLERK_SECRET_KEY;
-  if (clerkSecretKey) {
-    // Dynamically import clerk express if available
+  if (!clerkSecretKey) return null;
+  try {
     const { createClerkClient } = await import("@clerk/express");
-    const clerkClient = createClerkClient({ secretKey: clerkSecretKey });
-
-    createClerkUser = async (email: string) => {
-      try {
-        const user = await clerkClient.users.createUser({
-          emailAddress: [email],
-          skipPasswordRequirement: true,
-        });
-        return user.id;
-      } catch (err: any) {
-        logger.warn(`[Clerk] Account creation failed for ${email}: ${err.message}`);
-        return null;
-      }
-    };
-
-    deleteClerkUser = async (clerkUserId: string) => {
-      try {
-        await clerkClient.users.deleteUser(clerkUserId);
-        logger.info(`[Clerk] Rolled back created Clerk user: ${clerkUserId}`);
-      } catch (err: any) {
-        logger.error(`[Clerk] Failed to delete rollback Clerk user ${clerkUserId}: ${err.message}`);
-      }
-    };
+    return createClerkClient({ secretKey: clerkSecretKey });
+  } catch {
+    logger.info("[Clerk] Clerk SDK not loaded; using local authentication mock keys.");
+    return null;
   }
-} catch {
-  logger.info("[Clerk] Clerk SDK not loaded; using local authentication mock keys.");
+}
+
+async function createClerkUser(email: string): Promise<string | null> {
+  const clerk = await getClerkClient();
+  if (!clerk) return null;
+  try {
+    const user = await clerk.users.createUser({
+      emailAddress: [email],
+      skipPasswordRequirement: true,
+    });
+    return user.id;
+  } catch (err: any) {
+    logger.warn(`[Clerk] Account creation failed for ${email}: ${err.message}`);
+    return null;
+  }
+}
+
+async function deleteClerkUser(clerkUserId: string): Promise<void> {
+  const clerk = await getClerkClient();
+  if (!clerk) return;
+  try {
+    await clerk.users.deleteUser(clerkUserId);
+    logger.info(`[Clerk] Rolled back created Clerk user: ${clerkUserId}`);
+  } catch (err: any) {
+    logger.error(`[Clerk] Failed to delete rollback Clerk user ${clerkUserId}: ${err.message}`);
+  }
 }
 
 /**
@@ -228,14 +230,17 @@ export const createUserService = async (
 
   // Step 4: Validate email is not already taken
   const existingEmailUser = await prisma.user.findFirst({
-    where: { email: email.toLowerCase().trim(), deletedAt: null },
+    where: {
+      email: { equals: email.toLowerCase().trim(), mode: "insensitive" },
+      deletedAt: null,
+    },
   });
 
   if (existingEmailUser) {
     throw new ApiError(
       StatusCodes.CONFLICT,
-      "Email address is already registered to another user",
-      [{ field: "email" }],
+      "A user account with this email address already exists.",
+      [{ field: "email", message: "A user account with this email address already exists." }],
     );
   }
 
@@ -243,10 +248,7 @@ export const createUserService = async (
   const passwordHash = await bcrypt.hash(password, 10);
 
   // Step 6: Clerk account creation
-  let clerkUserId: string | null = null;
-  if (createClerkUser) {
-    clerkUserId = await createClerkUser(email);
-  }
+  let clerkUserId: string | null = await createClerkUser(email);
   if (!clerkUserId) {
     clerkUserId = `clerk_user_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
@@ -281,22 +283,28 @@ export const createUserService = async (
       select: { name: true },
     });
 
-    sendUserCredentialsEmail({
-      email: email.toLowerCase().trim(),
-      name: `${employee.firstName} ${employee.lastName}`.trim(),
-      password,
-      role: normalizedRole,
-      companyName: company?.name || "PeoplePay360",
-    }).catch((emailErr) => {
-      logger.warn(`[User] Failed to send credentials email to ${email}: ${emailErr.message}`);
-    });
+    try {
+      const emailResult = await sendUserCredentialsEmail({
+        email: email.toLowerCase().trim(),
+        name: `${employee.firstName} ${employee.lastName}`.trim(),
+        password,
+        role: normalizedRole,
+        companyName: company?.name || "PeoplePay360",
+      });
+
+      if (!emailResult.success) {
+        logger.warn(`[User] Credentials email dispatch was not successful for ${email}: ${emailResult.error || "Unknown error"}`);
+      }
+    } catch (emailErr: any) {
+      logger.warn(`[User] Exception while dispatching credentials email to ${email}: ${emailErr.message}`);
+    }
 
     return newUser;
   } catch (dbErr: any) {
     logger.error(`[User] Local DB insert failed: ${dbErr.message}`);
 
     // Step 9: Rollback Clerk user account if DB insert fails
-    if (clerkUserId && deleteClerkUser && !clerkUserId.startsWith("clerk_user_")) {
+    if (clerkUserId && !clerkUserId.startsWith("clerk_user_")) {
       await deleteClerkUser(clerkUserId);
     }
 
@@ -361,9 +369,27 @@ export const updateUserService = async (
     }
   }
 
+  if (input.email && input.email.toLowerCase().trim() !== existingUser.email.toLowerCase().trim()) {
+    const emailConflict = await prisma.user.findFirst({
+      where: {
+        email: { equals: input.email.toLowerCase().trim(), mode: "insensitive" },
+        id: { not: userId },
+        deletedAt: null,
+      },
+    });
+
+    if (emailConflict) {
+      throw new ApiError(
+        StatusCodes.CONFLICT,
+        "A user account with this email address already exists.",
+        [{ field: "email", message: "A user account with this email address already exists." }],
+      );
+    }
+  }
+
   let updatedPasswordHash: string | undefined = undefined;
-  if (input.password) {
-    updatedPasswordHash = await bcrypt.hash(input.password, 10);
+  if (input.password && input.password.trim()) {
+    updatedPasswordHash = await bcrypt.hash(input.password.trim(), 10);
   }
 
   const updatedUser = await prisma.user.update({
@@ -374,7 +400,31 @@ export const updateUserService = async (
       ...(input.email ? { email: input.email.toLowerCase().trim() } : {}),
       ...(updatedPasswordHash ? { passwordHash: updatedPasswordHash } : {}),
     },
+    include: {
+      linkedEmployee: { select: { firstName: true, lastName: true } },
+      company: { select: { name: true } },
+    },
   });
+
+  // If password was updated, send updated credentials email
+  if (input.password && input.password.trim()) {
+    const empName = updatedUser.linkedEmployee
+      ? `${updatedUser.linkedEmployee.firstName} ${updatedUser.linkedEmployee.lastName}`.trim()
+      : updatedUser.email;
+
+    try {
+      await sendUserCredentialsEmail({
+        email: updatedUser.email,
+        name: empName,
+        password: input.password.trim(),
+        role: updatedUser.role,
+        companyName: updatedUser.company?.name || "PeoplePay360",
+        isUpdate: true,
+      });
+    } catch (err: any) {
+      logger.warn(`[User] Failed to send password update email to ${updatedUser.email}: ${err.message}`);
+    }
+  }
 
   return updatedUser;
 };

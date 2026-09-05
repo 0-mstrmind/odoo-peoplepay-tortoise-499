@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { UserPlus, Search, Filter, Shield } from 'lucide-react'
+import { UserPlus, Search, Filter, Shield, KeyRound, Edit3 } from 'lucide-react'
 import { type UserItem, CreateUserModal } from './CreateUserModal'
 import apiClient from '@/lib/axios'
 
@@ -32,6 +32,7 @@ export const UserManagementView: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserItem | null>(null)
+  const [modalMode, setModalMode] = useState<'edit' | 'password'>('edit')
   const [loading, setLoading] = useState(false)
 
   // 300ms Debounce effect on search input
@@ -81,11 +82,13 @@ export const UserManagementView: React.FC = () => {
 
   const handleCreateNew = () => {
     setEditingUser(null)
+    setModalMode('edit')
     setIsModalOpen(true)
   }
 
-  const handleEditUser = (user: UserItem) => {
+  const handleEditUser = (user: UserItem, mode: 'edit' | 'password' = 'edit') => {
     setEditingUser(user)
+    setModalMode(mode)
     setIsModalOpen(true)
   }
 
@@ -161,19 +164,20 @@ export const UserManagementView: React.FC = () => {
               <th>Employee</th>
               <th>Work Email</th>
               <th>Role</th>
-              <th className="text-right">Status</th>
+              <th>Status</th>
+              <th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-xs text-[var(--color-text-muted)] animate-pulse">
+                <td colSpan={6} className="py-8 text-center text-xs text-[var(--color-text-muted)] animate-pulse">
                   Loading user accounts...
                 </td>
               </tr>
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-8 text-center text-xs text-[var(--color-text-muted)] italic">
+                <td colSpan={6} className="py-8 text-center text-xs text-[var(--color-text-muted)] italic">
                   No matching user accounts found.
                 </td>
               </tr>
@@ -181,7 +185,7 @@ export const UserManagementView: React.FC = () => {
               users.map((user) => (
                 <tr
                   key={user.id}
-                  onClick={() => handleEditUser(user)}
+                  onClick={() => handleEditUser(user, 'edit')}
                   className="cursor-pointer transition-colors hover:bg-[var(--color-bg-muted)]"
                 >
                   <td className="font-semibold text-[var(--color-primary)]">
@@ -196,7 +200,7 @@ export const UserManagementView: React.FC = () => {
                       {user.role}
                     </span>
                   </td>
-                  <td className="text-right">
+                  <td>
                     <span
                       className={`pp-badge ${
                         user.status === 'active' ? 'pp-badge-success font-bold' : 'pp-badge-neutral'
@@ -204,6 +208,28 @@ export const UserManagementView: React.FC = () => {
                     >
                       {user.status === 'active' ? 'Active' : 'Inactive'}
                     </span>
+                  </td>
+                  <td className="text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleEditUser(user, 'password')}
+                        className="pp-btn-secondary text-[11px] py-1 px-2.5 inline-flex items-center gap-1 cursor-pointer hover:border-[var(--color-primary)]"
+                        title="Update or reset password"
+                      >
+                        <KeyRound className="w-3 h-3 text-[var(--color-primary)]" />
+                        <span>Update Password</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleEditUser(user, 'edit')}
+                        className="pp-btn-secondary text-[11px] py-1 px-2 inline-flex items-center gap-1 cursor-pointer"
+                        title="Edit user access"
+                      >
+                        <Edit3 className="w-3 h-3 text-[var(--color-text-muted)]" />
+                        <span>Edit</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -214,7 +240,7 @@ export const UserManagementView: React.FC = () => {
 
       {/* Footer Captions */}
       <div className="mt-4 pt-3 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between text-xs text-[var(--color-text-muted)] gap-2">
-        <span>Select a user to edit access, or create a new user.</span>
+        <span>Select a user or click &quot;Update Password&quot; to manage credentials and access.</span>
         <span className="text-[11px] italic">
           User accounts are separate from Employee records, but should be linked to an employee for access and ownership.
         </span>
@@ -226,6 +252,8 @@ export const UserManagementView: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         userToEdit={editingUser}
         onSaved={handleUserSaved}
+        existingUsers={users}
+        initialMode={modalMode}
       />
     </div>
   )

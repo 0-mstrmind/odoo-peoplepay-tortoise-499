@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Lock, AlertCircle, UserPlus, Users, Sparkles, Eye, EyeOff, Mail, ShieldAlert } from 'lucide-react'
+import { X, Lock, AlertCircle, UserPlus, Users, Sparkles, Eye, EyeOff, Mail, ShieldAlert, KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import apiClient from '@/lib/axios'
 import { useAuthUser } from '@/store/auth.store'
@@ -21,6 +21,8 @@ interface CreateUserModalProps {
   onClose: () => void
   userToEdit?: UserItem | null
   onSaved: (user: UserItem) => void
+  existingUsers?: UserItem[]
+  initialMode?: 'edit' | 'password'
 }
 
 export const ROLE_OPTIONS = [
@@ -36,6 +38,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   onClose,
   userToEdit,
   onSaved,
+  existingUsers = [],
+  initialMode = 'edit',
 }) => {
   const currentUser = useAuthUser()
   const isCurrentUserAdmin = currentUser?.role?.toLowerCase() === 'admin' || currentUser?.role?.toLowerCase() === 'super_admin'
@@ -52,6 +56,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false)
   const [role, setRole] = useState('EMPLOYEE')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [canDeactivate, setCanDeactivate] = useState(true)
@@ -89,18 +94,34 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     fetchEmployees()
   }, [isOpen, userToEdit])
 
+  // Helper to check if email is already taken by an existing user
+  const checkEmailDuplicate = (emailToCheck: string): boolean => {
+    if (!emailToCheck || !emailToCheck.trim()) return false
+    const normalized = emailToCheck.trim().toLowerCase()
+    if (userToEdit) {
+      return existingUsers.some(
+        (u) => u.id !== userToEdit.id && u.email.trim().toLowerCase() === normalized
+      )
+    } else {
+      return existingUsers.some(
+        (u) => u.email.trim().toLowerCase() === normalized
+      )
+    }
+  }
+
   // Reset or populate drawer fields on open/edit
   useEffect(() => {
     setFieldErrors({})
     setIsCreatingNewEmployee(false)
     setNewFirstName('')
     setNewLastName('')
+    setPassword('')
+    setShowPassword(false)
 
     if (userToEdit) {
       setSelectedEmployee(userToEdit.employeeId || '')
       setEmail(userToEdit.email)
-      setPassword('')
-      setShowPassword(false)
+      setIsUpdatingPassword(initialMode === 'password')
       
       // Normalize role name
       const r = userToEdit.role.toUpperCase().replace(/ /g, '_')
@@ -125,13 +146,12 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     } else {
       setSelectedEmployee('')
       setEmail('')
-      setPassword('')
-      setShowPassword(false)
+      setIsUpdatingPassword(false)
       setRole('EMPLOYEE')
       setStatus('active')
       setCanDeactivate(true)
     }
-  }, [userToEdit, isOpen])
+  }, [userToEdit, isOpen, initialMode])
 
   const generateRandomPassword = () => {
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ'
@@ -173,7 +193,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     const emp = employeesList.find((e) => e.id === empId)
     if (emp && emp.email) {
       setEmail(emp.email)
-      setFieldErrors((prev) => ({ ...prev, email: undefined }))
+      if (checkEmailDuplicate(emp.email)) {
+        setFieldErrors((prev) => ({ ...prev, email: 'A user account with this email address already exists.' }))
+      } else {
+        setFieldErrors((prev) => ({ ...prev, email: undefined }))
+      }
     }
   }
 
@@ -185,6 +209,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       const suggested = `${fname.toLowerCase().trim()}.${lname.toLowerCase().trim()}@company.com`.replace(/\s+/g, '')
       if (!email || email.endsWith('@company.com')) {
         setEmail(suggested)
+        if (checkEmailDuplicate(suggested)) {
+          setFieldErrors((prev) => ({ ...prev, email: 'A user account with this email address already exists.' }))
+        } else {
+          setFieldErrors((prev) => ({ ...prev, email: undefined }))
+        }
       }
     }
   }
@@ -192,6 +221,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setFieldErrors({})
+
+    if (!email || !email.includes('@')) {
+      setFieldErrors({ email: 'Please enter a valid work email address' })
+      return
+    }
+
+    // Pre-submission client-side duplicate check
+    if (checkEmailDuplicate(email)) {
+      setFieldErrors({ email: 'A user account with this email address already exists.' })
+      toast.error('A user account with this email address already exists.')
+      return
+    }
 
     if (!userToEdit) {
       if (isCreatingNewEmployee) {
@@ -208,11 +249,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
         setFieldErrors({ password: 'Password must be at least 6 characters' })
         return
       }
-    }
-
-    if (!email || !email.includes('@')) {
-      setFieldErrors({ email: 'Please enter a valid work email address' })
-      return
+    } else {
+      // Edit mode: if updating password, validate length
+      if (isUpdatingPassword) {
+        if (!password || !password.trim()) {
+          setFieldErrors({ password: 'New password cannot be empty when updating password' })
+          return
+        }
+        if (password.trim().length < 6) {
+          setFieldErrors({ password: 'Password must be at least 6 characters' })
+          return
+        }
+      }
     }
 
     setLoading(true)
@@ -220,10 +268,15 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     try {
       if (userToEdit && userToEdit.id) {
         // Edit Mode: PATCH /api/v1/users/:id
-        const res = await apiClient.patch(`/v1/users/${userToEdit.id}`, {
+        const updatePayload: any = {
           role,
           isActive: status === 'active',
-        })
+        }
+        if (isUpdatingPassword && password.trim()) {
+          updatePayload.password = password.trim()
+        }
+
+        const res = await apiClient.patch(`/v1/users/${userToEdit.id}`, updatePayload)
         const updated = res.data?.user || res.data?.data?.user || res.data?.data || {}
 
         const savedUser: UserItem = {
@@ -234,6 +287,12 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           role: updated.role || role,
           status: (updated.isActive ?? (status === 'active')) ? 'active' : 'inactive',
           employeeId: userToEdit.employeeId,
+        }
+
+        if (isUpdatingPassword && password.trim()) {
+          toast.success(`Password updated! New login credentials dispatched to ${userToEdit.email}`)
+        } else {
+          toast.success('User access configuration updated!')
         }
 
         onSaved(savedUser)
@@ -289,7 +348,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           employee_id: targetEmployeeId,
           email: email.trim().toLowerCase(),
           role,
-          password,
+          password: password.trim(),
           is_active: status === 'active',
         })
 
@@ -323,8 +382,16 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
         respData?.field ||
         (Array.isArray(respData?.errors) && (respData.errors[0]?.field || respData.errors[0]?.path))
 
-      if (field === 'email') {
+      const lowerMsg = String(message).toLowerCase()
+      if (
+        field === 'email' ||
+        lowerMsg.includes('already registered') ||
+        lowerMsg.includes('already in use') ||
+        lowerMsg.includes('already exists') ||
+        err.response?.status === 409
+      ) {
         setFieldErrors({ email: message })
+        toast.error(message)
       } else if (field === 'employeeId' || field === 'employee_id') {
         setFieldErrors({ employeeId: message })
       } else if (field === 'password') {
@@ -346,9 +413,19 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
           {/* Drawer Header */}
           <div className="flex items-center justify-between pb-4 border-b border-[var(--color-border)] mb-6">
             <div>
-              <span className="pp-badge pp-badge-neutral text-[10px]">Open on New User</span>
+              <span className="pp-badge pp-badge-neutral text-[10px]">
+                {userToEdit
+                  ? isUpdatingPassword
+                    ? 'Security & Password'
+                    : 'Edit User Access'
+                  : 'New User Account'}
+              </span>
               <h3 className="text-xl font-bold text-[var(--color-text-heading)] mt-1">
-                {userToEdit ? 'Edit User Access' : 'Create / Edit User'}
+                {userToEdit
+                  ? isUpdatingPassword
+                    ? 'Update User Password'
+                    : 'Edit User Access'
+                  : 'Create New User'}
               </h3>
             </div>
             <button
@@ -469,8 +546,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 disabled={!!userToEdit}
                 value={email}
                 onChange={(e) => {
-                  setEmail(e.target.value)
-                  setFieldErrors((prev) => ({ ...prev, email: undefined }))
+                  const val = e.target.value
+                  setEmail(val)
+                  if (val.trim() && checkEmailDuplicate(val)) {
+                    setFieldErrors((prev) => ({ ...prev, email: 'A user account with this email address already exists.' }))
+                  } else {
+                    setFieldErrors((prev) => ({ ...prev, email: undefined }))
+                  }
+                }}
+                onBlur={() => {
+                  if (email.trim() && checkEmailDuplicate(email)) {
+                    setFieldErrors((prev) => ({ ...prev, email: 'A user account with this email address already exists.' }))
+                  }
                 }}
                 placeholder="employee@company.com"
                 className={`pp-input text-xs ${userToEdit ? 'bg-[var(--color-bg-muted)] opacity-80 cursor-not-allowed' : ''} ${
@@ -481,6 +568,85 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                 <p className="text-[11px] text-red-600 font-semibold mt-1">{fieldErrors.email}</p>
               )}
             </div>
+
+            {/* In Edit Mode: Update User Password */}
+            {userToEdit && (
+              <div className="p-3 bg-[var(--color-bg-muted)] border border-[var(--color-border)] rounded-lg space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-[var(--color-text-heading)] flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                    <span>User Password Credentials</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsUpdatingPassword(!isUpdatingPassword)
+                      if (isUpdatingPassword) {
+                        setPassword('')
+                        setFieldErrors((prev) => ({ ...prev, password: undefined }))
+                      }
+                    }}
+                    className="text-[11px] font-bold text-[var(--color-primary)] hover:underline cursor-pointer"
+                  >
+                    {isUpdatingPassword ? 'Cancel Change' : '+ Update Password'}
+                  </button>
+                </div>
+
+                {isUpdatingPassword ? (
+                  <div className="pt-2 border-t border-[var(--color-border)] space-y-2 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-[var(--color-text-muted)] font-medium">
+                        Set a new password for this user
+                      </span>
+                      <button
+                        type="button"
+                        onClick={generateRandomPassword}
+                        className="text-[11px] font-bold text-[var(--color-primary)] hover:underline inline-flex items-center gap-1 cursor-pointer"
+                        title="Generate secure random password"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>Generate Random</span>
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value)
+                          setFieldErrors((prev) => ({ ...prev, password: undefined }))
+                        }}
+                        placeholder="Enter new password (min 6 characters)"
+                        className={`pp-input text-xs pr-10 font-mono ${fieldErrors.password ? 'border-red-500' : ''}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] rounded cursor-pointer"
+                        title={showPassword ? 'Hide password' : 'Show password'}
+                      >
+                        {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                    {fieldErrors.password && (
+                      <p className="text-[11px] text-red-600 font-semibold mt-1">{fieldErrors.password}</p>
+                    )}
+
+                    <div className="flex items-start gap-1.5 text-[11px] text-[var(--color-text-muted)] bg-[var(--color-bg-surface)] p-2 rounded border border-[var(--color-border)]">
+                      <Mail className="w-3.5 h-3.5 shrink-0 text-[var(--color-primary)] mt-0.5" />
+                      <span>
+                        Updating will immediately email the new password to <strong>{userToEdit.email}</strong>.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-[var(--color-text-muted)] mb-0">
+                    Password is saved and encrypted. Click <strong>+ Update Password</strong> to reset or generate a new password.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Password Field (Only for new user creation) */}
             {!userToEdit && (
@@ -641,7 +807,13 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             disabled={loading}
             className="pp-btn-primary w-full py-2.5 text-sm font-medium cursor-pointer"
           >
-            {loading ? 'Saving Access...' : 'Create User / Save Access'}
+            {loading
+              ? 'Saving Access...'
+              : userToEdit
+              ? isUpdatingPassword
+                ? 'Update Password & Save Access'
+                : 'Save User Access'
+              : 'Create User & Send Credentials'}
           </button>
           <p className="text-[11px] text-[var(--color-text-muted)] text-center italic bg-[var(--color-bg-surface)] p-2.5 rounded border border-[var(--color-border)]">
             User accounts are separate from Employee records, but should be linked to an employee for access and ownership.
