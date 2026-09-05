@@ -1,4 +1,4 @@
-import "express-serve-static-core";
+import "express";
 
 export interface AuthenticatedUser {
   id: string;
@@ -11,13 +11,15 @@ export interface AuthenticatedUser {
   isActive: boolean;
 }
 
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: AuthenticatedUser;
-    auth?: {
-      userId: string | null;
-      sessionId: string | null;
-    };
-    refreshToken?: string;
+declare global {
+  namespace Express {
+    interface Request {
+      user?: AuthenticatedUser;
+      auth?: {
+        userId: string | null;
+        sessionId: string | null;
+      };
+      refreshToken?: string;
+    }
   }
 }

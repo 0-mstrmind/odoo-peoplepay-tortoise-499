@@ -10,6 +10,29 @@ const clerkClient = env.CLERK_SECRET_KEY
   ? createClerkClient({ secretKey: env.CLERK_SECRET_KEY, publishableKey: env.CLERK_PUBLISHABLE_KEY })
   : null;
 
+// Helper to get or create a default tenant company
+const getDefaultCompanyId = async (): Promise<string> => {
+  let company = await prisma.company.findFirst({
+    where: { deletedAt: null },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (!company) {
+    company = await prisma.company.create({
+      data: {
+        name: "PeoplePay360 Inc.",
+        slug: "peoplepay360",
+        currency: "INR",
+        industry: "Information Technology",
+        country: "India",
+        timezone: "Asia/Kolkata",
+      },
+    });
+  }
+
+  return company.id;
+};
+
 /// Middleware to authenticate requests via Clerk token & load local PeoplePay360 database user
 export const clerkAuthMiddleware = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
   try {
@@ -31,9 +54,59 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
       }
     }
 
-    // Fallback or dev header for local testing
+    // Fallback or dev header for testing
     if (!clerkUserId && req.headers["x-clerk-user-id"]) {
       clerkUserId = req.headers["x-clerk-user-id"] as string;
+    }
+
+    if (!clerkUserId && req.headers["x-user-id"]) {
+      clerkUserId = req.headers["x-user-id"] as string;
+    }
+
+    // Dev mode convenience: allow testing roles directly via x-user-role header
+    if (!clerkUserId && env.NODE_ENV === "development" && req.headers["x-user-role"]) {
+      const devRole = (req.headers["x-user-role"] as string).toLowerCase();
+      const devEmail = req.headers["x-user-email"] as string || `dev_${devRole}@peoplepay360.com`;
+
+      let devUser = await prisma.user.findFirst({
+        where: { email: devEmail, deletedAt: null },
+      });
+
+      const companyId = await getDefaultCompanyId();
+
+      if (!devUser) {
+        devUser = await prisma.user.create({
+          data: {
+            email: devEmail,
+            role: devRole,
+            companyId,
+            isActive: true,
+          },
+        });
+      } else if (devUser.role !== devRole) {
+        devUser = await prisma.user.update({
+          where: { id: devUser.id },
+          data: { role: devRole },
+        });
+      }
+
+      req.user = {
+        id: devUser.id,
+        clerkUserId: devUser.clerkUserId,
+        email: devUser.email,
+        role: devUser.role,
+        companyId: devUser.companyId || companyId,
+        employeeId: devUser.employeeId,
+        isActive: devUser.isActive,
+      };
+
+      req.auth = {
+        userId: devUser.id,
+        sessionId: null,
+      };
+
+      next();
+      return;
     }
 
     if (!clerkUserId) {
@@ -62,17 +135,24 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
             where: { email: primaryEmail, deletedAt: null },
           });
 
+          const defaultCompanyId = await getDefaultCompanyId();
+
           if (dbUser) {
             dbUser = await prisma.user.update({
               where: { id: dbUser.id },
-              data: { clerkUserId, lastLoginAt: new Date() },
+              data: { clerkUserId, lastLoginAt: new Date(), companyId: dbUser.companyId || defaultCompanyId },
             });
           } else {
+            // If this is the very first user in the system, grant admin role
+            const userCount = await prisma.user.count({ where: { deletedAt: null } });
+            const initialRole = userCount === 0 ? "admin" : "employee";
+
             dbUser = await prisma.user.create({
               data: {
                 clerkUserId,
                 email: primaryEmail,
-                role: "employee",
+                role: initialRole,
+                companyId: defaultCompanyId,
                 isActive: true,
                 lastLoginAt: new Date(),
               },
@@ -94,12 +174,14 @@ export const clerkAuthMiddleware = async (req: Request, _res: Response, next: Ne
       return;
     }
 
+    const defaultCompanyId = dbUser.companyId || (await getDefaultCompanyId());
+
     req.user = {
       id: dbUser.id,
       clerkUserId: dbUser.clerkUserId,
       email: dbUser.email,
       role: dbUser.role,
-      companyId: dbUser.companyId,
+      companyId: defaultCompanyId,
       employeeId: dbUser.employeeId,
       isActive: dbUser.isActive,
     };
