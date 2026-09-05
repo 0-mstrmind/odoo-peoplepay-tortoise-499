@@ -6,8 +6,12 @@ import ApiError from "../../shared/utils/ApiError.js";
 import { createAccessToken } from "../../shared/utils/Token.js";
 
 export const loginService = async (email: string, password: string) => {
+  const normalizedEmail = (email || "").trim();
   const user = await prisma.user.findFirst({
-    where: { email, deletedAt: null },
+    where: {
+      email: { equals: normalizedEmail, mode: "insensitive" },
+      deletedAt: null,
+    },
   });
 
   if (!user) {

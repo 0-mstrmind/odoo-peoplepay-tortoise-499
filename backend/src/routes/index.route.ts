@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import authRoutes from "../modules/auth/auth.route.js";
+import companyRoutes from "../modules/company/company.route.js";
 import employeeRoutes from "../modules/employee/employee.route.js";
 import contractRoutes from "../modules/contract/contract.route.js";
 import { ruleRouter, structureRouter } from "../modules/salary/salary.route.js";

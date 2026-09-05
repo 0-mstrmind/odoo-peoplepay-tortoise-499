@@ -1,14 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { ChevronDown, Bell, Building2 } from 'lucide-react'
+import { ChevronDown, Bell, Building2, User } from 'lucide-react'
+import type { AuthUser } from '@/store/auth.store'
 
 export interface NavbarProps {
   activeItem?: string
   onNavigate?: (item: string) => void
+  user?: AuthUser | null
+  onSignOut?: () => void
+  onOpenAuth?: () => void
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeItem = 'Employees',
   onNavigate,
+  user,
+  onSignOut,
+  onOpenAuth,
 }) => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null)
   const navRef = useRef<HTMLDivElement>(null)
@@ -206,8 +213,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </nav>
 
-        {/* Right side items: Notification / Status Badge (matching wireframe coral square) */}
-        <div className="flex items-center gap-2.5">
+        {/* Right side items: Notification / Status Badge / Profile (matching wireframe coral square) */}
+        <div className="flex items-center gap-2 sm:gap-2.5">
           {/* Tenant badge */}
           <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-[var(--color-bg-muted)] text-[var(--color-text-muted)] text-xs font-medium border border-[var(--color-border)]">
             <Building2 className="w-3.5 h-3.5 text-[var(--color-primary)]" />
@@ -217,19 +224,76 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Notifications button */}
           <button
             type="button"
-            className="p-1.5 rounded-[4px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors"
+            className="p-1.5 rounded-[4px] text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)] transition-colors cursor-pointer"
             title="Notifications"
           >
             <Bell className="w-4 h-4" />
           </button>
 
-          {/* Wireframe Coral / Salmon Accent Badge indicator */}
-          <div className="relative" title="System Status: Connected">
-            <div className="w-6 h-6 rounded-[6px] bg-[#FF7043] flex items-center justify-center shadow-xs cursor-pointer hover:opacity-90 transition-opacity">
-              <span className="w-2 h-2 rounded-full bg-white/90" />
-            </div>
-            {/* Pulsing indicator */}
-            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#00C853] ring-2 ring-white" />
+          {/* Wireframe Coral / Salmon Accent Badge indicator + User menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => handleToggle('UserMenu')}
+              className="relative focus:outline-none cursor-pointer flex items-center gap-1.5"
+              title={user ? `${user.name} (${user.role})` : 'System Status & Auth Setup'}
+            >
+              <div className="w-6 h-6 rounded-[6px] bg-[#FF7043] flex items-center justify-center shadow-xs hover:opacity-90 transition-opacity">
+                {user?.name ? (
+                  <span className="text-white text-[10px] font-bold">
+                    {user.name.charAt(0).toUpperCase()}
+                  </span>
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-white/90" />
+                )}
+              </div>
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#00C853] ring-2 ring-white" />
+            </button>
+
+            {openDropdown === 'UserMenu' && (
+              <div className="absolute right-0 mt-2 w-56 bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-[6px] shadow-lg py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                {user ? (
+                  <div className="px-3 py-2 border-b border-[var(--color-border)]">
+                    <p className="text-xs font-bold text-[var(--color-text-heading)] truncate">
+                      {user.name || user.email}
+                    </p>
+                    <p className="text-[11px] text-[var(--color-text-muted)] truncate">{user.email}</p>
+                    <span className="mt-1 inline-block px-1.5 py-0.5 text-[10px] font-semibold bg-[rgba(113,72,103,0.1)] text-[var(--color-primary)] rounded">
+                      {user.role}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="px-3 py-2 border-b border-[var(--color-border)] text-xs text-[var(--color-text-muted)] flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-[var(--color-primary)]" />
+                    <span>Workspace: Active</span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenDropdown(null)
+                    onOpenAuth?.()
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs text-[var(--color-text-body)] hover:bg-[var(--color-bg-muted)] hover:text-[var(--color-text-heading)] font-medium cursor-pointer"
+                >
+                  {user ? 'Auth & Company Setup' : 'Sign In / Register'}
+                </button>
+
+                {user && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenDropdown(null)
+                      onSignOut?.()
+                    }}
+                    className="w-full text-left px-3 py-2 text-xs text-[#FF1744] hover:bg-[#FF1744]/10 font-medium cursor-pointer"
+                  >
+                    Sign Out
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
