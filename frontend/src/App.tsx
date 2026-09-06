@@ -24,7 +24,14 @@ function App() {
       <Routes>
         {/* Public Landing & Registration Routes */}
         <Route path="/landing" element={<LandingPage />} />
-        <Route path="/register" element={<LandingPage defaultRegisterMode={true} />} />
+        <Route
+          path="/register"
+          element={
+            <PublicRoute>
+              <AuthPage initialMode="create-company" />
+            </PublicRoute>
+          }
+        />
 
         {/* Public Authentication Route */}
         <Route

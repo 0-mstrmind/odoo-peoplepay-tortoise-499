@@ -5,10 +5,11 @@ import { CompanyCreationCard } from './CompanyCreationCard'
 
 interface AuthPageProps {
   onAuthComplete?: () => void
+  initialMode?: 'login' | 'create-company'
 }
 
-export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete }) => {
-  const [mode, setMode] = useState<'login' | 'create-company'>('login')
+export const AuthPage: React.FC<AuthPageProps> = ({ onAuthComplete, initialMode = 'login' }) => {
+  const [mode, setMode] = useState<'login' | 'create-company'>(initialMode)
   const navigate = useNavigate()
   const location = useLocation()
 
