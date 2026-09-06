@@ -8,9 +8,8 @@ import {
   Calendar,
   CreditCard,
   ShieldCheck,
-  ChevronDown,
   Building2,
-  Briefcase,
+  ChevronDown,
   LogOut,
   Settings,
 } from 'lucide-react'
@@ -72,9 +71,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const isPayouts = pathname.startsWith('/payouts') || pathname.startsWith('/payout-history')
   const isPayroll = pathname.startsWith('/payroll')
   const isUserMgmt = pathname.startsWith('/user-management')
-  const isUserTab = isUserMgmt && (!search.includes('tab=') || search.includes('tab=users'))
-  const isDeptTab = isUserMgmt && search.includes('tab=departments')
-  const isRoleTab = isUserMgmt && search.includes('tab=roles')
 
   return (
     <aside
@@ -140,77 +136,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </h4>
             )}
             <nav className="space-y-0.5">
-              {/* Employees Dropdown */}
+              {/* Employees */}
               {showEmployees && (
-                <div>
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/employees')}
-                      title="Employee Master Directory"
-                      className={`flex-1 flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                        isEmployees && !search.includes('tab=')
-                          ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                          : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                      }`}
-                    >
-                      <Users className="w-4 h-4 shrink-0" />
-                      {!isCollapsed && <span className="truncate">Employees</span>}
-                    </button>
-
-                    {!isCollapsed && (
-                      <button
-                        type="button"
-                        onClick={() => toggleSubMenu('employees')}
-                        className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)] rounded cursor-pointer"
-                      >
-                        <ChevronDown
-                          className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                            openSubMenus.employees ? 'rotate-180' : ''
-                          }`}
-                        />
-                      </button>
-                    )}
-                  </div>
-
-                  {!isCollapsed && openSubMenus.employees && (
-                    <div className="ml-6 pl-2 border-l border-[var(--color-border)] mt-1 space-y-1">
-                      <button
-                        type="button"
-                        onClick={() => navigate('/employees')}
-                        className={`w-full text-left px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer ${
-                          isEmployees && !search.includes('tab=')
-                            ? 'text-[var(--color-primary)] font-bold'
-                            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
-                        }`}
-                      >
-                        All Employees
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/user-management?tab=departments')}
-                        className={`w-full text-left px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer ${
-                          isDeptTab
-                            ? 'text-[var(--color-primary)] font-bold'
-                            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
-                        }`}
-                      >
-                        Departments
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => navigate('/user-management?tab=roles')}
-                        className={`w-full text-left px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer ${
-                          isRoleTab
-                            ? 'text-[var(--color-primary)] font-bold'
-                            : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
-                        }`}
-                      >
-                        Roles (Job Positions)
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate('/employees')}
+                  title="Employee Master Directory"
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                    isEmployees
+                      ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                      : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                  }`}
+                >
+                  <Users className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
+                  {!isCollapsed && <span className="truncate">Employees</span>}
+                </button>
               )}
 
               {/* Contracts */}
@@ -374,79 +314,24 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <nav className="space-y-0.5">
               <button
                 type="button"
-                onClick={() => navigate('/user-management?tab=users')}
-                title="User Access & Security Roles"
+                onClick={() => navigate('/user-management')}
+                title="User Access & Portal Administration"
                 className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isUserTab
+                  isUserMgmt
                     ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                     : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 overflow-hidden">
                   <ShieldCheck className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
-                  {!isCollapsed && <span className="truncate">User Accounts</span>}
+                  {!isCollapsed && <span className="truncate">User Management</span>}
                 </div>
                 {!isCollapsed && (
                   <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-[rgba(113,72,103,0.12)] text-[var(--color-primary)] rounded">
-                    Access
+                    Admin
                   </span>
                 )}
               </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/user-management?tab=departments')}
-                title="Department Hierarchy & Organization"
-                className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isDeptTab
-                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <Building2 className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
-                  {!isCollapsed && <span className="truncate">Departments</span>}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/user-management?tab=roles')}
-                title="Job Roles & Positions"
-                className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isRoleTab
-                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 overflow-hidden">
-                  <Briefcase className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
-                  {!isCollapsed && <span className="truncate">Roles</span>}
-                </div>
-              </button>
-
-              {(role === 'admin' || role === 'super_admin') && (
-                <button
-                  type="button"
-                  onClick={() => navigate('/contracts?status=draft')}
-                  title="Admin Contract Approvals Portal"
-                  className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                    isContracts && (search.includes('status=draft') || search.includes('tab=pending'))
-                      ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
-                      : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 overflow-hidden">
-                    <FileText className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
-                    {!isCollapsed && <span className="truncate">Contract Approvals</span>}
-                  </div>
-                  {!isCollapsed && (
-                    <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 rounded">
-                      Review
-                    </span>
-                  )}
-                </button>
-              )}
             </nav>
           </div>
         )}

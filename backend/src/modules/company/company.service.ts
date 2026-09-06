@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../../core/config/prisma.js";
 import ApiError from "../../shared/utils/ApiError.js";
 import { createAccessToken } from "../../shared/utils/Token.js";
+import { ensureCompanyStarterStaff } from "../employee/employee.service.js";
 
 export const createCompanyService = async (input: {
   name: string;
@@ -30,7 +31,7 @@ export const createCompanyService = async (input: {
 
   const passwordHash = input.adminPassword ? await bcrypt.hash(input.adminPassword, 10) : undefined;
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const company = await tx.company.create({
       data: {
         name: input.name,
@@ -100,6 +101,10 @@ export const createCompanyService = async (input: {
       accessToken,
     };
   });
+
+  await ensureCompanyStarterStaff(result.company.id);
+
+  return result;
 };
 
 export const getCompanyService = async (companyId: string) => {

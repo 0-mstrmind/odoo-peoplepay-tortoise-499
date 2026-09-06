@@ -84,12 +84,250 @@ export const invalidateEmployeeCache = async (companyId: string, employeeId?: st
   }
 };
 
+/**
+ * Ensures standard departments, positions, and starter employee/HR staff exist for a company.
+ * Automatically links any company users (like Admin) to an active employee record in this company.
+ */
+export const ensureCompanyStarterStaff = async (companyId: string): Promise<void> => {
+  try {
+    // 1. Ensure standard departments exist
+    let depts = await prisma.department.findMany({
+      where: { companyId, deletedAt: null },
+    });
+    if (depts.length === 0) {
+      depts = await Promise.all([
+        prisma.department.create({ data: { companyId, name: "Engineering", code: "ENG" } }),
+        prisma.department.create({ data: { companyId, name: "Human Resources", code: "HR" } }),
+        prisma.department.create({ data: { companyId, name: "Finance & Accounts", code: "FIN" } }),
+        prisma.department.create({ data: { companyId, name: "Operations", code: "OPS" } }),
+      ]);
+    }
+    const hrDept = depts.find((d) => d.code === "HR" || d.name.toLowerCase().includes("human")) || depts[0];
+    const engDept = depts.find((d) => d.code === "ENG" || d.name.toLowerCase().includes("eng")) || depts[0];
+    const finDept = depts.find((d) => d.code === "FIN" || d.name.toLowerCase().includes("fin")) || depts[0];
+    const opsDept = depts.find((d) => d.code === "OPS" || d.name.toLowerCase().includes("ops")) || depts[0];
+
+    // 2. Ensure standard positions exist
+    let positions = await prisma.jobPosition.findMany({
+      where: { companyId, deletedAt: null },
+    });
+    if (positions.length === 0) {
+      positions = await Promise.all([
+        prisma.jobPosition.create({ data: { companyId, title: "Senior Software Engineer", code: "SSE", departmentId: engDept.id } }),
+        prisma.jobPosition.create({ data: { companyId, title: "HR Manager", code: "HRM", departmentId: hrDept.id } }),
+        prisma.jobPosition.create({ data: { companyId, title: "Payroll Specialist", code: "PRS", departmentId: finDept.id } }),
+      ]);
+    }
+    const hrRole = positions.find((p) => p.code === "HRM" || p.title.toLowerCase().includes("hr")) || positions[0];
+    const engRole = positions.find((p) => p.code === "SSE" || p.title.toLowerCase().includes("eng")) || positions[0];
+    const finRole = positions.find((p) => p.code === "PRS" || p.title.toLowerCase().includes("pay")) || positions[0];
+
+    // 3. Ensure all users in this company have a linked Employee record within this company
+    const companyUsers = await prisma.user.findMany({
+      where: { companyId, deletedAt: null },
+      include: { linkedEmployee: true },
+    });
+
+    for (const u of companyUsers) {
+      if (!u.employeeId || u.linkedEmployee?.companyId !== companyId) {
+        // Clear any stale link to an employee in another company
+        await prisma.employee.updateMany({
+          where: { userId: u.id, companyId: { not: companyId } },
+          data: { userId: null },
+        });
+
+        let emp = await prisma.employee.findFirst({
+          where: { companyId, email: u.email, deletedAt: null },
+        });
+
+        if (!emp) {
+          const emailPrefix = u.email.split("@")[0];
+          const nameParts = emailPrefix.split(/[._-]/);
+          const firstName = nameParts[0] ? nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1) : "Company";
+          const lastName = nameParts[1] ? nameParts[1].charAt(0).toUpperCase() + nameParts[1].slice(1) : (u.role.toUpperCase() === "ADMIN" ? "Admin" : "Staff");
+
+          const deptId = u.role.toLowerCase() === "admin" ? opsDept.id : hrDept.id;
+          const posId = u.role.toLowerCase() === "admin" ? undefined : hrRole.id;
+
+          emp = await prisma.employee.create({
+            data: {
+              companyId,
+              employeeCode: `EMP-${u.role.slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+              firstName,
+              lastName,
+              email: u.email,
+              departmentId: deptId,
+              jobPositionId: posId,
+              status: "active",
+              employeeType: "full_time",
+              userId: u.id,
+            },
+          });
+        } else {
+          emp = await prisma.employee.update({
+            where: { id: emp.id },
+            data: { userId: u.id },
+          });
+        }
+
+        await prisma.user.update({
+          where: { id: u.id },
+          data: { employeeId: emp.id },
+        });
+      }
+    }
+
+    // 4. If company has <= 1 employee, provision standard starter team (HR Manager, Lead Engineer, Payroll Specialist)
+    const currentEmpCount = await prisma.employee.count({
+      where: { companyId, deletedAt: null },
+    });
+
+    if (currentEmpCount <= 1) {
+      const company = await prisma.company.findUnique({ where: { id: companyId } });
+      const slugDomain = company?.slug || "company";
+
+      // HR Manager
+      const hrEmail = `hr.${slugDomain}@peoplepay360.com`;
+      let hrEmp = await prisma.employee.findFirst({
+        where: { companyId, email: hrEmail, deletedAt: null },
+      });
+      if (!hrEmp) {
+        hrEmp = await prisma.employee.create({
+          data: {
+            companyId,
+            employeeCode: `EMP-HR-${Date.now().toString().slice(-4)}`,
+            firstName: "Maya",
+            lastName: "Shah",
+            email: hrEmail,
+            departmentId: hrDept.id,
+            jobPositionId: hrRole.id,
+            status: "active",
+            employeeType: "full_time",
+          },
+        });
+
+        const hrUser = await prisma.user.create({
+          data: {
+            companyId,
+            email: hrEmail,
+            role: "hr_manager",
+            employeeId: hrEmp.id,
+            isActive: true,
+          },
+        });
+
+        await prisma.employee.update({
+          where: { id: hrEmp.id },
+          data: { userId: hrUser.id },
+        });
+
+        await prisma.department.update({
+          where: { id: hrDept.id },
+          data: { managerId: hrEmp.id },
+        });
+      }
+
+      // Senior Software Engineer
+      const engEmail = `dev.${slugDomain}@peoplepay360.com`;
+      let engEmp = await prisma.employee.findFirst({
+        where: { companyId, email: engEmail, deletedAt: null },
+      });
+      if (!engEmp) {
+        engEmp = await prisma.employee.create({
+          data: {
+            companyId,
+            employeeCode: `EMP-DEV-${Date.now().toString().slice(-4)}`,
+            firstName: "Rahul",
+            lastName: "Verma",
+            email: engEmail,
+            departmentId: engDept.id,
+            jobPositionId: engRole.id,
+            status: "active",
+            employeeType: "full_time",
+          },
+        });
+
+        const devUser = await prisma.user.create({
+          data: {
+            companyId,
+            email: engEmail,
+            role: "employee",
+            employeeId: engEmp.id,
+            isActive: true,
+          },
+        });
+
+        await prisma.employee.update({
+          where: { id: engEmp.id },
+          data: { userId: devUser.id },
+        });
+
+        await prisma.department.update({
+          where: { id: engDept.id },
+          data: { managerId: engEmp.id },
+        });
+      }
+
+      // Payroll Specialist
+      const finEmail = `finance.${slugDomain}@peoplepay360.com`;
+      let finEmp = await prisma.employee.findFirst({
+        where: { companyId, email: finEmail, deletedAt: null },
+      });
+      if (!finEmp) {
+        finEmp = await prisma.employee.create({
+          data: {
+            companyId,
+            employeeCode: `EMP-FIN-${Date.now().toString().slice(-4)}`,
+            firstName: "Aarav",
+            lastName: "Mehta",
+            email: finEmail,
+            departmentId: finDept.id,
+            jobPositionId: finRole.id,
+            status: "active",
+            employeeType: "full_time",
+          },
+        });
+
+        const finUser = await prisma.user.create({
+          data: {
+            companyId,
+            email: finEmail,
+            role: "hr_payroll_user",
+            employeeId: finEmp.id,
+            isActive: true,
+          },
+        });
+
+        await prisma.employee.update({
+          where: { id: finEmp.id },
+          data: { userId: finUser.id },
+        });
+
+        await prisma.department.update({
+          where: { id: finDept.id },
+          data: { managerId: finEmp.id },
+        });
+      }
+    }
+
+    await invalidateEmployeeCache(companyId);
+  } catch (err: any) {
+    logger.warn(`[Employee] Failed to ensure starter staff: ${err.message}`);
+  }
+};
+
 // List employees with rich filters and smart count aggregation
 export const listEmployeesService = async (
   query: QueryEmployeeInput,
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  if (companyId) {
+    const count = await prisma.employee.count({ where: { companyId, deletedAt: null } });
+    if (count <= 1) {
+      await ensureCompanyStarterStaff(companyId);
+    }
+  }
   const { search, departmentId, jobPositionId, status, employeeType, page = 1, limit = 50 } = query;
 
   const skip = (page - 1) * limit;
@@ -1012,6 +1250,12 @@ export const getEmployeeStatsService = async (callerCompanyId?: string | null) =
 // Master retrieval & creation helpers
 export const listDepartmentsService = async (callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  if (companyId) {
+    const count = await prisma.employee.count({ where: { companyId, deletedAt: null } });
+    if (count <= 1) {
+      await ensureCompanyStarterStaff(companyId);
+    }
+  }
   const departments = await prisma.department.findMany({
     where: { companyId, deletedAt: null },
     include: {
@@ -1044,6 +1288,12 @@ export const listDepartmentsService = async (callerCompanyId?: string | null) =>
 
 export const listJobPositionsService = async (callerCompanyId?: string | null) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  if (companyId) {
+    const count = await prisma.employee.count({ where: { companyId, deletedAt: null } });
+    if (count <= 1) {
+      await ensureCompanyStarterStaff(companyId);
+    }
+  }
   const positions = await prisma.jobPosition.findMany({
     where: { companyId, deletedAt: null },
     include: {
