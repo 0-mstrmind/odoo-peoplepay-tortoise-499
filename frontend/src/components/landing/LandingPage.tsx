@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom'
 import {
   Building2,
   ShieldCheck,
-  CheckCircle2,
   ArrowRight,
   Sparkles,
 } from 'lucide-react'
@@ -15,16 +14,7 @@ export const LandingPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-[#FAFAFC] text-[#1A1F36] font-sans antialiased selection:bg-[#714867] selection:text-white relative overflow-x-hidden">
-      {/* ── WATERMARK BACKGROUND OVERLAY ──────────────────────────────────── */}
-      <div
-        className="fixed inset-0 pointer-events-none z-0 opacity-40 bg-repeat bg-top"
-        style={{
-          backgroundImage: "url('/assets/odoo_watermark_pattern.jpg')",
-          backgroundSize: '1200px',
-        }}
-      />
-
-      {/* Decorative Odoo Grid Pattern Subtle SVG Watermark */}
+      {/* Decorative Subtle Grid SVG Pattern */}
       <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]">
         <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
@@ -37,24 +27,19 @@ export const LandingPage: React.FC = () => {
       </div>
 
       <div className="relative z-10">
-        {/* ── STICKY ENTERPRISE NAVIGATION (ODOO STYLE) ────────────────────── */}
+        {/* ── STICKY ENTERPRISE NAVIGATION ─────────────────────────────────── */}
         <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#E2E5EA] shadow-2xs transition-all">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-            {/* Logo & Edition Pill */}
+            {/* Logo */}
             <div className="flex items-center gap-3">
               <Link to="/" className="flex items-center gap-2.5 group">
                 <div className="w-10 h-10 rounded-lg bg-[#714867] text-white flex items-center justify-center font-black text-xl shadow-sm group-hover:scale-105 transition-transform">
                   P
                 </div>
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg font-extrabold text-[#1A1F36] tracking-tight leading-none group-hover:text-[#714867] transition-colors">
-                      PeoplePay<span className="text-[#714867]">360</span>
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider bg-[#00A09D]/10 text-[#00A09D] px-2 py-0.5 rounded-full border border-[#00A09D]/20">
-                      Odoo Suite
-                    </span>
-                  </div>
+                  <span className="text-lg font-extrabold text-[#1A1F36] tracking-tight leading-none group-hover:text-[#714867] transition-colors">
+                    PeoplePay<span className="text-[#714867]">360</span>
+                  </span>
                   <span className="text-[10px] text-[#6B7280] font-medium tracking-wide">
                     Enterprise HR & Multi-Tenant Payroll
                   </span>
@@ -93,7 +78,7 @@ export const LandingPage: React.FC = () => {
           </div>
         </header>
 
-        {/* ── HERO SECTION WITH WATERMARK GRAPHICS ─────────────────────────── */}
+        {/* ── HERO SECTION ─────────────────────────────────────────────────── */}
         <section id="overview" className="relative z-10 pt-12 pb-20 lg:pt-20 lg:pb-28 overflow-hidden">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
@@ -103,7 +88,7 @@ export const LandingPage: React.FC = () => {
                 <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-[#E2E5EA] shadow-2xs">
                   <span className="flex h-2 w-2 rounded-full bg-[#00A09D] animate-pulse" />
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#714867]">
-                    Odoo-Level Multi-Tenant Architecture
+                    Enterprise Multi-Tenant Architecture
                   </span>
                   <span className="text-gray-300">|</span>
                   <span className="text-[11px] font-semibold text-emerald-600">
@@ -124,7 +109,7 @@ export const LandingPage: React.FC = () => {
 
                 {/* Subheading */}
                 <p className="text-base sm:text-lg text-[#3D4460] font-normal leading-relaxed max-w-2xl mx-auto lg:mx-0">
-                  A modern, open-source-inspired workforce engine. Manage employee master records, shift attendance, contract wage architectures, and multi-tenant salary rules with single-click batch payruns.
+                  A modern, high-performance workforce engine. Manage employee master records, shift attendance, contract wage architectures, and multi-tenant salary rules with single-click batch payruns.
                 </p>
 
                 {/* Action Buttons */}
@@ -157,25 +142,9 @@ export const LandingPage: React.FC = () => {
                     </>
                   )}
                 </div>
-
-                {/* Key Trust Checkmarks */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 text-xs font-semibold text-[#475569]">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>PostgreSQL Tenant Isolation</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Statutory PF, ESI & TDS Ready</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Zero Manual Formula Errors</span>
-                  </div>
-                </div>
               </div>
 
-              {/* Right Hero Image Card (With Watermark Glassmorphism) */}
+              {/* Right Hero Image Card */}
               <div className="lg:col-span-5 relative">
                 <div className="relative mx-auto max-w-md lg:max-w-none">
                   {/* Glowing Aura Accent */}
@@ -196,10 +165,10 @@ export const LandingPage: React.FC = () => {
                       <div className="w-4" />
                     </div>
 
-                    {/* Generated Isometric Odoo ERP Hero Illustration */}
+                    {/* Isometric ERP Hero Illustration */}
                     <div className="relative overflow-hidden bg-slate-900 group">
                       <img
-                        src="/assets/odoo_erp_hero.jpg"
+                        src="/assets/enterprise_erp_hero.jpg"
                         alt="PeoplePay360 Enterprise ERP Interface"
                         className="w-full h-auto object-cover transform group-hover:scale-102 transition-transform duration-700"
                       />
@@ -207,7 +176,7 @@ export const LandingPage: React.FC = () => {
                       {/* Watermark Overlay Stamp */}
                       <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded border border-white/20 text-[10px] font-bold text-white flex items-center gap-1.5">
                         <ShieldCheck className="w-3 h-3 text-emerald-400" />
-                        <span>ODOO ARCHITECTURE CERTIFIED</span>
+                        <span>ENTERPRISE ARCHITECTURE CERTIFIED</span>
                       </div>
                     </div>
 
