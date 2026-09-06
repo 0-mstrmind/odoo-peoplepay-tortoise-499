@@ -30,6 +30,8 @@ import {
   updateBankAccountService,
   deleteBankAccountService,
   getMasterDataService,
+  listDepartmentsService,
+  listJobPositionsService,
   createDepartmentService,
   createJobPositionService,
   createWorkingScheduleService,
@@ -162,6 +164,16 @@ export const getMasterData = CatchAsync(async (req: Request, res: Response) => {
 export const getEmployeeStats = CatchAsync(async (req: Request, res: Response) => {
   const stats = await getEmployeeStatsService(req.user?.companyId);
   sendResponse(res, StatusCodes.OK, "Employee stats retrieved successfully", stats);
+});
+
+export const getDepartments = CatchAsync(async (req: Request, res: Response) => {
+  const departments = await listDepartmentsService(req.user?.companyId);
+  sendResponse(res, StatusCodes.OK, "Departments retrieved successfully", { departments });
+});
+
+export const getJobPositions = CatchAsync(async (req: Request, res: Response) => {
+  const jobPositions = await listJobPositionsService(req.user?.companyId);
+  sendResponse(res, StatusCodes.OK, "Job positions retrieved successfully", { jobPositions });
 });
 
 export const createDepartment = CatchAsync(async (req: Request, res: Response) => {

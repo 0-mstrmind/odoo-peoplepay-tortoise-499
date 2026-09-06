@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ChevronDown,
   Building2,
+  Briefcase,
   LogOut,
   Settings,
 } from 'lucide-react'
@@ -71,6 +72,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const isPayouts = pathname.startsWith('/payouts') || pathname.startsWith('/payout-history')
   const isPayroll = pathname.startsWith('/payroll')
   const isUserMgmt = pathname.startsWith('/user-management')
+  const isUserTab = isUserMgmt && (!search.includes('tab=') || search.includes('tab=users'))
+  const isDeptTab = isUserMgmt && search.includes('tab=departments')
+  const isRoleTab = isUserMgmt && search.includes('tab=roles')
 
   return (
     <aside
@@ -184,9 +188,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate('/employees?tab=departments')}
+                        onClick={() => navigate('/user-management?tab=departments')}
                         className={`w-full text-left px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer ${
-                          search.includes('tab=departments')
+                          isDeptTab
                             ? 'text-[var(--color-primary)] font-bold'
                             : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
                         }`}
@@ -195,14 +199,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate('/employees?tab=positions')}
+                        onClick={() => navigate('/user-management?tab=roles')}
                         className={`w-full text-left px-2 py-1 text-[11px] font-medium rounded transition-colors cursor-pointer ${
-                          search.includes('tab=positions')
+                          isRoleTab
                             ? 'text-[var(--color-primary)] font-bold'
                             : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-heading)]'
                         }`}
                       >
-                        Job Positions
+                        Roles (Job Positions)
                       </button>
                     </div>
                   )}
@@ -370,23 +374,55 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <nav className="space-y-0.5">
               <button
                 type="button"
-                onClick={() => navigate('/user-management')}
+                onClick={() => navigate('/user-management?tab=users')}
                 title="User Access & Security Roles"
                 className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
-                  isUserMgmt
+                  isUserTab
                     ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
                     : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
                 }`}
               >
                 <div className="flex items-center gap-2.5 overflow-hidden">
                   <ShieldCheck className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
-                  {!isCollapsed && <span className="truncate">User Management</span>}
+                  {!isCollapsed && <span className="truncate">User Accounts</span>}
                 </div>
                 {!isCollapsed && (
                   <span className="px-1.5 py-0.5 text-[9px] uppercase font-bold bg-[rgba(113,72,103,0.12)] text-[var(--color-primary)] rounded">
                     Access
                   </span>
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/user-management?tab=departments')}
+                title="Department Hierarchy & Organization"
+                className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                  isDeptTab
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <Building2 className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
+                  {!isCollapsed && <span className="truncate">Departments</span>}
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/user-management?tab=roles')}
+                title="Job Roles & Positions"
+                className={`w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-[6px] transition-colors cursor-pointer ${
+                  isRoleTab
+                    ? 'text-[var(--color-primary)] bg-[rgba(113,72,103,0.1)]'
+                    : 'text-[var(--color-text-body)] hover:text-[var(--color-text-heading)] hover:bg-[var(--color-bg-muted)]'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <Briefcase className="w-4 h-4 shrink-0 text-[var(--color-primary)]" />
+                  {!isCollapsed && <span className="truncate">Roles</span>}
+                </div>
               </button>
 
               {(role === 'admin' || role === 'super_admin') && (

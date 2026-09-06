@@ -17,6 +17,8 @@ import {
   deleteBankAccount,
   getMasterData,
   getEmployeeStats,
+  getDepartments,
+  getJobPositions,
   createDepartment,
   createJobPosition,
   createWorkingSchedule,
@@ -34,7 +36,11 @@ const HR_ROLES = ["admin", "hr_manager", "hr_payroll_manager", "hr_payroll_user"
 router.get("/me", clerkAuthMiddleware, getMyEmployeeProfile);
 router.get("/meta/masters", clerkAuthMiddleware, getMasterData);
 router.get("/meta/stats", clerkAuthMiddleware, getEmployeeStats);
+router.get("/meta/departments", clerkAuthMiddleware, getDepartments);
+router.get("/departments", clerkAuthMiddleware, getDepartments);
 router.post("/meta/departments", clerkAuthMiddleware, requireRole(...HR_ROLES), createDepartment);
+router.get("/meta/job-positions", clerkAuthMiddleware, getJobPositions);
+router.get("/job-positions", clerkAuthMiddleware, getJobPositions);
 router.post("/meta/job-positions", clerkAuthMiddleware, requireRole(...HR_ROLES), createJobPosition);
 router.post("/meta/working-schedules", clerkAuthMiddleware, requireRole(...HR_ROLES), createWorkingSchedule);
 

@@ -1009,24 +1009,121 @@ export const getEmployeeStatsService = async (callerCompanyId?: string | null) =
   };
 };
 
-// Master creation helpers
+// Master retrieval & creation helpers
+export const listDepartmentsService = async (callerCompanyId?: string | null) => {
+  const companyId = await resolveCompanyId(callerCompanyId);
+  const departments = await prisma.department.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      manager: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+      _count: {
+        select: {
+          employees: { where: { deletedAt: null } },
+          jobPositions: { where: { deletedAt: null } },
+        },
+      },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return departments.map((d) => ({
+    id: d.id,
+    name: d.name,
+    code: d.code,
+    managerId: d.managerId,
+    managerName: d.manager ? `${d.manager.firstName} ${d.manager.lastName}`.trim() : null,
+    managerEmail: d.manager?.email || null,
+    isActive: d.isActive,
+    employeeCount: d._count.employees,
+    positionCount: d._count.jobPositions,
+    createdAt: d.createdAt,
+  }));
+};
+
+export const listJobPositionsService = async (callerCompanyId?: string | null) => {
+  const companyId = await resolveCompanyId(callerCompanyId);
+  const positions = await prisma.jobPosition.findMany({
+    where: { companyId, deletedAt: null },
+    include: {
+      department: {
+        select: { id: true, name: true, code: true },
+      },
+      _count: {
+        select: {
+          employees: { where: { deletedAt: null } },
+        },
+      },
+    },
+    orderBy: { title: "asc" },
+  });
+
+  return positions.map((p) => ({
+    id: p.id,
+    title: p.title,
+    code: p.code,
+    departmentId: p.departmentId,
+    departmentName: p.department?.name || "Unassigned",
+    isActive: p.isActive,
+    employeeCount: p._count.employees,
+    createdAt: p.createdAt,
+  }));
+};
+
 export const createDepartmentService = async (
   input: { name: string; code?: string | null; managerId?: string | null },
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  const trimmedName = input.name.trim();
+
+  const existing = await prisma.department.findFirst({
+    where: {
+      companyId,
+      name: { equals: trimmedName, mode: "insensitive" },
+      deletedAt: null,
+    },
+  });
+
+  if (existing) {
+    throw new ApiError(StatusCodes.CONFLICT, `Department "${trimmedName}" already exists`);
+  }
+
   const dept = await prisma.department.create({
     data: {
       companyId,
-      name: input.name,
-      code: input.code || null,
+      name: trimmedName,
+      code: input.code?.trim() || null,
       managerId: input.managerId || null,
+    },
+    include: {
+      manager: {
+        select: { id: true, firstName: true, lastName: true, email: true },
+      },
+      _count: {
+        select: {
+          employees: { where: { deletedAt: null } },
+          jobPositions: { where: { deletedAt: null } },
+        },
+      },
     },
   });
 
   await invalidateEmployeeCache(companyId);
 
-  return dept;
+  return {
+    id: dept.id,
+    name: dept.name,
+    code: dept.code,
+    managerId: dept.managerId,
+    managerName: dept.manager ? `${dept.manager.firstName} ${dept.manager.lastName}`.trim() : null,
+    managerEmail: dept.manager?.email || null,
+    isActive: dept.isActive,
+    employeeCount: dept._count.employees,
+    positionCount: dept._count.jobPositions,
+    createdAt: dept.createdAt,
+  };
 };
 
 export const createJobPositionService = async (
@@ -1034,18 +1131,52 @@ export const createJobPositionService = async (
   callerCompanyId?: string | null,
 ) => {
   const companyId = await resolveCompanyId(callerCompanyId);
+  const trimmedTitle = input.title.trim();
+
+  const existing = await prisma.jobPosition.findFirst({
+    where: {
+      companyId,
+      title: { equals: trimmedTitle, mode: "insensitive" },
+      departmentId: input.departmentId || null,
+      deletedAt: null,
+    },
+  });
+
+  if (existing) {
+    throw new ApiError(StatusCodes.CONFLICT, `Role / Job Position "${trimmedTitle}" already exists in this department`);
+  }
+
   const pos = await prisma.jobPosition.create({
     data: {
       companyId,
-      title: input.title,
-      code: input.code || null,
+      title: trimmedTitle,
+      code: input.code?.trim() || null,
       departmentId: input.departmentId || null,
+    },
+    include: {
+      department: {
+        select: { id: true, name: true, code: true },
+      },
+      _count: {
+        select: {
+          employees: { where: { deletedAt: null } },
+        },
+      },
     },
   });
 
   await invalidateEmployeeCache(companyId);
 
-  return pos;
+  return {
+    id: pos.id,
+    title: pos.title,
+    code: pos.code,
+    departmentId: pos.departmentId,
+    departmentName: pos.department?.name || "Unassigned",
+    isActive: pos.isActive,
+    employeeCount: pos._count.employees,
+    createdAt: pos.createdAt,
+  };
 };
 
 export const createWorkingScheduleService = async (

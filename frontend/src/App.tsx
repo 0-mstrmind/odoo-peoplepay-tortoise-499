@@ -132,6 +132,10 @@ function App() {
               </ProtectedRoute>
             }
           />
+
+          {/* Department & Role Management Aliases */}
+          <Route path="departments" element={<Navigate to="/user-management?tab=departments" replace />} />
+          <Route path="roles" element={<Navigate to="/user-management?tab=roles" replace />} />
         </Route>
 
         {/* Catch-all: Redirect unmatched routes to /dashboard */}
